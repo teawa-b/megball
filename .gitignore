@@ -13,3 +13,5 @@ assets/raw/
 Thumbs.db
 desktop.ini
 *.swp
+
+.vercel
