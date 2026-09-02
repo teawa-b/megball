@@ -1,0 +1,15 @@
+# Build output — regenerate with `node tools/build.js`.
+dist/
+
+# Never used by the game itself, but tooling may create it.
+node_modules/
+
+# 16 MB of source PNGs. The shipped art is the compressed WebP data URIs
+# already baked into src/assets.js by tools/pack_assets.py.
+assets/raw/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp

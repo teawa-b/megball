@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MEGABALL — Pinball Tower Defense</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#05060d">
+<meta name="description" content="A tower defense game played on a vertical pinball table.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  /* Fixed portrait, no scrolling, no browser gestures stealing input. */
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #05060d; overflow: hidden;
+    overscroll-behavior: none; touch-action: none;
+    -webkit-user-select: none; user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  }
+  #stage { position: fixed; inset: 0; display: block; }
+  #game  { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* Boot splash — also the gesture that unlocks Web Audio on mobile. */
+  #boot {
+    position: fixed; inset: 0; z-index: 40; display: flex;
+    flex-direction: column; align-items: center; justify-content: center;
+    background: #05060d; color: #fff; transition: opacity .4s; text-align: center;
+  }
+  #boot.gone { opacity: 0; pointer-events: none; }
+  #boot .mark {
+    width: 76px; height: 76px; border-radius: 50%;
+    background: #fff; border: 9px solid #000;
+    box-shadow: 0 0 46px rgba(63,224,255,.55);
+    animation: drop 1.15s cubic-bezier(.45,0,.35,1) infinite;
+  }
+  @keyframes drop {
+    0%   { transform: translateY(-26px) scale(1,1); }
+    55%  { transform: translateY(20px)  scale(1.09,.9); }
+    70%  { transform: translateY(20px)  scale(.94,1.07); }
+    100% { transform: translateY(-26px) scale(1,1); }
+  }
+  #boot .t { margin-top: 30px; font-weight: 900; font-size: 13px; letter-spacing: .5em;
+             color: #3fe0ff; text-transform: uppercase; }
+  #boot .s { margin-top: 10px; font-size: 12px; color: rgba(255,255,255,.4); font-weight: 600; }
+
+  /* Landscape nudge: the game is designed for portrait only. */
+  #rotate {
+    position: fixed; inset: 0; z-index: 60; display: none;
+    align-items: center; justify-content: center; flex-direction: column;
+    background: #05060d; color: #fff; text-align: center; padding: 30px;
+  }
+  #rotate b { font-size: 17px; letter-spacing: .1em; text-transform: uppercase; }
+  #rotate p { color: rgba(255,255,255,.5); font-size: 13px; margin-top: 10px; font-weight: 600; }
+  /* Touch devices only: a desktop browser window is landscape by nature and
+   * plays the letterboxed table fine, so gating on a coarse pointer keeps the
+   * prompt for the phones and tablets it is actually meant for. */
+  @media (orientation: landscape) and (pointer: coarse) and (hover: none) {
+    #rotate { display: flex; }
+  }
+</style>
+</head>
+<body>
+
+<div id="stage"><canvas id="game"></canvas></div>
+
+<div id="boot">
+  <div class="mark"></div>
+  <div class="t">Megaball</div>
+  <div class="s" id="bootmsg">Loading…</div>
+</div>
+
+<div id="rotate">
+  <b>Rotate your device</b>
+  <p>Megaball is played in portrait.</p>
+</div>
+
+<!-- Load order matters: each file attaches one global and may only use the
+     earlier ones. No ES modules, so the game also runs straight from file://. -->
+<script src="src/util.js"></script>
+<script src="src/assets.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/fx.js"></script>
+<script src="src/physics.js"></script>
+<script src="src/board.js"></script>
+<script src="src/entities.js"></script>
+<script src="src/cards.js"></script>
+<script src="src/levels.js"></script>
+<script src="src/render.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/game.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('game');
+  var ctx = canvas.getContext('2d', { alpha: false });
+  var boot = document.getElementById('boot');
+  var bootmsg = document.getElementById('bootmsg');
+
+  /* ---- input ---------------------------------------------------------- */
+
+  function bindInput() {
+    canvas.addEventListener('pointerdown', function (e) {
+      /* Pointer capture keeps a flipper held even if the finger slides off the
+       * canvas, but setPointerCapture throws for a pointer the browser does
+       * not consider active. Losing the whole handler to that would mean dead
+       * flippers, so it is strictly best-effort. */
+      try {
+        if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
+      } catch (err) { /* best effort only */ }
+      GAME.pointerDown(e.pointerId, e.clientX, e.clientY);
+      e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('pointermove', function (e) {
+      GAME.pointerMove(e.pointerId, e.clientX, e.clientY);
+    }, { passive: true });
+
+    function up(e) { GAME.pointerUp(e.pointerId); }
+    canvas.addEventListener('pointerup', up, { passive: true });
+    canvas.addEventListener('pointercancel', up, { passive: true });
+    canvas.addEventListener('lostpointercapture', up, { passive: true });
+
+    /* Belt and braces: never leave a flipper stuck down. */
+    window.addEventListener('blur', function () { GAME.clearPointers(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) GAME.clearPointers();
+    });
+
+    window.addEventListener('keydown', function (e) {
+      if (e.repeat) return;
+      if (SFX && SFX.init) SFX.init();
+      GAME.keyDown(e.code);
+      if (e.code === 'Space' || e.code.indexOf('Arrow') === 0) e.preventDefault();
+    });
+    window.addEventListener('keyup', function (e) { GAME.keyUp(e.code); });
+
+    window.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    window.addEventListener('resize', resize);
+    window.addEventListener('orientationchange', function () { setTimeout(resize, 220); });
+  }
+
+  function resize() { DRAW.resize(canvas); }
+
+  /* ---- loop ------------------------------------------------------------ */
+
+  var last = 0;
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!last) last = now;
+    /* Clamp dt: a backgrounded tab returning with a 3-second delta would
+     * otherwise teleport every ball through the table. */
+    var dt = Math.min((now - last) / 1000, 0.05);
+    last = now;
+
+    GAME.update(dt);
+    DRAW.frame(ctx, GAME.state);
+  }
+
+  /* ---- boot ------------------------------------------------------------ */
+
+  function start() {
+    UI.init({
+      onStartLevel: function (id) {
+        UI.showScreen(null);
+        GAME.startLevel(id, GAME.progress.loadout);
+      }
+    });
+
+    resize();
+    bindInput();
+
+    if (SFX && SFX.setMuted) SFX.setMuted(!!GAME.progress.muted);
+    if (SFX && SFX.music) SFX.music('menu');
+
+    GAME.state.mode = 'menu';
+    UI.showScreen('title');
+
+    boot.classList.add('gone');
+    setTimeout(function () { boot.style.display = 'none'; }, 450);
+
+    requestAnimationFrame(frame);
+  }
+
+  /* Assets are decoration layered over procedural drawing, so a failure here
+   * must never stop the game — ART.load always calls back. */
+  bootmsg.textContent = 'Loading assets…';
+  if (window.ART && ART.load) {
+    ART.load(function () { bootmsg.textContent = 'Ready'; start(); });
+  } else {
+    start();
+  }
+})();
+</script>
+</body>
+</html>
