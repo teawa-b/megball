@@ -306,12 +306,18 @@
     '#ui .ctl{display:flex;align-items:center;gap:16px;flex:0 0 auto;margin-top:10px;}',
     '#ui .start{flex:0 0 116px;width:116px;height:116px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
     '  background:radial-gradient(circle at 50% 36%,#fff1bf 0%,#ffcf4a 30%,#f39316 60%,#8f4306 100%);',
-    '  box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 34px rgba(255,176,32,.35);',
-    '  animation:startPulse 1.9s ease-in-out infinite;transition:transform .08s,filter .12s;}',
-    '#ui .sheet.home.boot .start{animation:startPulse 1.9s ease-in-out infinite,startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;}',
+    '  box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.5),0 14px 30px rgba(0,0,0,.6),0 0 30px rgba(255,176,32,.3);',
+    '  transition:transform .08s,filter .12s;}',
+    '#ui .sheet.home.boot .start{animation:startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;}',
     '@keyframes startOn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}',
-    '@keyframes startPulse{0%,100%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 26px rgba(255,176,32,.25)}',
-    '  50%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,210,74,.7),0 14px 30px rgba(0,0,0,.6),0 0 60px rgba(255,190,50,.7)}}',
+    /* The button used to breathe by animating a 60px-blur box-shadow, which
+     * repaints a large area every frame for as long as the menu is open. The
+     * same glow now lives on its own halo element and animates only opacity
+     * and transform, so the compositor carries it and the paint cost is nil. */
+    '#ui .start .halo{position:absolute;inset:-16px;border-radius:50%;pointer-events:none;z-index:0;',
+    '  background:radial-gradient(circle,rgba(255,196,60,.5) 38%,rgba(255,176,32,.16) 62%,rgba(255,176,32,0) 76%);',
+    '  animation:haloPulse 1.9s ease-in-out infinite;will-change:opacity,transform;}',
+    '@keyframes haloPulse{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}',
     '#ui .start::before{content:"";position:absolute;inset:7px;border-radius:50%;border:2px solid rgba(255,255,255,.28);border-bottom-color:rgba(110,45,0,.45);}',
     '#ui .start::after{content:"";position:absolute;left:24%;top:9%;width:52%;height:26%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,0));}',
     '#ui .start b{position:relative;z-index:1;display:block;font:30px/1 ' + PX + ';color:#3a1600;text-shadow:0 1px 0 rgba(255,255,255,.4);}',
@@ -328,7 +334,7 @@
     '#ui .sheet.home.boot .sc:nth-child(1){animation-delay:.45s}#ui .sheet.home.boot .sc:nth-child(2){animation-delay:.53s}#ui .sheet.home.boot .sc:nth-child(3){animation-delay:.61s}#ui .sheet.home.boot .sc:nth-child(4){animation-delay:.69s}',
     '@keyframes rowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}',
     '#ui .sc:last-child{border-bottom:0;}',
-    '#ui .sc i{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff,0 0 2px #fff;transition:background .1s,box-shadow .1s;}',
+    '#ui .sc i{position:relative;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff,0 0 2px #fff;transition:background .1s,box-shadow .1s;}',
     '#ui .sc.mag i{background:#ff2e88;box-shadow:0 0 8px #ff2e88,0 0 2px #fff;}',
     '#ui .sc.amb i{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
     '#ui .sc .lb{flex:0 0 auto;text-shadow:0 0 10px rgba(63,224,255,.35);}',
@@ -336,6 +342,28 @@
     '#ui .sc .ct{flex:0 0 auto;font-size:12px;color:#ffd24a;text-shadow:0 0 8px rgba(255,210,74,.4);}',
     '#ui .sc:hover{background:rgba(63,224,255,.05);}#ui .sc:active{background:rgba(63,224,255,.10);}',
     '#ui .sc:active i{background:#fff;box-shadow:0 0 12px #fff;}',
+    /* Attract lamp rail: the chase from the boot splash, carried onto the
+     * backglass so the machine still looks awake while it waits. Only the
+     * lamp caps animate, one opacity each, so this is compositor work. */
+    '#ui .lamprail{display:flex;justify-content:center;gap:13px;flex:0 0 auto;margin:0 0 9px;}',
+    '#ui .lamprail i{position:relative;width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.06);',
+    '  box-shadow:inset 0 0 0 1px rgba(143,232,255,.22);}',
+    '#ui .lamprail i::after{content:"";position:absolute;inset:-1px;border-radius:50%;background:#ffd24a;',
+    '  box-shadow:0 0 9px #ffd24a,0 0 2px #fff;opacity:0;animation:railChase 2.4s linear infinite;}',
+    '@keyframes railChase{0%,7%{opacity:1}26%,100%{opacity:0}}',
+    '#ui .lamprail i:nth-child(2)::after{animation-delay:.17s}#ui .lamprail i:nth-child(3)::after{animation-delay:.34s}',
+    '#ui .lamprail i:nth-child(4)::after{animation-delay:.51s}#ui .lamprail i:nth-child(5)::after{animation-delay:.68s}',
+    '#ui .lamprail i:nth-child(6)::after{animation-delay:.85s}#ui .lamprail i:nth-child(7)::after{animation-delay:1.02s}',
+    '#ui .lamprail i:nth-child(8)::after{animation-delay:1.19s}#ui .lamprail i:nth-child(9)::after{animation-delay:1.36s}',
+    /* Insert lamps on the scorecard wink in turn, the way a real cabinet
+     * nags you to pick a mode. The dot keeps its own steady glow; a cap on
+     * top fades in and out, so nothing repaints. */
+    '#ui .sheet.home .sc i::after{content:"";position:absolute;inset:-3px;border-radius:50%;background:inherit;',
+    '  opacity:0;animation:insertWink 4.2s ease-in-out infinite;}',
+    '@keyframes insertWink{0%,74%,100%{opacity:0}82%,88%{opacity:.5}}',
+    '#ui .sheet.home .sc:nth-child(2) i::after{animation-delay:.5s}',
+    '#ui .sheet.home .sc:nth-child(3) i::after{animation-delay:1s}',
+    '#ui .sheet.home .sc:nth-child(4) i::after{animation-delay:1.5s}',
     /* Attract line. */
     '#ui .attract{flex:0 0 auto;margin:12px 0 0;text-align:center;font:10px/1 ' + PX + ';color:rgba(143,232,255,.7);letter-spacing:.14em;text-transform:uppercase;',
     '  animation:blink 1.7s steps(1,end) .9s infinite;}',
@@ -908,9 +936,10 @@
         ? '<div class="brand"><div class="brand-glow"></div><div class="brand-logo" role="img" aria-label="MegaBall Defense" style="background-image:url(' + logo.src + ')"></div></div>'
         : '<h1>MEGA<br>BALL</h1>',
       '<div class="spacer mid"></div>',
+      '<div class="lamprail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>',
       '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="plate">Megaball display</span></div>',
       '<div class="ctl">',
-      '<button class="start" id="play" aria-label="Play World 1 Stage ' + curId + '"><b>Play</b><small>Stage ' + curId + '</small></button>',
+      '<button class="start" id="play" aria-label="Play World 1 Stage ' + curId + '"><span class="halo" aria-hidden="true"></span><b>Play</b><small>Stage ' + curId + '</small></button>',
       '<div class="scard">',
       '<button class="sc" id="lvls"><i></i><span class="lb">Levels</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
       '<button class="sc mag" id="deck"><i></i><span class="lb">Power cards</span><span class="ld"></span><span class="ct">' + owned.cards.length + '/' + cardsMax + '</span></button>',
