@@ -151,6 +151,114 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   results and pause; no console errors; `node tools/build.js` + `node tools/verify.js` PASS
   (document 1.12 MB).
 
+## 4f. Endless mode
+
+- A second way to play from the Home screen: Endless. It reuses the whole level pipeline
+  (build phase, banner, wave compiler, results) by being a level whose wave list is written
+  on demand instead of authored (`LEVELS.ENDLESS`, `LEVELS.endlessWave` in `src/levels.js`).
+  Each wave is generated from a points budget that grows every wave; Runners join at wave 2,
+  Haulers at 4, Bulwarks at 6, Dividers at 8; every 10th wave is a Colossus with an escort.
+- Enemy HP scales with `LEVELS.endlessDifficulty` (linear early, gently quadratic later),
+  build countdowns shrink from 11s to a 6s floor, and the wave-clear bonus is capped so late
+  waves are not a free-build festival. Clearing a boss wave restores one life.
+- Each run rolls its own seed. The HUD shows `WAVE n` with the saved record under it, the
+  boss banner reads BOSS WAVE instead of FINAL WAVE, and the run ends on a dedicated results
+  screen (waves survived, best run, kills, leaks, NEW BEST banner). Progress stores
+  `endlessBest` and `endlessRuns`; campaign stars and unlocks are untouched.
+- Verified in the in-app browser at 390x844 by driving `GAME.update` from script: eleven
+  waves including the wave-10 boss, life restore, best-run save, and the lose flow; no
+  console errors.
+
+## 4g. Phone fit without stretch; home screen recomposed
+
+- The board is now scaled uniformly on every device: the 1.06 per-axis stretch is gone
+  (`U.UI.maxStretch` removed). At 375x812 the table used to be 6% taller than wide and still
+  sat between two 37px black bars.
+- Spare height on a tall phone becomes cabinet instead of bars (`DRAW.resize` in
+  `src/render.js`): the HUD rises into the head panel above the table frame, up to
+  `U.UI.headMax` (100) units, which uncovers the spawn gates and the INCOMING banner; whatever
+  is left goes to the card tray, whose hand, build piles and upgrade panel scale up (capped at
+  `U.UI.trayScaleMax`, 1.3) and sit centred in the apron. Short viewports, tablets and desktop
+  keep the height-limited contain fit with slim side bars.
+- `DRAW.vp` exposes `viewTop / viewBottom / hudShift / trayShift`. Tray hit rects stay in
+  tray space; `pickTray` maps taps in, `trayRects` / `upgradeRects` map rects out for the
+  tutorial and the build hint, and the hold-to-read popout grows from the on-screen cell.
+- The WebGL camera (`src/scene3d.js`) keeps its eye where it was and opens an off-axis frustum
+  (`setViewOffset`) to the same band, so the table's perspective is identical on every phone
+  and tall ones simply see more of the head and apron plates, which now run 480 units past
+  the board. The full-screen flash in `src/fx.js` overfills the taller band.
+- Home screen (`screenTitle` in `src/ui.js`) recomposed: a slim pilot strip (rank, progress to
+  the next unlock, sound), the logo as the hero with the key art breathing under it, then a
+  foot cluster of one gold PLAY and a 2x2 grid of tiles (Levels, Power Cards, Endless, Learn)
+  that carry their own counts. The four-row list, the world/stars/best footer tiles and the
+  version line are gone; everything fits 360x560 upward without clipping.
+- Verified in the in-app browser at 375x812, 390x844, 412x915, 375x667, 360x640 and desktop
+  by driving `GAME.update` from script: no console errors; tray cells, pause and hold-to-read
+  hit-test correctly through the scaled tray; tutorial pointers land on the larger cells.
+
+## 4h. Home screen as a pinball backglass
+
+- The author called the boxed home layout "AI sloppy" and asked for the frontend-design
+  skill. The screen is now the lit backglass of the cabinet in attract mode (`screenTitle`
+  in `src/ui.js`): logo on glass over the key art, a real 128x32 dot-matrix display, the
+  cabinet START button, and a scorecard of modes with insert lamps and dot leaders instead of
+  a stack of framed buttons. Scanlines and a slow reflection sweep sit over the whole pane;
+  entry is a lamps-on flicker, the logo scales in, rows stagger in, the button pulses, and a
+  "PRESS PLAY · 1 PLAYER · FREE PLAY" line blinks.
+- The display (`dmdStart`) rasterises each attract message through the pixel face into a
+  128x32 bitmap and paints it as dots (crisp core, short bloom), so the glyphs are real dots.
+  Messages: MEGABALL, current world/stage and name, endless record, stars and rank, PRESS
+  PLAY; a boot sparkle, left-to-right wipes, and a crawl for lines wider than the display.
+  It stops when the screen changes.
+- One shipped typeface, "Kenney Pixel" (Kenney, CC0 1.0), embedded as a `data:` URI in
+  `src/fonts.js` (3.6 KB WOFF) so the game stays offline and the verifier's no-font-
+  subresource rule holds. The raw TTF trips the browsers' OpenType sanitizer (a cmap range
+  past the last glyph); re-saving it through fontTools as WOFF fixes it. Source files under
+  `assets/raw/`. Sub-screens keep the system stack and the chamfered-panel language.
+- Verified in the in-app browser at 375x812, 375x667, 360x560 and 412x915: font loads,
+  display cycles, no console errors.
+
+## 4i. The backglass language everywhere
+
+- Every remaining screen and the in-game UI now share the home screen's hardware language.
+  DOM screens (`src/ui.js`): a readout line with a lamp-lit back link and the star count; pixel
+  headings; amber cabinet buttons (cyan and magenta variants) for the primary action; scorecard
+  rows with insert lamps and dot leaders for secondary actions and for stats; dark display
+  plates on the dot grid for descriptions and objectives (objectives carry lamps: amber met,
+  magenta failed); glass scanlines and the reflection sweep on all of them. Campaign keeps the
+  headline, copy and globe (pins are now readout plates). Level select shows the five stages as
+  inserts with three star lamps each. Power cards keep the art tiles on sockets. Pause, results
+  and endless results open with their own dot-matrix display (PAUSED / LEVEL CLEAR / BREACHED /
+  RUN OVER, then the stage and the score) and stars are lamps. Entry flickers start from lit,
+  so a stalled animation can never hide a screen.
+- Canvas UI (`src/render.js`): the HUD is a backbox glass strip on the dot grid with lives as
+  insert lamps, the wave counter and level name as real dot-matrix readouts (`dmdText`, one
+  cached sprite per string), energy in amber dots with a bolt lamp, and a round cabinet pause
+  button; modifier chips sit under the glass. The build banner is a display plate with a lamp
+  and an amber cabinet START; the challenge chip has a state lamp; toasts have a lamp. Tray
+  captions, card names, hotkeys, cooldowns, build piles, the upgrade panel, combat text
+  (`src/fx.js`) and tutorial titles (`src/tutorial.js`) use the pixel face via `ptext`; body
+  copy stays on the system stack.
+- Boot: `FONTS.inject()` puts the face in the page before the splash, which is now set in it,
+  and `index.html` waits for the font (capped at 1.5 s) alongside the art so the first HUD
+  frame rasterises through it.
+- Verified in the in-app browser at 375x812 and 375x667: campaign, level select, power cards,
+  in-game build phase, pause, results, endless results, tutorial; no console errors;
+  `node tools/build.js` + `node tools/verify.js` PASS.
+- Second pass on the lobbies, so they carry the home screen's weight: the display is now a
+  controller (`dmdRun` returns `{stop, set}`) and reacts to what is tapped. Level select puts
+  the selected stage's painted art (`lvl_n`) in a translite window with its name and subtitle,
+  and the display reads out the stage, its stars and the world tally. Power cards open with a
+  featured card (art beside name, description and cooldown/slot chips); tapping a locked card
+  features it so the unlock cost is readable, and the display carries the rule in force (tap
+  to equip / slots full, tap to swap / next stage). Endless gets its own lobby
+  (`screenEndless`): record and rules on the display and a translite, best run, runs played
+  and the loadout as scorecard rows, then START RUN. The home Endless row opens the lobby.
+- Tutorial overlay (`src/tutorial.js`) in the same language: the lesson card is a display
+  plate on the dot grid with bezel screws, a lamp before the pixel-face title, body copy in
+  the reading face, and an amber lamp breathing beside TAP TO CONTINUE; the skip control is a
+  lamp-lit readout button. Fingertip and chevron pointers keep the ball language.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

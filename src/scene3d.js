@@ -559,12 +559,16 @@
     /* Cabinet panels above and below the table: brushed gloss plates the HUD
      * and card tray sit on, each with a cyan pinstripe where it meets the
      * frame. They turn the screen from "a rectangle" into "a machine". */
-    var head = new THREE.Mesh(new THREE.BoxGeometry(VW, 96, 28), M.cab);
-    place(head, VW / 2, 48, 14);
+    /* A tall phone sees more of both (DRAW.resize opens the view above
+     * VIEW_TOP and below VH), so each plate runs well past the board and the
+     * wider frustum simply takes in more cabinet. */
+    var HEAD_UP = 480, APRON_DOWN = 480;
+    var head = new THREE.Mesh(new THREE.BoxGeometry(VW, 96 + HEAD_UP, 28), M.cab);
+    place(head, VW / 2, (96 - HEAD_UP) / 2, 14);
     head.receiveShadow = true;
     board.add(head);
-    var apron = new THREE.Mesh(new THREE.BoxGeometry(VW, VH - 1254, 28), M.cab);
-    place(apron, VW / 2, (1254 + VH) / 2, 14);
+    var apron = new THREE.Mesh(new THREE.BoxGeometry(VW, VH + APRON_DOWN - 1254, 28), M.cab);
+    place(apron, VW / 2, (1254 + VH + APRON_DOWN) / 2, 14);
     apron.receiveShadow = true;
     board.add(apron);
     var pinTop = new THREE.Mesh(new THREE.BoxGeometry(VW - 60, 2.2, 1.5), led(C.cyan, 1.0));
@@ -1013,6 +1017,7 @@
     camera.position.set(VW / 2, -(VIEW_TOP + VH) / 2, CAM_Z);
     camera.lookAt(VW / 2, -(VIEW_TOP + VH) / 2, 0);
     scene.add(camera);
+    fitCamera();
 
     /* Lighting: one cool-white key from the upper left with soft shadows,
      * a cool hemisphere fill, a cyan kicker from below so chrome edges catch
@@ -1064,7 +1069,25 @@
     if (!renderer) return;
     renderer.setPixelRatio(Math.min(global.devicePixelRatio || 1, 2));
     renderer.setSize(v.w, v.h, false);
+    fitCamera();
   };
+
+  /* The camera's z = 0 footprint must be exactly the band DRAW.resize shows,
+   * viewTop..viewBottom, without moving the eye: the table has to look the
+   * same on every phone, the tall ones just see more cabinet. So the eye
+   * stays centred on the base band and the frustum is opened off-axis
+   * (setViewOffset) to take in the extra head and apron. */
+  function fitCamera() {
+    if (!camera) return;
+    var top = vp.viewTop != null ? vp.viewTop : VIEW_TOP;
+    var bottom = vp.viewBottom != null ? vp.viewBottom : VH;
+    var cy = (VIEW_TOP + VH) / 2;
+    var half = Math.max(cy - top, bottom - cy, VIEW_H / 2);
+    camera.fov = 2 * Math.atan(half / CAM_Z) * 180 / Math.PI;
+    camera.aspect = VW / (half * 2);
+    camera.setViewOffset(VW, half * 2, 0, top - (cy - half), VW, bottom - top);
+    camera.updateProjectionMatrix();
+  }
 
   var _time = 0;
 
@@ -1108,9 +1131,10 @@
 
     /* Clear the whole canvas, then draw into the same fitted rectangle the
      * 2D layer uses so both layers share one pixel grid. */
-    var sy = vp.scaleY || vp.scale;
-    var w = VW * (vp.scaleX || vp.scale), h = VIEW_H * sy;
-    var x = vp.ox, y = vp.h - (vp.oy + VIEW_TOP * sy + h);
+    var top = vp.viewTop != null ? vp.viewTop : VIEW_TOP;
+    var bottom = vp.viewBottom != null ? vp.viewBottom : VH;
+    var w = VW * vp.scale, h = (bottom - top) * vp.scale;
+    var x = vp.ox, y = vp.h - (vp.oy + bottom * vp.scale);
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, vp.w, vp.h);
     renderer.clear(true, true, false);

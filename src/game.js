@@ -146,7 +146,14 @@
 
     S.level = def;
     S.table = BOARD.build(def);
-    S.rng = U.rng(def.seed);
+    /* Endless rolls a fresh seed every run and starts from an empty wave
+     * list; ensureWave() writes each wave the moment it is needed. */
+    if (def.endless) {
+      def.waves = [];
+      S.rng = U.rng((Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0);
+    } else {
+      S.rng = U.rng(def.seed);
+    }
 
     S.balls.length = 0;
     S.towers.length = 0;
@@ -243,11 +250,16 @@
   };
 
   GAME.quitToMenu = function () {
+    var fromEndless = !!(S.level && S.level.endless);
     S.mode = 'menu';
     S.balls.length = 0;
     S.towers.length = 0;
     var s = global.SFX; if (s) { s.lowpass(0); s.music('menu'); }
-    if (global.UI) global.UI.showScreen('levelSelect');
+    if (global.UI) global.UI.showScreen(fromEndless ? 'title' : 'levelSelect');
+  };
+
+  GAME.startEndless = function (loadout) {
+    GAME.startLevel('endless', loadout || PROG.loadout);
   };
 
   function teach(tag) {
@@ -262,8 +274,16 @@
   /* Waves                                                                  */
   /* ---------------------------------------------------------------------- */
 
+  /* Endless has no authored waves: write wave `i` if it does not exist yet. */
+  function ensureWave(i) {
+    if (S.level && S.level.endless && !S.level.waves[i]) {
+      S.level.waves[i] = LEVELS.endlessWave(i, S.rng);
+    }
+    return S.level ? S.level.waves[i] : null;
+  }
+
   function beginBuildPhase(first) {
-    var next = S.level.waves[S.waveIndex + 1];
+    var next = ensureWave(S.waveIndex + 1);
     if (!next) { winLevel(); return; }
     S.mode = 'build';
     S.buildT = first ? next.build : next.build;
@@ -278,9 +298,11 @@
       GAME.toast('Spend your Energy — tap PADDLE or BUMPER to build', 4.2);
     }
     S.banner = {
-      title: 'WAVE ' + (S.waveIndex + 2) + ' OF ' + S.level.waves.length,
+      title: S.level.endless ? 'WAVE ' + (S.waveIndex + 2)
+        : 'WAVE ' + (S.waveIndex + 2) + ' OF ' + S.level.waves.length,
       preview: LEVELS.wavePreview(next),
       boss: !!next.boss,
+      label: next.boss ? (S.level.endless ? 'BOSS WAVE' : 'FINAL WAVE') : 'INCOMING',
       t: 0
     };
     if (next.boss) sfx('warn');
@@ -288,12 +310,13 @@
 
   function startWave() {
     S.waveIndex++;
-    var w = S.level.waves[S.waveIndex];
+    var w = ensureWave(S.waveIndex);
     if (!w) { winLevel(); return; }
 
     /* Gentle intra-level HP creep on top of the authored escalation, so late
-     * waves of the same enemy still demand a stronger board. */
-    var diff = 1 + S.waveIndex * 0.06;
+     * waves of the same enemy still demand a stronger board. Endless has no
+     * authored escalation, so its curve lives in LEVELS. */
+    var diff = S.level.endless ? LEVELS.endlessDifficulty(S.waveIndex) : 1 + S.waveIndex * 0.06;
     S.waveTimeline = LEVELS.compile(w, S.rng, S.table.lanes, diff);
     S.waveCursor = 0;
     S.waveT = 0;
@@ -348,13 +371,30 @@
   }
 
   function endWave() {
+    /* Endless caps the clear bonus: a linear reward against fixed tower
+     * prices would make wave 30 a free-build festival. */
     var reward = 45 + S.waveIndex * 18;
+    if (S.level.endless) reward = Math.min(reward, 240);
     addEnergy(reward, 360, 620, 'WAVE CLEAR  +' + reward);
     sfx('wave_clear');
     var f = global.FX;
     if (f) {
       f.flash({ color: C.green, alpha: 0.16, life: 0.35 });
       f.text(360, 560, 'WAVE CLEAR', { color: C.green, size: 44, life: 1.4, rise: 40, pop: 1 });
+    }
+    if (S.level.endless) {
+      var cleared = S.waveIndex + 1;
+      if (cleared > (PROG.endlessBest || 0)) { PROG.endlessBest = cleared; saveProgress(); }
+      /* Boss down: one life back and the battle theme returns. */
+      if (S.level.waves[S.waveIndex].boss) {
+        var s = global.SFX; if (s) s.music('battle');
+        if (S.lives < S.livesMax) {
+          S.lives++;
+          if (f) f.text(360, 500, 'LIFE RESTORED', { color: C.magenta, size: 30, life: 1.4, rise: 34, pop: 1 });
+        }
+      }
+      beginBuildPhase(false);
+      return;
     }
     if (S.waveIndex + 1 >= S.level.waves.length) { winLevel(); return; }
     beginBuildPhase(false);
@@ -405,6 +445,26 @@
     S.mode = 'lost';
     sfx('lose');
     var s = global.SFX; if (s) { s.music('menu'); s.lowpass(0); }
+    if (S.level.endless) {
+      /* Waves survived = fully cleared waves. Dying mid-wave 12 is "11". */
+      var survived = S.waveIndex;
+      var prevBest = PROG.endlessBest || 0;
+      var newBest = survived > 0 && survived >= prevBest && survived > (PROG.endlessBestShown || 0);
+      if (survived > prevBest) { PROG.endlessBest = survived; }
+      PROG.endlessBestShown = PROG.endlessBest || 0;
+      PROG.endlessRuns = (PROG.endlessRuns || 0) + 1;
+      saveProgress();
+      if (global.UI) {
+        global.UI.showScreen('results', {
+          win: false, endless: true, level: S.level, stars: 0, objectives: null,
+          lives: 0, livesMax: S.livesMax, kills: S.totalKills,
+          earned: S.earned, leaks: S.leaks, unlocks: [],
+          totalStars: GAME.totalStars(), hasNext: false,
+          wave: survived, best: PROG.endlessBest || 0, newBest: newBest
+        });
+      }
+      return;
+    }
     if (global.UI) {
       global.UI.showScreen('results', {
         win: false, level: S.level, stars: 0,
@@ -1747,7 +1807,7 @@
   };
 
   GAME.nextLevel = function () {
-    var next = S.level ? LEVELS.byId(S.level.id + 1) : null;
+    var next = S.level && !S.level.endless ? LEVELS.byId(S.level.id + 1) : null;
     if (next) {
       GAME.startLevel(next.id, PROG.loadout);
       if (global.UI) global.UI.showScreen(null);

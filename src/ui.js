@@ -31,6 +31,8 @@
 
   var INK = '#070b18';
   var F = U.FONT;
+  /* The pixel face the home screen is set in (src/fonts.js). */
+  var PX = '"Ken Pixel","Segoe UI",system-ui,sans-serif';
   /* Headline lettering: white with a soft cyan bloom and a hard drop, so it
    * reads over the painted machine without an outline fighting the art. */
   var GLOW = 'text-shadow:0 2px 0 rgba(0,0,0,.6),0 0 14px rgba(63,224,255,.55);';
@@ -45,7 +47,7 @@
   var FILL = 'linear-gradient(180deg,rgba(14,26,58,.92),rgba(6,12,30,.96))';
   var FILL_BLUE = 'linear-gradient(180deg,#3a8dff 0%,#1a5be0 40%,#0b2c8c 100%)';
   var FILL_MAG = 'linear-gradient(180deg,rgba(60,14,44,.94),rgba(20,6,26,.96))';
-  var FRAMES = '#ui .btn,#ui .panel,#ui .chip,#ui .iconbtn,#ui .tile,#ui .pc,#ui .stat,#ui .gpin,#ui .tagpanel,#ui .unlock,#ui .slot.full';
+  var FRAMES = '#ui .btn,#ui .panel,#ui .chip,#ui .iconbtn,#ui .tile,#ui .pc,#ui .stat,#ui .gpin,#ui .tagpanel,#ui .unlock,#ui .slot.full,#ui .hprof';
 
   var CSS = [
     '#ui{position:fixed;inset:0;z-index:20;display:none;font-family:' + F + ';',
@@ -161,6 +163,7 @@
     '#ui .btn.card b{display:block;font:900 12px/1 ' + F + ';letter-spacing:.08em;text-transform:uppercase;white-space:nowrap;}',
     '#ui .btn.card small{display:block;margin-top:6px;font:700 10px/1.2 ' + F + ';color:#8fe8ff;}',
     '#ui .btn.card.mag small,#ui .btn.card.mag svg{color:#ff7ac0;}',
+    '#ui .btn.card.amb small,#ui .btn.card.amb svg{color:#ffd24a;}',
     '#ui .btn[disabled]{opacity:.5;cursor:not-allowed;}',
     /* Focus for keyboard / gamepad: the edge itself turns white-hot. */
     '#ui :focus{outline:0;}',
@@ -242,13 +245,239 @@
     '#ui .stat b{display:block;font:900 22px/1 ' + F + ';text-shadow:0 2px 0 ' + INK + ';}',
     '#ui .stat i{display:block;margin-top:5px;font-style:normal;font:800 9px/1 ' + F + ';letter-spacing:.16em;color:rgba(255,255,255,.5);text-transform:uppercase;}',
 
+    /* ---- home: the backglass ----------------------------------------- */
+    /* The title screen is the lit backglass of the cabinet in attract mode:
+     * the logo on glass, a real 128x32 dot-matrix display cycling messages,
+     * the cabinet START button pulsing, and a scorecard of modes with insert
+     * lamps. Type is the pixel face (src/fonts.js), the only one shipped. */
+    '#ui .sheet.home{padding:calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));}',
+    '#ui.on .sheet.home{animation:lampsOn 1s steps(1,end) both;}',
+    '@keyframes lampsOn{0%,100%{opacity:1}6%{opacity:.15}12%{opacity:.8}18%{opacity:.1}26%{opacity:.9}33%{opacity:.4}42%{opacity:1}}',
+    '#ui .sheet.home .bgimg{opacity:.9;filter:saturate(.85) contrast(1.08);animation:heroDrift 24s ease-in-out infinite alternate;}',
+    '#ui .sheet.home .veil{background:',
+    '  radial-gradient(70% 34% at 50% 26%,rgba(63,224,255,.14),transparent 70%),',
+    '  radial-gradient(80% 30% at 50% 100%,rgba(255,46,136,.14),transparent 70%),',
+    '  linear-gradient(180deg,rgba(4,7,18,.72) 0%,rgba(4,7,18,.30) 22%,rgba(4,7,18,.22) 40%,rgba(4,7,18,.78) 60%,rgba(4,7,18,.96) 100%);}',
+    '#ui .sheet.home .grain{display:none;}',
+    /* Glass over everything: scanlines and a slow reflection sweeping across. */
+    '#ui .glass{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:' + U.UI.maxMenuWidth + 'px;transform:translateX(-50%);',
+    '  pointer-events:none;z-index:5;overflow:hidden;',
+    '  background:repeating-linear-gradient(180deg,rgba(255,255,255,.04) 0 1px,transparent 1px 3px);}',
+    '#ui .glass::after{content:"";position:absolute;top:-10%;bottom:-10%;left:-60%;width:60%;',
+    '  background:linear-gradient(105deg,transparent 30%,rgba(143,232,255,.09) 50%,transparent 70%);animation:sweep 11s ease-in-out infinite;}',
+    '@keyframes sweep{0%,15%{transform:translateX(0)}70%,100%{transform:translateX(370%)}}',
+    /* Readout line: tiny pixel-face status in the corners, no boxes. */
+    '#ui .hline{display:flex;justify-content:space-between;align-items:center;min-height:32px;flex:0 0 auto;',
+    '  font:12px/1 ' + PX + ';color:rgba(143,232,255,.8);text-transform:uppercase;letter-spacing:.04em;}',
+    '#ui .hline .rd{display:inline-flex;align-items:center;gap:7px;padding:6px 0;}',
+    '#ui .hline .rd svg{width:12px;height:12px;fill:#ffd24a;filter:drop-shadow(0 0 4px rgba(255,210,74,.8));}',
+    '#ui .hline .rd em{font-style:normal;color:#fff;}',
+    '#ui .hline .sndbtn{background:none;border:0;padding:6px 0 6px 10px;margin:0;color:#8fe8ff;font:inherit;text-transform:inherit;letter-spacing:inherit;',
+    '  display:inline-flex;align-items:center;gap:7px;cursor:pointer;}',
+    '#ui .hline .sndbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(63,224,255,.8));}',
+    '#ui .hline .sndbtn.off{color:rgba(255,255,255,.4);}#ui .hline .sndbtn.off svg{filter:none;}',
+    /* Logo on the glass. */
+    '#ui .sheet.home .brand{width:min(88%,400px);animation:logoOn .8s cubic-bezier(.2,.8,.2,1) .2s both;}',
+    '#ui .sheet.home .brand-logo{animation:bob 5s ease-in-out infinite;}',
+    '@keyframes logoOn{from{opacity:0;transform:scale(1.1)}to{opacity:1;transform:none}}',
+    '#ui .sheet.home .spacer.top{flex:.5 1 auto;min-height:4px;}',
+    '#ui .sheet.home .spacer.mid{flex:.6 1 auto;min-height:8px;}',
+    /* The display: a real 128x32 DMD in a black bezel. */
+    '#ui .dmd{position:relative;flex:0 0 auto;padding:7px 8px;background:#03050a;',
+    '  border:1px solid rgba(63,224,255,.30);box-shadow:inset 0 0 0 2px #000,inset 0 6px 22px rgba(0,0,0,.9),0 0 26px rgba(63,224,255,.12),0 10px 24px rgba(0,0,0,.55);',
+    '  animation:dmdOn .5s ease-out .35s both;}',
+    '@keyframes dmdOn{from{opacity:0}to{opacity:1}}',
+    '#ui .dmd canvas{display:block;width:100%;height:auto;aspect-ratio:4/1;}',
+    '#ui .dmd .plate{position:absolute;right:10px;top:-6px;padding:0 5px;background:#05060d;font:8px/10px ' + PX + ';color:rgba(143,232,255,.55);letter-spacing:.14em;text-transform:uppercase;}',
+    '#ui .dmd .screw{position:absolute;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#1c2740;box-shadow:inset 0 0 0 1px rgba(143,232,255,.35);}',
+    '#ui .dmd .screw.l{left:2px;}#ui .dmd .screw.r{right:2px;}',
+    /* Controls: the cabinet START button beside a scorecard of modes. */
+    '#ui .ctl{display:flex;align-items:center;gap:16px;flex:0 0 auto;margin-top:10px;}',
+    '#ui .start{flex:0 0 116px;width:116px;height:116px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
+    '  background:radial-gradient(circle at 50% 36%,#fff1bf 0%,#ffcf4a 30%,#f39316 60%,#8f4306 100%);',
+    '  box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 34px rgba(255,176,32,.35);',
+    '  animation:startPulse 1.9s ease-in-out infinite,startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;transition:transform .08s,filter .12s;}',
+    '@keyframes startOn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}',
+    '@keyframes startPulse{0%,100%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 26px rgba(255,176,32,.25)}',
+    '  50%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,210,74,.7),0 14px 30px rgba(0,0,0,.6),0 0 60px rgba(255,190,50,.7)}}',
+    '#ui .start::before{content:"";position:absolute;inset:7px;border-radius:50%;border:2px solid rgba(255,255,255,.28);border-bottom-color:rgba(110,45,0,.45);}',
+    '#ui .start::after{content:"";position:absolute;left:24%;top:9%;width:52%;height:26%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,0));}',
+    '#ui .start b{position:relative;z-index:1;display:block;font:30px/1 ' + PX + ';color:#3a1600;text-shadow:0 1px 0 rgba(255,255,255,.4);}',
+    '#ui .start small{position:relative;z-index:1;display:block;margin-top:5px;font:10px/1 ' + PX + ';color:#5a2600;letter-spacing:.06em;text-transform:uppercase;}',
+    '#ui .start:hover{filter:brightness(1.08);}#ui .start:active{transform:scale(.94);filter:brightness(1.18);}',
+    '#ui .scard{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}',
+    '#ui .sc{display:flex;align-items:center;gap:9px;width:100%;min-height:46px;padding:0 2px;margin:0;background:none;border:0;',
+    '  border-bottom:1px solid rgba(63,224,255,.18);color:#fff;font:15px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.02em;text-align:left;cursor:pointer;',
+    '  animation:rowIn .45s cubic-bezier(.2,.8,.2,1) both;transition:background .1s;}',
+    '#ui .sc:nth-child(1){animation-delay:.45s}#ui .sc:nth-child(2){animation-delay:.53s}#ui .sc:nth-child(3){animation-delay:.61s}#ui .sc:nth-child(4){animation-delay:.69s}',
+    '@keyframes rowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}',
+    '#ui .sc:last-child{border-bottom:0;}',
+    '#ui .sc i{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff,0 0 2px #fff;transition:background .1s,box-shadow .1s;}',
+    '#ui .sc.mag i{background:#ff2e88;box-shadow:0 0 8px #ff2e88,0 0 2px #fff;}',
+    '#ui .sc.amb i{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
+    '#ui .sc .lb{flex:0 0 auto;text-shadow:0 0 10px rgba(63,224,255,.35);}',
+    '#ui .sc .ld{flex:1 1 auto;min-width:10px;height:2px;margin:0 2px;background:radial-gradient(circle,rgba(143,232,255,.5) 0.8px,transparent 1.3px) 0 0/6px 2px repeat-x;}',
+    '#ui .sc .ct{flex:0 0 auto;font-size:12px;color:#ffd24a;text-shadow:0 0 8px rgba(255,210,74,.4);}',
+    '#ui .sc:hover{background:rgba(63,224,255,.05);}#ui .sc:active{background:rgba(63,224,255,.10);}',
+    '#ui .sc:active i{background:#fff;box-shadow:0 0 12px #fff;}',
+    /* Attract line. */
+    '#ui .attract{flex:0 0 auto;margin:12px 0 0;text-align:center;font:10px/1 ' + PX + ';color:rgba(143,232,255,.7);letter-spacing:.14em;text-transform:uppercase;',
+    '  animation:blink 1.7s steps(1,end) .9s infinite;}',
+    '@keyframes blink{0%,58%{opacity:1}59%,100%{opacity:.2}}',
+
+    /* ---- machine components shared by every screen -------------------- */
+    /* Everything past the home screen speaks the same hardware language:
+     * pixel readouts, insert lamps, cabinet buttons, scorecard rows, dark
+     * display plates on the dot grid. */
+    '#ui .sheet.sub{padding:calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));}',
+    '#ui.on .sheet.sub{animation:lampsOnFast .42s steps(1,end) both;}',
+    '@keyframes lampsOnFast{0%,100%{opacity:1}18%{opacity:.2}34%{opacity:.85}48%{opacity:.35}62%{opacity:1}}',
+    '#ui .sheet.sub .grain{display:none;}',
+    '#ui .sheet.sub .bgimg{opacity:.55;filter:blur(2px) saturate(.8);transform:translateX(-50%) scale(1.04);}',
+    '#ui .sheet.sub .veil{background:radial-gradient(70% 30% at 50% 0%,rgba(63,224,255,.10),transparent 70%),',
+    '  linear-gradient(180deg,rgba(4,7,18,.86) 0%,rgba(4,7,18,.80) 50%,rgba(4,7,18,.94) 100%);}',
+    '#ui .sheet.pause .veil{background:rgba(4,7,18,.74);}',
+    /* Text button with a lamp or chevron: back links, quiet actions. */
+    '#ui .txtbtn{display:inline-flex;align-items:center;gap:7px;background:none;border:0;padding:8px 10px 8px 0;margin:0;color:#8fe8ff;',
+    '  font:12px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.04em;cursor:pointer;}',
+    '#ui .txtbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(63,224,255,.8));}',
+    '#ui .txtbtn:active{color:#fff;}',
+    '#ui .hline.sub{min-height:36px;}',
+    /* Headings and copy. */
+    '#ui .pxh{margin:6px 0 4px;font:22px/1.1 ' + PX + ';color:#fff;text-transform:uppercase;letter-spacing:.02em;flex:0 0 auto;',
+    '  text-shadow:0 0 14px rgba(63,224,255,.45),0 2px 0 rgba(0,0,0,.6);}',
+    '#ui .pxh small{display:block;margin-top:6px;font:12px/1.2 ' + PX + ';color:rgba(143,232,255,.8);letter-spacing:.06em;text-shadow:none;}',
+    '#ui .copy{margin:0 0 8px;font:700 12.5px/1.45 ' + F + ';color:rgba(255,255,255,.72);max-width:340px;flex:0 0 auto;}',
+    '#ui .kick{display:block;font:10px/1 ' + PX + ';letter-spacing:.14em;color:#ffd24a;text-transform:uppercase;margin-bottom:7px;text-shadow:0 0 8px rgba(255,210,74,.5);}',
+    /* Cabinet button: the wide lit control. Amber by default; cyan and
+     * magenta variants for secondary and destructive actions. */
+    '#ui .cab{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-height:64px;margin:10px 0 0;padding:0 16px;',
+    '  border:0;border-radius:14px;position:relative;cursor:pointer;font-family:inherit;color:#3a1600;flex:0 0 auto;box-sizing:border-box;',
+    '  background:radial-gradient(120% 140% at 50% 20%,#fff1bf 0%,#ffcf4a 30%,#f39316 65%,#9a4a06 100%);',
+    '  box-shadow:0 0 0 3px #0a0d18,0 0 0 5px rgba(255,176,32,.35),0 10px 22px rgba(0,0,0,.55),0 0 26px rgba(255,176,32,.25);',
+    '  transition:transform .08s,filter .12s;animation:cabOn .45s cubic-bezier(.2,1.2,.4,1) .2s both;}',
+    '@keyframes cabOn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}',
+    '#ui .cab::after{content:"";position:absolute;left:10%;top:6px;width:80%;height:30%;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,0));pointer-events:none;}',
+    '#ui .cab b{position:relative;z-index:1;font:20px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.04em;text-shadow:0 1px 0 rgba(255,255,255,.35);}',
+    '#ui .cab small{position:relative;z-index:1;margin-top:5px;font:10px/1 ' + PX + ';letter-spacing:.08em;text-transform:uppercase;color:#5a2600;}',
+    '#ui .cab:active{transform:scale(.98);filter:brightness(1.12);}',
+    '#ui .cab.cyan{color:#dffaff;background:radial-gradient(120% 140% at 50% 20%,#1b3d66 0%,#0d2242 45%,#070f22 100%);',
+    '  box-shadow:0 0 0 3px #0a0d18,0 0 0 5px rgba(63,224,255,.35),0 10px 22px rgba(0,0,0,.55),0 0 22px rgba(63,224,255,.18);}',
+    '#ui .cab.cyan b{text-shadow:0 0 12px rgba(63,224,255,.6);}#ui .cab.cyan small{color:#8fe8ff;}#ui .cab.cyan::after{opacity:.35;}',
+    '#ui .cab.mag{color:#ffe1ee;background:radial-gradient(120% 140% at 50% 20%,#6b1440 0%,#3a0a24 45%,#160512 100%);',
+    '  box-shadow:0 0 0 3px #0a0d18,0 0 0 5px rgba(255,46,136,.4),0 10px 22px rgba(0,0,0,.55),0 0 22px rgba(255,46,136,.2);}',
+    '#ui .cab.mag b{text-shadow:0 0 12px rgba(255,46,136,.6);}#ui .cab.mag small{color:#ff7ac0;}#ui .cab.mag::after{opacity:.3;}',
+    '#ui .cab[disabled]{opacity:.45;cursor:not-allowed;}',
+    /* Scorecard rows as read-only stats. */
+    '#ui .scard.stats{margin-top:4px;}',
+    '#ui .sc.stat{cursor:default;animation:none;}#ui .sc.stat .ct{font-size:15px;color:#fff;}',
+    '#ui .sc.stat .ct.amb{color:#ffd24a;}#ui .sc.stat .ct.mag{color:#ff7ac0;}#ui .sc.stat .ct.cy{color:#3fe0ff;}#ui .sc.stat .ct.grn{color:#7df0a6;}#ui .sc.grn i{background:#7df0a6;box-shadow:0 0 8px #7df0a6,0 0 2px #fff;}',
+    '#ui .sc.stat:active{background:none;}#ui .sc.cy i{background:#3fe0ff;}',
+    /* Level inserts: five stages, star lamps under each number. */
+    '#ui .insrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:10px 0 12px;flex:0 0 auto;}',
+    '#ui .ins{position:relative;aspect-ratio:.9;margin:0;padding:0;border:0;border-radius:10px;cursor:pointer;font-family:inherit;color:#fff;',
+    '  background:linear-gradient(180deg,#0d1730,#070b18);box-shadow:inset 0 0 0 1px rgba(63,224,255,.25),0 6px 14px rgba(0,0,0,.5);',
+    '  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;transition:transform .07s,box-shadow .15s;}',
+    '#ui .ins b{font:26px/1 ' + PX + ';text-shadow:0 0 12px rgba(63,224,255,.5);}',
+    '#ui .ins .lamps{display:flex;gap:4px;}',
+    '#ui .ins .lamps i{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);}',
+    '#ui .ins .lamps i.on{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
+    '#ui .ins.cur{box-shadow:inset 0 0 0 2px #ffd24a,0 0 18px rgba(255,210,74,.45),0 6px 14px rgba(0,0,0,.5);}',
+    '#ui .ins.cur b{color:#fff3c8;text-shadow:0 0 12px rgba(255,210,74,.7);}',
+    '#ui .ins.locked{cursor:not-allowed;background:linear-gradient(180deg,#0a0f1e,#05070f);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);color:rgba(255,255,255,.35);}',
+    '#ui .ins.locked svg{width:20px;height:20px;stroke:#ff5fb0;opacity:.7;}',
+    '#ui .ins:active{transform:translateY(2px);}',
+    /* Plate: a dark readout panel for descriptions. */
+    '#ui .plate{position:relative;padding:12px 14px;border-radius:10px;background:rgba(3,5,10,.82);flex:0 0 auto;',
+    '  box-shadow:inset 0 0 0 1px rgba(63,224,255,.22),inset 0 6px 18px rgba(0,0,0,.6);}',
+    '#ui .plate .nm{display:block;font:18px/1.1 ' + PX + ';color:#fff;text-transform:uppercase;text-shadow:0 0 12px rgba(63,224,255,.45);}',
+    '#ui .plate .sub{display:block;margin:5px 0 0;max-width:none;font:700 12px/1.35 ' + F + ';color:#a9dcef;text-shadow:none;}',
+    /* Objective rows: a lamp and the promise. */
+    '#ui .objs{display:flex;flex-direction:column;gap:0;margin:8px 0 0;}',
+    '#ui .obj{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid rgba(63,224,255,.14);background:none;border-left:0;clip-path:none;',
+    '  font:700 12px/1.3 ' + F + ';color:rgba(255,255,255,.82);}',
+    '#ui .obj:last-child{border-bottom:0;}',
+    '#ui .obj .mk{flex:0 0 9px;width:9px;height:9px;border-radius:50%;border:0;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);font-size:0;line-height:0;color:transparent;}',
+    '#ui .obj.met{background:none;border-left:0;color:#fff;}#ui .obj.met .mk{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
+    '#ui .obj.failed{opacity:.6;border-left:0;}#ui .obj.failed .mk{background:#ff2e88;box-shadow:0 0 8px #ff2e88;border:0;}',
+    /* Power cards: sockets and art tiles. */
+    '#ui .slots{display:flex;gap:8px;margin:6px 0 10px;flex:0 0 auto;}',
+    '#ui .slot{flex:1;height:46px;box-sizing:border-box;border:1px dashed rgba(63,224,255,.3);border-radius:9px;clip-path:none;background:rgba(3,5,10,.6);',
+    '  display:flex;align-items:center;justify-content:center;gap:6px;font:10px/1.2 ' + PX + ';letter-spacing:.06em;color:rgba(255,255,255,.4);text-transform:uppercase;text-align:center;padding:4px;}',
+    '#ui .slot.full{border:1px solid rgba(63,224,255,.5);color:#dffaff;background:linear-gradient(180deg,#0f2244,#08122a);box-shadow:0 0 14px rgba(63,224,255,.18);text-shadow:0 0 8px rgba(63,224,255,.6);isolation:auto;}',
+    '#ui .slot.full::before{content:"";position:static;inset:auto;z-index:auto;clip-path:none;width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff;}',
+    '#ui .slot.lockd{opacity:.5;}',
+    '#ui .cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 10px;flex:0 0 auto;}',
+    '#ui .pc{display:block;position:relative;width:100%;padding:0;margin:0;font-family:inherit;color:inherit;overflow:hidden;cursor:pointer;aspect-ratio:3/4;isolation:auto;',
+    '  clip-path:none;border-radius:9px;background:#070b18;box-shadow:inset 0 0 0 1px rgba(63,224,255,.28),0 6px 14px rgba(0,0,0,.5);transition:transform .07s;}',
+    '#ui .pc::before{display:none;}',
+    '#ui .pc:active{transform:translateY(2px);}',
+    '#ui .pc.eq{background:#070b18;box-shadow:inset 0 0 0 2px #ffd24a,0 0 16px rgba(255,210,74,.35),0 6px 14px rgba(0,0,0,.5);}',
+    '#ui .pc.lock{opacity:.4;cursor:not-allowed;}',
+    '#ui .pc .art{position:absolute;inset:0;z-index:0;clip-path:none;background-size:cover;background-position:center top;}',
+    '#ui .pc .shade{position:absolute;inset:0;z-index:0;clip-path:none;background:linear-gradient(180deg,transparent 40%,rgba(3,5,10,.96) 78%);}',
+    '#ui .pc .nm{position:absolute;left:4px;right:4px;bottom:18px;z-index:1;text-align:center;font:10px/1 ' + PX + ';letter-spacing:.03em;text-transform:uppercase;text-shadow:0 1px 0 ' + INK + ';}',
+    '#ui .pc .cd{position:absolute;left:0;right:0;bottom:7px;z-index:1;text-align:center;font:8px/1 ' + PX + ';color:rgba(255,255,255,.55);letter-spacing:.04em;}',
+    '#ui .pc .eqbadge{position:absolute;top:6px;right:6px;z-index:1;width:20px;height:20px;border-radius:50%;background:#ffd24a;color:' + INK + ';font:11px/20px ' + PX + ';text-align:center;box-shadow:0 0 10px rgba(255,210,74,.9);}',
+    /* Unlock plate. */
+    '#ui .unlock{display:flex;align-items:center;gap:10px;padding:10px 14px;margin:0 0 8px;clip-path:none;border-radius:9px;background:rgba(3,5,10,.85);isolation:auto;',
+    '  box-shadow:inset 0 0 0 1px rgba(255,210,74,.55),0 0 18px rgba(255,210,74,.2);font:11px/1.3 ' + PX + ';letter-spacing:.06em;color:#ffd24a;text-align:left;text-transform:uppercase;flex:0 0 auto;}',
+    '#ui .unlock::before{content:"";position:static;inset:auto;z-index:auto;clip-path:none;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#ffd24a;box-shadow:0 0 8px #ffd24a;}',
+    '#ui .unlock.good{box-shadow:inset 0 0 0 1px rgba(125,240,166,.55),0 0 18px rgba(125,240,166,.2);color:#7df0a6;}#ui .unlock.good::before{background:#7df0a6;box-shadow:0 0 8px #7df0a6;}',
+    /* Results: three star lamps. */
+    '#ui .starlamps{display:flex;justify-content:center;gap:16px;margin:12px 0 4px;flex:0 0 auto;}',
+    '#ui .starlamps i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);opacity:0;transform:scale(.4);animation:pop .45s cubic-bezier(.2,1.6,.4,1) forwards;}',
+    '#ui .starlamps i.on{background:radial-gradient(circle at 40% 35%,#fff6d0,#ffd24a 55%,#e09a00);box-shadow:0 0 18px rgba(255,210,74,.8),0 0 4px #fff;}',
+    /* Globe pins as readout plates. */
+    '#ui .gpin{clip-path:none;padding:7px 12px;border-radius:8px;background:rgba(3,5,10,.9);isolation:auto;box-shadow:inset 0 0 0 1px rgba(63,224,255,.6),0 0 14px rgba(63,224,255,.25);}',
+    '#ui .gpin::before{display:none;}',
+    '#ui .gpin b{font:12px/1.1 ' + PX + ';letter-spacing:.06em;text-shadow:0 0 10px rgba(63,224,255,.6);}',
+    '#ui .gpin i{font:8px/1.1 ' + PX + ';letter-spacing:.1em;}',
+    '#ui .gpin.lockd{box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);background:rgba(3,5,10,.8);}',
+    '#ui .attract.static{animation:none;color:rgba(143,232,255,.55);margin:6px 0 2px;}',
+    '#ui .sheet.sub .globe{margin:0 -8px;min-height:220px;}',
+    '#ui .sheet.sub .dmd{margin-top:4px;}',
+
+    /* ---- translite window: painted art behind glass ----------------- */
+    '#ui .translite{position:relative;flex:0 0 auto;height:150px;margin:8px 0 10px;border-radius:12px;overflow:hidden;',
+    '  background:#05070f center/cover no-repeat;box-shadow:inset 0 0 0 1px rgba(63,224,255,.35),0 0 24px rgba(63,224,255,.12),0 10px 24px rgba(0,0,0,.55);',
+    '  animation:tlIn .35s ease-out both;}',
+    '#ui .translite.tall{height:168px;}',
+    '@keyframes tlIn{from{opacity:.35}to{opacity:1}}',
+    '#ui .translite::before{content:"";position:absolute;inset:0;pointer-events:none;',
+    '  background:repeating-linear-gradient(180deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);}',
+    '#ui .tl-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(3,5,10,.02) 30%,rgba(3,5,10,.92) 100%);}',
+    '#ui .tl-cap{position:absolute;left:14px;right:14px;bottom:11px;}',
+    '#ui .tl-cap .kick{margin-bottom:5px;}',
+    '#ui .tl-cap .nm{display:block;font:20px/1 ' + PX + ';color:#fff;text-transform:uppercase;text-shadow:0 0 12px rgba(63,224,255,.5),0 2px 0 rgba(0,0,0,.7);}',
+    '#ui .tl-cap .sub{display:block;margin-top:5px;font:700 12px/1.3 ' + F + ';color:#a9dcef;text-shadow:0 1px 0 rgba(0,0,0,.6);}',
+    '#ui .plate.slim{padding:2px 14px;}',
+    /* ---- featured card: art beside its readout ------------------------ */
+    '#ui .feat{display:flex;gap:12px;align-items:stretch;flex:0 0 auto;margin:8px 0 10px;padding:10px;border-radius:12px;',
+    '  background:rgba(3,5,10,.82);box-shadow:inset 0 0 0 1px rgba(63,224,255,.22),inset 0 6px 18px rgba(0,0,0,.6);animation:tlIn .3s ease-out both;}',
+    '#ui .feat-art{flex:0 0 96px;height:96px;border-radius:9px;position:relative;overflow:hidden;background:#070b18 center/cover no-repeat;',
+    '  box-shadow:inset 0 0 0 1px rgba(63,224,255,.35),0 0 16px rgba(63,224,255,.15);}',
+    '#ui .feat-art::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(180deg,rgba(255,255,255,.04) 0 1px,transparent 1px 3px);}',
+    '#ui .feat.lock .feat-art{filter:grayscale(.7) brightness(.55);}',
+    '#ui .feat-txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}',
+    '#ui .feat-txt .kick{margin-bottom:5px;}',
+    '#ui .feat-txt .nm{display:block;font:18px/1 ' + PX + ';color:#fff;text-transform:uppercase;text-shadow:0 0 12px rgba(63,224,255,.45);}',
+    '#ui .feat-txt .sub{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:5px;font:700 11.5px/1.35 ' + F + ';color:#a9dcef;}',
+    '#ui .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}',
+    '#ui .chips i{font:8px/1 ' + PX + ';font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:#8fe8ff;padding:4px 7px;border-radius:6px;',
+    '  background:rgba(63,224,255,.08);box-shadow:inset 0 0 0 1px rgba(63,224,255,.3);}',
+    '#ui .chips i.amb{color:#ffd24a;background:rgba(255,210,74,.08);box-shadow:inset 0 0 0 1px rgba(255,210,74,.4);}',
+    '#ui .chips i.mag{color:#ff7ac0;background:rgba(255,46,136,.08);box-shadow:inset 0 0 0 1px rgba(255,46,136,.4);}',
+    '#ui .chips i.grn{color:#7df0a6;background:rgba(125,240,166,.08);box-shadow:inset 0 0 0 1px rgba(125,240,166,.4);}',
+
     /* ---- short phones ------------------------------------------------ */
     '@media(max-height:720px){#ui .sheet{padding-top:calc(10px + env(safe-area-inset-top));padding-bottom:calc(10px + env(safe-area-inset-bottom));}',
     '  #ui .bar{margin-bottom:8px;min-height:42px}#ui .btn{min-height:50px;margin:6px 0}#ui .btn.primary{min-height:60px;font-size:18px}',
     '  #ui .btn.play{min-height:76px}#ui .btn.play b{font-size:28px}#ui .btn.card{min-height:64px}',
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .slots{margin-bottom:7px}',
     '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
-    '  #ui .brand{width:min(84%,340px)}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}}',
+    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{-webkit-line-clamp:2}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(74%,320px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}}',
+    '@media(max-height:600px){#ui .attract{display:none}#ui .sheet.home .brand{width:min(58%,240px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
     '@media(prefers-reduced-motion:reduce){#ui *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
@@ -257,6 +486,7 @@
   UI.init = function (h) {
     hooks = h || {};
     var style = document.createElement('style');
+    if (global.FONTS && global.FONTS.inject) global.FONTS.inject();
     style.textContent = CSS;
     document.head.appendChild(style);
 
@@ -295,7 +525,7 @@
     if (!list.length) return;
     var cur = document.activeElement;
     if (!cur || !root.contains(cur) || list.indexOf(cur) < 0) {
-      var p = root.querySelector('.btn.primary') || list[0];
+      var p = root.querySelector('.cab,.start,.btn.primary') || list[0];
       p.focus();
       return;
     }
@@ -332,7 +562,7 @@
        * from treating the same press as a wave start. */
       e.stopPropagation();
       if (!(document.activeElement && root.contains(document.activeElement))) {
-        var p = root.querySelector('.btn.primary');
+        var p = root.querySelector('.cab,.start,.btn.primary');
         if (p) { e.preventDefault(); p.click(); }
       }
       return;
@@ -361,6 +591,9 @@
     learn: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5 12 4l9 4.5-9 4.5z"></path><path d="M6.5 10.5v5C8 17.5 10 18.5 12 18.5s4-1 5.5-3v-5"></path></svg>',
     gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"></path><circle cx="12" cy="12" r="7"></circle></svg>',
     shield: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 8.2 7 9.5 4-1.3 7-5 7-9.5V6z"></path><path d="m9.2 12 2 2 3.8-4"></path></svg>',
+    endless: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12c-1.6-2.4-3-3.6-4.8-3.6a3.6 3.6 0 0 0 0 7.2c1.8 0 3.2-1.2 4.8-3.6s3-3.6 4.8-3.6a3.6 3.6 0 0 1 0 7.2c-1.8 0-3.2-1.2-4.8-3.6z"></path></svg>',
+    map: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5 6-2.5v13l-6 2.5-6-2.5-6 2.5z"></path><path d="M9 4v13M15 6.5v13"></path></svg>',
+    bolt: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z"></path></svg>',
     lock: '<svg class="lk" viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><rect x="4" y="10.5" width="16" height="10.5" rx="2.5"></rect><path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"></path></svg>'
   };
   /* Outline icons inside .btn need stroke rather than fill. */
@@ -395,7 +628,7 @@
     var grain = document.createElement('div');
     grain.className = 'grain';
     sheet.appendChild(grain);
-    sheet.insertAdjacentHTML('beforeend', inner);
+    sheet.insertAdjacentHTML('beforeend', '<div class="glass"></div>' + inner);
     root.appendChild(sheet);
     return sheet;
   }
@@ -424,27 +657,228 @@
   /* Title                                                                  */
   /* ---------------------------------------------------------------------- */
 
+  /* ---- dot-matrix display ------------------------------------------- */
+  /* A 128x32 DMD, the display every pinball machine has carried since the
+   * early nineties. Each message is rasterised once through the pixel face
+   * into a bitmap and the dots are painted from that, so the glyphs are
+   * made of real dots rather than text behind a dotted mask. Runs only while
+   * the title screen is up; showScreen stops it. */
+  var DMD_W = 128, DMD_H = 32, DMD_CELL = 6;
+  var dmdRuns = [];
+
+  function dmdStart(canvas, messages, quick) {
+    var W = DMD_W, H = DMD_H, CELL = DMD_CELL;
+    canvas.width = W * CELL; canvas.height = H * CELL;
+    var ctx = canvas.getContext('2d');
+    var off = document.createElement('canvas');
+    var octx = off.getContext('2d', { willReadFrequently: true });
+    var FONT = '16px ' + PX;
+
+    /* Unlit grid, painted once. */
+    var grid = document.createElement('canvas');
+    grid.width = canvas.width; grid.height = canvas.height;
+    var g = grid.getContext('2d');
+    g.fillStyle = '#03050a'; g.fillRect(0, 0, grid.width, grid.height);
+    g.fillStyle = 'rgba(63,224,255,0.11)';
+    for (var gy = 0; gy < H; gy++) {
+      for (var gx = 0; gx < W; gx++) {
+        g.beginPath(); g.arc(gx * CELL + CELL / 2, gy * CELL + CELL / 2, CELL * 0.26, 0, U.TAU); g.fill();
+      }
+    }
+    /* Lit dot: a crisp core that stays inside its cell, with a short bloom
+     * so neighbours read as separate dots rather than merging into strokes. */
+    var SR = Math.round(CELL * 0.95);
+    var sp = document.createElement('canvas'); sp.width = sp.height = SR * 2;
+    var sg = sp.getContext('2d');
+    var rg = sg.createRadialGradient(SR, SR, 0, SR, SR, SR);
+    rg.addColorStop(0, 'rgba(240,255,255,1)');
+    rg.addColorStop(0.3, 'rgba(120,236,255,1)');
+    rg.addColorStop(0.42, 'rgba(63,224,255,0.95)');
+    rg.addColorStop(0.55, 'rgba(63,224,255,0.28)');
+    rg.addColorStop(1, 'rgba(63,224,255,0)');
+    sg.fillStyle = rg; sg.fillRect(0, 0, sp.width, sp.height);
+
+    /* The pixel face draws 14-dot capitals at 16px and 7-dot capitals at
+     * 8px, so one line fills the display and two lines stack with a gap. */
+    var bits = null, offW = W;
+    function raster(lines) {
+      var i, n = lines.length, widths = [], textW = 0;
+      var font = (n === 1 ? 16 : 8) + 'px ' + PX;
+      octx.font = font;
+      for (i = 0; i < n; i++) {
+        widths.push(Math.ceil(octx.measureText(lines[i]).width));
+        if (widths[i] > textW) textW = widths[i];
+      }
+      offW = Math.max(W, textW + 6);
+      off.width = offW; off.height = H;            // resizing also clears it
+      octx.font = font;
+      octx.fillStyle = '#fff'; octx.textBaseline = 'alphabetic'; octx.textAlign = 'left';
+      for (i = 0; i < n; i++) {
+        var x0 = offW > W ? 3 : Math.floor((W - widths[i]) / 2);
+        var y0 = n === 1 ? 23 : (i === 0 ? 12 : 26);
+        octx.fillText(lines[i], x0, y0);
+      }
+      var px = octx.getImageData(0, 0, offW, H).data;
+      bits = new Uint8Array(offW * H);
+      for (i = 0; i < bits.length; i++) bits[i] = px[i * 4 + 3] > 110 ? 1 : 0;
+    }
+
+    var WIPE = 320, HOLD = 2200, CRAWL = 42;      // ms, ms, dots per second
+    var idx = -1, t0 = 0, phase = 'boot', raf = 0, dead = false, dirty = true, lastDraw = 0;
+
+    function dot(x, y) { ctx.drawImage(sp, x * CELL + CELL / 2 - SR, y * CELL + CELL / 2 - SR); }
+
+    function draw(now) {
+      ctx.drawImage(grid, 0, 0);
+      if (phase === 'boot') {
+        for (var k = 0; k < 260; k++) dot((Math.random() * W) | 0, (Math.random() * H) | 0);
+        return;
+      }
+      var el = now - t0;
+      var wipeCol = phase === 'wipe' ? Math.floor(el / WIPE * W) : W;
+      var shift = 0;
+      if (offW > W) {
+        shift = Math.min(offW - W, Math.floor(Math.max(0, el - WIPE - 700) / 1000 * CRAWL));
+      }
+      for (var y = 0; y < H; y++) {
+        var row = y * offW + shift;
+        for (var x = 0; x <= wipeCol && x < W; x++) if (bits[row + x]) dot(x, y);
+      }
+    }
+
+    function next(now) {
+      idx = (idx + 1) % messages.length;
+      raster(messages[idx]);
+      t0 = now; phase = 'wipe'; dirty = true;
+    }
+
+    function frame(now) {
+      if (dead) return;
+      raf = requestAnimationFrame(frame);
+      if (phase === 'boot') {
+        if (now - t0 > 520) next(now);
+        else if (now - lastDraw > 60) { lastDraw = now; draw(now); }
+        return;
+      }
+      var el = now - t0;
+      var total = WIPE + (offW > W ? 700 + (offW - W) / CRAWL * 1000 + 900 : HOLD);
+      if (el > total) { next(now); el = 0; }
+      if (phase === 'wipe' && el > WIPE) { phase = 'hold'; dirty = true; }
+      var crawling = offW > W && el > WIPE + 700 && el < total - 900;
+      if (dirty || phase === 'wipe' || (crawling && now - lastDraw > 40)) {
+        lastDraw = now; dirty = false; draw(now);
+      }
+    }
+
+    function go() {
+      if (dead) return;
+      t0 = U.now(); phase = 'boot';
+      if (quick) next(t0);                 // re-rendered screen: no power-on sparkle
+      raf = requestAnimationFrame(frame);
+    }
+    if (document.fonts && document.fonts.load) document.fonts.load(FONT).then(go, go);
+    else go();
+
+    return {
+      stop: function () { dead = true; if (raf) cancelAnimationFrame(raf); },
+      /* Swap the message list; the first new message wipes in at once. */
+      set: function (m) {
+        messages = m; idx = -1;
+        if (phase !== 'boot') next(U.now());
+      }
+    };
+  }
+
+  /* Markup for a display, and the call that lights it. */
+  function dmdBox(id) {
+    return '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span>' +
+      '<canvas id="' + id + '"></canvas><span class="plate">Megaball display</span></div>';
+  }
+  function dmdRun(sheet, id, msgs, quick) {
+    var cv = sheet.querySelector('#' + id);
+    if (!cv || !cv.getContext) return null;
+    var run = dmdStart(cv, msgs, quick);
+    dmdRuns.push(run);
+    return run;
+  }
+  /* The readout line every sub-screen opens with. */
+  function hline(left, right) {
+    return '<div class="hline sub">' + (left || '<span></span>') + (right || '') + '</div>';
+  }
+  function backLink(label) {
+    return '<button class="txtbtn" id="back" aria-label="Back">' + ICON.back + label + '</button>';
+  }
+  function starsRd(total) {
+    return '<span class="rd" aria-label="' + total + ' of 15 stars">' + ICON.star + '<em>' + total + '</em> / 15 stars</span>';
+  }
+  function scRow(id, label, count, cls) {
+    return '<button class="sc' + (cls ? ' ' + cls : '') + '" id="' + id + '"><i></i><span class="lb">' + label +
+      '</span><span class="ld"></span>' + (count !== undefined && count !== '' ? '<span class="ct">' + count + '</span>' : '') + '</button>';
+  }
+  function statRow(label, value, cls) {
+    return '<div class="sc stat' + (cls ? ' ' + cls : '') + '"><i></i><span class="lb">' + label +
+      '</span><span class="ld"></span><span class="ct' + (cls ? ' ' + cls : '') + '">' + value + '</span></div>';
+  }
+  function cab(id, label, sub, cls) {
+    return '<button class="cab' + (cls ? ' ' + cls : '') + '" id="' + id + '"><b>' + label + '</b>' +
+      (sub ? '<small>' + sub + '</small>' : '') + '</button>';
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Title: the backglass                                                   */
+  /* ---------------------------------------------------------------------- */
+
   function screenTitle() {
+    var GAME = global.GAME, LEVELS = global.LEVELS, CARDS = global.CARDS;
     var muted = global.SFX && global.SFX.isMuted && global.SFX.isMuted();
     var logo = global.ART && global.ART.get ? global.ART.get('logo_megaball') : null;
-    var total = global.GAME ? global.GAME.totalStars() : 0;
+    var total = GAME ? GAME.totalStars() : 0;
+    var best = GAME ? (GAME.progress.endlessBest || 0) : 0;
+    var rank = total >= 15 ? 'Legend' : total >= 10 ? 'Ace' : total >= 6 ? 'Veteran' : total >= 3 ? 'Defender' : 'Rookie';
+    var owned = LEVELS && LEVELS.ownedAt ? LEVELS.ownedAt(total) : { cards: [] };
+    var cardsMax = CARDS && CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
+
+    /* Current stage = first unlocked level not yet mastered. */
+    var curId = 1, cleared = 0, stages = 0;
+    if (GAME && LEVELS && LEVELS.list) {
+      stages = LEVELS.list.length;
+      var found = false;
+      for (var c = 0; c < LEVELS.list.length; c++) {
+        var lc = LEVELS.list[c];
+        if ((GAME.progress.stars[lc.id] || 0) > 0) cleared++;
+        if (!found && GAME.levelUnlocked(lc.id) && (GAME.progress.stars[lc.id] || 0) < 3) { curId = lc.id; found = true; }
+      }
+    }
+    var cur = LEVELS && LEVELS.byId ? LEVELS.byId(curId) : null;
+
     var sheet = shell([
-      bar(starChip(total, 15), '',
-        '<button class="iconbtn" id="mute" aria-label="' + (muted ? 'Unmute' : 'Mute') + '">' + (muted ? ICON.muted : ICON.sound) + '</button>'),
-      '<div class="spacer" style="max-height:10px"></div>',
+      '<div class="hline">',
+      '<span class="rd" aria-label="' + total + ' of 15 stars">' + ICON.star + '<em>' + total + '</em> / 15 stars</span>',
+      '<button class="sndbtn' + (muted ? ' off' : '') + '" id="mute" aria-label="' + (muted ? 'Unmute' : 'Mute') + '">' +
+        (muted ? ICON.muted : ICON.sound) + '<span>' + (muted ? 'Sound off' : 'Sound') + '</span></button>',
+      '</div>',
+      '<div class="spacer top"></div>',
       logo
         ? '<div class="brand"><div class="brand-glow"></div><div class="brand-logo" role="img" aria-label="Megaball" style="background-image:url(' + logo.src + ')"></div></div>'
         : '<h1>MEGA<br>BALL</h1>',
-      '<div class="hero-copy"><div class="tagpanel">' + ICON.shield + '<div><b>Build. Defend. Survive.</b>',
-      '<small>Build the board. Break the swarm. Save the drain.</small></div></div></div>',
-      '<div class="spacer"></div>',
-      '<div class="actions"><button class="btn primary play" id="play">' + ICON.play + '<span><b>Play</b><small>World 1 \u00b7 Five stages</small></span></button>',
-      '<div class="row"><button class="btn card mag" id="deck">' + ICON.cards + '<span><b>Power Cards</b><small>Choose your loadout</small></span></button>',
-      '<button class="btn card" id="howto">' + ICON.learn + '<span><b>Learn</b><small>Interactive tutorial</small></span></button></div></div>'
+      '<div class="spacer mid"></div>',
+      '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="plate">Megaball display</span></div>',
+      '<div class="ctl">',
+      '<button class="start" id="play" aria-label="Play World 1 Stage ' + curId + '"><b>Play</b><small>Stage ' + curId + '</small></button>',
+      '<div class="scard">',
+      '<button class="sc" id="lvls"><i></i><span class="lb">Levels</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
+      '<button class="sc mag" id="deck"><i></i><span class="lb">Power cards</span><span class="ld"></span><span class="ct">' + owned.cards.length + '/' + cardsMax + '</span></button>',
+      '<button class="sc amb" id="endless"><i></i><span class="lb">Endless</span><span class="ld"></span><span class="ct">' + (best ? 'Wave ' + best : 'New') + '</span></button>',
+      '<button class="sc" id="howto"><i></i><span class="lb">How to play</span><span class="ld"></span></button>',
+      '</div></div>',
+      '<p class="attract">Press play · 1 player · free play</p>'
     ].join(''), true);
     sheet.classList.add('hero');
+    sheet.classList.add('home');
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
+    on('#lvls', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
+    on('#endless', function () { sfx('ui_tap'); UI.showScreen('endless'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'title' }); }, sheet);
     /* Replays the Level 1 tutorial on demand. */
     on('#howto', function () {
@@ -459,9 +893,21 @@
       var m = !s.isMuted();
       s.setMuted(m);
       GAMEsave('muted', m);
-      e.currentTarget.innerHTML = m ? ICON.muted : ICON.sound;
-      e.currentTarget.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+      var btn = e.currentTarget;
+      btn.innerHTML = (m ? ICON.muted : ICON.sound) + '<span>' + (m ? 'Sound off' : 'Sound') + '</span>';
+      btn.classList.toggle('off', m);
+      btn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
     }, sheet);
+
+    /* Attract-mode messages for the display. */
+    var msgs = [
+      ['MEGABALL'],
+      ['WORLD 1', 'STAGE ' + curId + (cur ? '  ' + cur.name.toUpperCase() : '')],
+      best ? ['ENDLESS', 'BEST WAVE ' + best] : ['ENDLESS MODE', 'NO RECORD YET'],
+      ['STARS ' + total + ' / 15', 'RANK ' + rank.toUpperCase()],
+      ['PRESS PLAY']
+    ];
+    dmdRun(sheet, 'dmd', msgs);
   }
 
   function GAMEsave(k, v) {
@@ -482,18 +928,21 @@
   ];
 
   function screenWorld() {
-    var GAME = global.GAME;
+    var GAME = global.GAME, LEVELS = global.LEVELS, CARDS = global.CARDS;
     var total = GAME.totalStars();
+    var owned = LEVELS && LEVELS.ownedAt ? LEVELS.ownedAt(total) : { cards: [] };
+    var cardsMax = CARDS && CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
 
     var sheet = shell([
-      bar(backBtn('Home'), 'Campaign', starChip(total, 15)),
-      '<h2 class="campaign-title">Choose your battlefield.</h2>',
-      '<p class="campaign-copy">Every stage reshapes the table. Clear objectives, earn stars, unlock stronger power cards.</p>',
+      hline(backLink('Home'), starsRd(total)),
+      '<h2 class="pxh">Campaign<small>Choose your battlefield.</small></h2>',
+      '<p class="copy">Every stage reshapes the table. Clear objectives, earn stars, unlock stronger power cards.</p>',
       '<div class="globe" id="globe"></div>',
-      '<p class="hint">Drag to spin \u00b7 tap a world</p>',
-      '<div class="actions"><button class="btn primary" id="w1">' + ICON.play + 'Enter World 1</button>',
-      '<button class="btn ghost" id="deck">' + strokeIcon(ICON.cards) + 'Power Cards</button></div>'
+      '<p class="attract static">Drag to spin · tap a world</p>',
+      cab('w1', 'Enter World 1', 'Five stages'),
+      '<div class="scard">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>'
     ].join(''), true);
+    sheet.classList.add('sub');
 
     on('#w1', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'world' }); }, sheet);
@@ -511,7 +960,7 @@
     }
     if (!ok) {
       /* No WebGL: the button below is the whole picker, drop the hint. */
-      var hint = sheet.querySelector('.hint');
+      var hint = sheet.querySelector('.attract');
       if (hint) hint.textContent = 'Worlds 2 and 3 are locked';
     }
   }
@@ -521,72 +970,99 @@
   /* ---------------------------------------------------------------------- */
 
   function lockedTile(i) {
-    return '<button class="tile locked" data-id="' + i + '" aria-label="Level ' + i + ' locked" disabled>' + ICON.lock + '</button>';
+    return '<button class="ins locked" data-id="' + i + '" aria-label="Level ' + i + ' locked" disabled>' + ICON.lock + '</button>';
+  }
+  function lampStr(n) {
+    var out = '';
+    for (var i = 0; i < 3; i++) out += '<i' + (i < n ? ' class="on"' : '') + '></i>';
+    return out;
+  }
+  function artUrl(key) {
+    var a = global.ART && global.ART.get ? global.ART.get(key) : null;
+    return a ? 'url(' + a.src + ')' : 'none';
   }
 
-  /* Five stages, shown as one clean progression row. */
+  /* Five stages as inserts under a translite of the selected stage; the
+   * display reads out whatever is selected. */
   function screenLevelSelect() {
     var GAME = global.GAME, LEVELS = global.LEVELS;
     var total = GAME.totalStars();
 
     /* "Current" = the first unlocked level the player has not mastered. */
-    var curId = 0;
+    var curId = 0, cleared = 0;
     for (var c = 0; c < LEVELS.list.length; c++) {
       var lc = LEVELS.list[c];
-      if (GAME.levelUnlocked(lc.id) && (GAME.progress.stars[lc.id] || 0) < 3) { curId = lc.id; break; }
+      if ((GAME.progress.stars[lc.id] || 0) > 0) cleared++;
+      if (!curId && GAME.levelUnlocked(lc.id) && (GAME.progress.stars[lc.id] || 0) < 3) curId = lc.id;
     }
     if (!curId) curId = LEVELS.list.length ? LEVELS.list[0].id : 0;
+    var stages = LEVELS.list.length;
 
     var tiles = '';
-    for (var i = 1; i <= LEVELS.list.length; i++) {
+    for (var i = 1; i <= stages; i++) {
       var L = LEVELS.byId(i);
       if (!L || !GAME.levelUnlocked(L.id)) { tiles += lockedTile(i); continue; }
       var st = GAME.progress.stars[L.id] || 0;
-      tiles += '<button class="tile' + (L.id === curId ? ' cur' : '') + '" data-id="' + L.id + '" aria-label="Level ' + L.id + '">' +
-        '<span class="n">' + L.id + '</span>' +
-        '<span class="st" style="color:' + (st ? '#ffd24a' : 'rgba(255,255,255,.35)') + '">' +
-        starStr(st) + '</span></button>';
+      tiles += '<button class="ins' + (L.id === curId ? ' cur' : '') + '" data-id="' + L.id + '" aria-label="Level ' + L.id + ', ' + st + ' stars">' +
+        '<b>' + L.id + '</b><span class="lamps">' + lampStr(st) + '</span></button>';
     }
 
-    function blurbFor(L) {
-      return '<span class="kicker">Stage ' + L.id + '</span><b class="level-name">' + L.name + '</b>' +
-        '<span class="level-subtitle">' + L.subtitle + '</span>';
+    function capFor(L) {
+      return '<span class="kick">Stage ' + L.id + '</span><b class="nm">' + L.name + '</b>' +
+        '<span class="sub">' + L.subtitle + '</span>';
+    }
+    function msgsFor(L) {
+      var st = GAME.progress.stars[L.id] || 0;
+      return [['STAGE ' + L.id, L.name.toUpperCase()],
+        [st + (st === 1 ? ' STAR' : ' STARS'), 'OF 3 EARNED'],
+        ['WORLD 1', cleared + ' OF ' + stages + ' CLEARED']];
     }
     var cur = LEVELS.byId(curId);
 
     /* The three objectives of the current level, stated up front. A "use no
        more than N defenses" ask is unplayable as a surprise at the results
-       screen — the player has to know the constraint before they spend. */
+       screen: the player has to know the constraint before they spend. */
     var objList = cur ? objectiveRows(LEVELS.objectives(cur, null), false) : '';
 
     var sheet = shell([
-      bar(backBtn('Map'), 'World 1', starChip(total, 15)),
-      '<div class="grid">' + tiles + '</div>',
-      '<div class="panel"><div id="blurb">' + (cur ? blurbFor(cur) : '') + '</div>',
-      '<div id="objs">' + objList + '</div></div>',
+      hline(backLink('Map'), starsRd(total)),
+      dmdBox('dmdl'),
+      '<div class="translite" id="lart" style="background-image:' + artUrl('lvl_' + curId) + '"><div class="tl-shade"></div>' +
+        '<div class="tl-cap" id="lcap">' + (cur ? capFor(cur) : '') + '</div></div>',
+      '<div class="insrow">' + tiles + '</div>',
+      '<div class="plate slim" id="objs">' + objList + '</div>',
       '<div class="spacer"></div>',
-      '<div class="actions"><button class="btn primary" id="launch">' + ICON.play + 'Play Level ' + curId + '</button>',
-      '<button class="btn ghost" id="deck">' + strokeIcon(ICON.cards) + 'Power Cards</button></div>'
+      cab('launch', 'Play stage ' + curId, cur ? cur.name : ''),
+      '<div class="scard">' + scRow('deck', 'Power cards', '', 'mag') + '</div>'
     ].join(''), true);
-    sheet.classList.add('level-select');
+    sheet.classList.add('sub');
 
-    var note = sheet.querySelector('#blurb');
+    var dmd = dmdRun(sheet, 'dmdl', cur ? [['WORLD 1']].concat(msgsFor(cur)) : [['WORLD 1']]);
+
     var selectedId = curId;
-    onAll('.tile', function (n) {
+    onAll('.ins', function (n) {
       var id = parseInt(n.getAttribute('data-id'), 10);
       if (n.classList.contains('locked')) { sfx('ui_error'); return; }
       var L = LEVELS.byId(id);
-      if (note && L) {
-        selectedId = id;
-        var allTiles = sheet.querySelectorAll('.tile');
-        for (var ti = 0; ti < allTiles.length; ti++) allTiles[ti].classList.remove('cur');
-        n.classList.add('cur');
-        note.innerHTML = blurbFor(L);
-        var ob = sheet.querySelector('#objs');
-        if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
-        var launch = sheet.querySelector('#launch');
-        if (launch) launch.innerHTML = ICON.play + 'Play Level ' + L.id;
+      if (!L) return;
+      selectedId = id;
+      var all = sheet.querySelectorAll('.ins');
+      for (var ti = 0; ti < all.length; ti++) all[ti].classList.remove('cur');
+      n.classList.add('cur');
+      var art = sheet.querySelector('#lart');
+      if (art) {
+        art.style.backgroundImage = artUrl('lvl_' + id);
+        art.style.animation = 'none';
+        void art.offsetWidth;                 // restart the fade
+        art.style.animation = '';
       }
+      var cap = sheet.querySelector('#lcap');
+      if (cap) cap.innerHTML = capFor(L);
+      var ob = sheet.querySelector('#objs');
+      if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
+      var launch = sheet.querySelector('#launch');
+      if (launch) launch.innerHTML = '<b>Play stage ' + L.id + '</b><small>' + L.name + '</small>';
+      if (dmd) dmd.set(msgsFor(L));
       sfx('ui_tap');
     }, sheet);
     on('#launch', function () { sfx('ui_tap'); if (hooks.onStartLevel) hooks.onStartLevel(selectedId); }, sheet);
@@ -611,6 +1087,7 @@
     var owned = LEVELS.ownedAt(total);
     var loadout = GAME.progress.loadout;
     var nextLvl = ctx && ctx.next ? LEVELS.byId(ctx.next) : null;
+    var cardsMax = CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
 
     /* Trim any cards that are no longer slottable. */
     while (loadout.length > owned.slots) loadout.pop();
@@ -621,7 +1098,7 @@
       var cid = loadout[s];
       var cd = cid ? CARDS.PLAYER[cid] : null;
       slots += '<div class="slot ' + (cd ? 'full' : '') + (lockd ? ' lockd' : '') + '">' +
-        (lockd ? 'Locked<br>★' + slotStarReq(s) : (cd ? cd.name : 'Empty')) + '</div>';
+        (lockd ? 'Locked ★' + slotStarReq(s) : (cd ? cd.name : 'Empty')) + '</div>';
     }
 
     var grid = '';
@@ -632,7 +1109,7 @@
       var eq = loadout.indexOf(id);
       var art = global.ART && global.ART.get ? global.ART.get(def.art) : null;
       grid += '<button class="pc ' + (has ? '' : 'lock ') + (eq >= 0 ? 'eq' : '') + '" data-id="' + id + '"' +
-        (has ? '' : ' disabled') + ' aria-label="' + (has ? def.name : 'Locked card') + '">' +
+        ' aria-label="' + (has ? def.name : 'Locked card ' + def.name) + '">' +
         (art ? '<div class="art" style="background-image:url(' + art.src + ')"></div>' : '') +
         '<div class="shade"></div>' +
         (eq >= 0 ? '<div class="eqbadge">' + (eq + 1) + '</div>' : '') +
@@ -642,47 +1119,65 @@
         '</button>';
     }
 
-    var sel = loadout.length ? CARDS.PLAYER[loadout[loadout.length - 1]] : CARDS.PLAYER.slowtime;
+    /* Featured card: the one just tapped, else the last equipped, else the
+     * first card everyone owns. */
+    var selId = (ctx && ctx.sel) || (loadout.length ? loadout[loadout.length - 1] : 'slowtime');
+    var sel = CARDS.PLAYER[selId] || CARDS.PLAYER.slowtime;
+    var selHas = owned.cards.indexOf(selId) >= 0;
+    var selEq = loadout.indexOf(selId);
+    var selArt = global.ART && global.ART.get ? global.ART.get(sel.art) : null;
+    var chips = '<i class="amb">' + sel.cd + 's cooldown</i>' +
+      (selHas ? (selEq >= 0 ? '<i class="grn">Slot ' + (selEq + 1) + '</i>' : '<i>Not equipped</i>')
+        : '<i class="mag">' + cardStarReq(selId) + '</i>');
 
-    /* Banner for anything just unlocked, then the swap rule — spelled out only
-     * when it actually bites, i.e. more cards owned than slots to hold them. */
+    /* Plates for anything just unlocked. */
     var unl = '';
     if (ctx && ctx.unlocks) {
       for (var u = 0; u < ctx.unlocks.length; u++) {
-        unl += '<div class="unlock">UNLOCKED — ' + ctx.unlocks[u].label + '</div>';
+        unl += '<div class="unlock">Unlocked · ' + ctx.unlocks[u].label + '</div>';
       }
     }
-    var lead = owned.cards.length > owned.slots
-      ? 'Slots full. Tap a card to swap it into your loadout.'
-      : 'Tap to equip. Cards recharge during play; each level lends one bonus card.';
 
-    var backLabel = nextLvl ? 'Levels' : (ctx && ctx.back === 'title' ? 'Home' : (ctx && ctx.back === 'world' ? 'Map' : 'Levels'));
+    var backLabel = nextLvl ? 'Levels' : (ctx && ctx.back === 'title' ? 'Home' : (ctx && ctx.back === 'world' ? 'Map' : (ctx && ctx.back === 'endless' ? 'Endless' : 'Levels')));
 
     var sheet = shell([
-      bar(backBtn(backLabel), 'Power Cards', starChip(total)),
+      hline(backLink(backLabel), starsRd(total)),
+      dmdBox('dmdc'),
+      '<div class="feat' + (selHas ? '' : ' lock') + '" id="feat">' +
+        '<div class="feat-art" style="background-image:' + (selArt ? 'url(' + selArt.src + ')' : 'none') + '"></div>' +
+        '<div class="feat-txt"><span class="kick" style="color:' + (selHas ? sel.color : '#ff7ac0') + '">' +
+          (selHas ? 'Power card' : 'Locked card') + '</span><b class="nm">' + sel.name + '</b>' +
+          '<span class="sub">' + sel.long + '</span><span class="chips">' + chips + '</span></div></div>',
       unl,
-      '<p class="note">' + lead + '</p>',
       '<div class="slots">' + slots + '</div>',
       '<div class="cardgrid">' + grid + '</div>',
-      '<div class="panel" id="blurb"><span class="kicker" style="color:' + sel.color + '">' + sel.name + '</span>' +
-        '<span class="note" style="margin:0;display:block">' + sel.long + '</span></div>',
       '<div class="spacer"></div>',
-      nextLvl
-        ? '<div class="actions"><button class="btn primary" id="play">' + ICON.play + 'Play ' + nextLvl.id + '. ' + nextLvl.name + '</button></div>'
-        : ''
+      nextLvl ? cab('play', 'Play stage ' + nextLvl.id, nextLvl.name) : ''
     ].join(''), true);
+    sheet.classList.add('sub');
     sheet.classList.add('deck-screen');
+
+    /* The display carries the rule that matters right now. */
+    var msgs = [['POWER CARDS'], [owned.cards.length + ' OF ' + cardsMax + ' OWNED', owned.slots + (owned.slots === 1 ? ' SLOT' : ' SLOTS')]];
+    msgs.push(owned.cards.length > owned.slots ? ['SLOTS FULL', 'TAP A CARD TO SWAP'] : ['TAP A CARD', 'TO EQUIP IT']);
+    if (nextLvl) msgs.push(['NEXT UP', 'STAGE ' + nextLvl.id + ' ' + nextLvl.name.toUpperCase()]);
+    dmdRun(sheet, 'dmdc', msgs, !!(ctx && ctx.again));
 
     onAll('.pc', function (n) {
       var id = n.getAttribute('data-id');
-      if (n.classList.contains('lock')) { sfx('ui_error'); return; }
+      var again = { next: ctx && ctx.next, unlocks: ctx && ctx.unlocks, back: ctx && ctx.back, sel: id, again: true };
+      if (n.classList.contains('lock')) {
+        sfx('ui_error');
+        screenLoadout(again);            // feature it, so the unlock cost is readable
+        return;
+      }
       var idx = loadout.indexOf(id);
       if (idx >= 0) loadout.splice(idx, 1);
       else if (loadout.length < owned.slots) loadout.push(id);
       else { loadout.pop(); loadout.push(id); }
       sfx('ui_tap');
       GAME.saveProgress();
-      screenLoadout(ctx);          // keep the "play next" context across a re-render
+      screenLoadout(again);              // keep the "play next" context across a re-render
     }, sheet);
 
     on('#play', function () {
@@ -715,18 +1210,79 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* Endless lobby                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  /* The mode gets its own backglass: the record on the display, the rules
+   * on a translite, the loadout you are taking in, and one START. */
+  function screenEndless() {
+    var GAME = global.GAME, LEVELS = global.LEVELS, CARDS = global.CARDS;
+    var total = GAME.totalStars();
+    var best = GAME.progress.endlessBest || 0;
+    var runs = GAME.progress.endlessRuns || 0;
+    var owned = LEVELS.ownedAt(total);
+    var cardsMax = CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
+    var names = [];
+    for (var i = 0; i < GAME.progress.loadout.length; i++) {
+      var d = CARDS.PLAYER[GAME.progress.loadout[i]];
+      if (d) names.push(d.name);
+    }
+    var lend = LEVELS.ENDLESS && LEVELS.ENDLESS.levelCard && CARDS.PLAYER[LEVELS.ENDLESS.levelCard]
+      ? CARDS.PLAYER[LEVELS.ENDLESS.levelCard].name : null;
+
+    var sheet = shell([
+      hline(backLink('Home'), starsRd(total)),
+      dmdBox('dmdx'),
+      '<div class="translite tall" style="background-image:' + artUrl('lvl_5') + '"><div class="tl-shade"></div>' +
+        '<div class="tl-cap"><span class="kick" style="color:#ff7ac0">Endless mode</span><b class="nm">Survive the swarm</b>' +
+        '<span class="sub">The waves never stop and every one grows. Each tenth wave is a boss: clear it and take a life back.</span></div></div>',
+      '<div class="scard stats">',
+      statRow('Best run', best ? 'Wave ' + best : 'None yet', 'amb'),
+      statRow('Runs played', runs, ''),
+      statRow('Loadout', names.length ? names.join(' MID_CH ') : 'Empty', 'cy'),
+      lend ? statRow('Lent by the table', lend, 'grn') : '',
+      '</div>',
+      '<div class="spacer"></div>',
+      cab('go', 'Start run', best ? 'Beat wave ' + best : 'Set a record'),
+      '<div class="scard">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>'
+    ].join(''), true);
+    sheet.classList.add('sub');
+
+    dmdRun(sheet, 'dmdx', [['ENDLESS'],
+      best ? ['BEST RUN', 'WAVE ' + best] : ['NO RECORD', 'SET ONE'],
+      ['EVERY 10TH WAVE', 'IS A BOSS'],
+      ['PRESS START']]);
+
+    on('#go', function () { sfx('ui_tap'); if (hooks.onStartLevel) hooks.onStartLevel('endless'); }, sheet);
+    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'endless' }); }, sheet);
+    on('#back', function () { sfx('ui_back'); UI.showScreen('title'); }, sheet);
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* Pause / results                                                        */
   /* ---------------------------------------------------------------------- */
 
   function screenPaused() {
+    var S = global.GAME ? global.GAME.state : null;
+    var endless = !!(S && S.level && S.level.endless);
     var sheet = shell([
       '<div class="spacer"></div>',
-      '<p class="title-big">Paused</p>',
-      '<div class="spacer"></div>',
-      '<div class="actions"><button class="btn primary" id="res">' + ICON.play + 'Resume</button>',
-      '<button class="btn ghost" id="rst">Restart Level</button>',
-      '<button class="btn danger" id="qt">Quit to Menu</button></div>'
+      dmdBox('dmdp'),
+      '<div class="spacer" style="max-height:26px"></div>',
+      cab('res', 'Resume', 'Back to the table'),
+      '<div class="scard">' + scRow('rst', endless ? 'Restart run' : 'Restart level', '') +
+        scRow('qt', 'Quit to menu', '', 'mag') + '</div>',
+      '<div class="spacer"></div>'
     ].join(''), false);
+    sheet.classList.add('sub');
+    sheet.classList.add('pause');
+
+    var msgs = [['PAUSED']];
+    if (S && S.level) {
+      msgs.push(['WAVE ' + Math.max(1, S.waveIndex + 1) + (S.level.endless ? '' : ' OF ' + S.level.waves.length),
+        (S.level.endless ? 'ENDLESS' : S.level.name.toUpperCase())]);
+    }
+    dmdRun(sheet, 'dmdp', msgs);
 
     on('#res', function () { sfx('ui_back'); global.GAME.resume(); }, sheet);
     on('#rst', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
@@ -752,61 +1308,89 @@
   }
 
   function screenResults(d) {
-    var stars = '';
+    var lamps = '';
     for (var i = 0; i < 3; i++) {
-      stars += '<span style="animation-delay:' + (0.15 + i * 0.24) + 's;color:' +
-        (i < d.stars ? '#ffd24a' : 'rgba(255,255,255,.18)') + '">★</span>';
+      lamps += '<i class="' + (i < d.stars ? 'on' : '') + '" style="animation-delay:' + (0.25 + i * 0.24) + 's"></i>';
     }
     var unl = '';
     for (var u = 0; u < d.unlocks.length; u++) {
-      unl += '<div class="unlock">UNLOCKED — ' + d.unlocks[u].label + '</div>';
+      unl += '<div class="unlock">Unlocked · ' + d.unlocks[u].label + '</div>';
     }
 
     /* Go on through the Deck rather than straight into the next level when
-     * there is something new to slot, and always after Level 1 — that is the
+     * there is something new to slot, and always after Level 1: that is the
      * one moment we can be sure the player has never opened the Deck, and a
      * card they cannot find is a card they will never use. */
     var viaDeck = d.win && d.hasNext && (d.unlocks.length > 0 || d.level.id === 1);
     var nextId = d.level.id + 1;
 
-    var verdictStyle = d.win
-      ? 'background:linear-gradient(180deg,#7df0a6,#22b35a)'
-      : 'background:linear-gradient(180deg,#ff5fb0,#c8146a)';
+    if (d.endless) { screenEndlessResults(d); return; }
 
+    var name = d.level.name.toUpperCase();
     var sheet = shell([
-      '<div class="spacer"></div>',
-      '<p class="tag verdict" style="' + verdictStyle + '">' + (d.win ? 'Level Complete' : 'Defenses Breached') + '</p>',
-      '<p class="title-big">' + d.level.name + '</p>',
-      d.win ? '<div class="stars">' + stars + '</div>' :
-        '<p class="note" style="text-align:center">Reached wave ' + (d.wave || 1) + ' of ' + (d.waves || '?') + '</p>',
-      d.objectives ? objectiveRows(d.objectives, true) : '',
-      '<div class="stats">',
-      '  <div class="stat"><b style="color:#ff5fb0">' + d.lives + '/' + d.livesMax + '</b><i>Lives left</i></div>',
-      '  <div class="stat"><b style="color:#fff">' + d.kills + '</b><i>Destroyed</i></div>',
-      '  <div class="stat"><b style="color:#ffd24a">' + d.earned + '</b><i>Energy earned</i></div>',
-      '  <div class="stat"><b style="color:#ff5fb0">' + d.leaks + '</b><i>Leaks</i></div>',
+      '<div class="spacer" style="max-height:10px"></div>',
+      dmdBox('dmdr'),
+      d.win ? '<div class="starlamps">' + lamps + '</div>'
+        : '<p class="copy" style="text-align:center;max-width:none;margin:12px 0 4px">Reached wave ' + (d.wave || 1) + ' of ' + (d.waves || '?') + '</p>',
+      d.objectives ? '<div class="plate">' + objectiveRows(d.objectives, true) + '</div>' : '',
+      '<div class="scard stats">',
+      statRow('Lives left', d.lives + '/' + d.livesMax, 'mag'),
+      statRow('Destroyed', d.kills, ''),
+      statRow('Energy earned', d.earned, 'amb'),
+      statRow('Leaks', d.leaks, 'mag'),
       '</div>',
       unl,
+      d.win && !d.hasNext ? '<div class="unlock good">All levels cleared · ★' + d.totalStars + ' total</div>' : '',
       '<div class="spacer"></div>',
-      '<div class="actions">',
       d.win && d.hasNext
-        ? '<button class="btn primary" id="next">' + ICON.play +
-            (viaDeck ? 'Cards &amp; Continue' : 'Next Level') + '</button>'
-        : '',
-      viaDeck && d.unlocks.length
-        ? '<p class="hint" style="margin:0 0 4px">Pick which cards you take in</p>'
-        : '',
-      d.win && !d.hasNext ? '<div class="unlock" style="background:linear-gradient(180deg,#7df0a6,#22b35a)">ALL LEVELS CLEARED — ★' + d.totalStars + ' total</div>' : '',
-      '<div class="row"><button class="btn' + (d.win ? ' ghost' : ' primary') + '" id="retry">' + (d.win ? 'Replay' : 'Try Again') + '</button>',
-      '<button class="btn ghost" id="menu">Levels</button></div></div>'
+        ? cab('next', 'Continue',
+            viaDeck ? 'Pick your cards first' : 'Stage ' + nextId)
+        : (d.win ? '' : cab('retry', 'Try again', d.level.name)),
+      '<div class="scard">',
+      d.win ? scRow('retry', 'Replay', '') : '',
+      scRow('menu', 'Levels', ''),
+      '</div>'
     ].join(''), true);
+    sheet.classList.add('sub');
     sheet.classList.add('results-screen');
+
+    dmdRun(sheet, 'dmdr', d.win
+      ? [['LEVEL CLEAR'], ['STAGE ' + d.level.id, name], [(d.stars || 0) + (d.stars === 1 ? ' STAR' : ' STARS')]]
+      : [['BREACHED'], ['STAGE ' + d.level.id, name], ['WAVE ' + (d.wave || 1) + ' OF ' + (d.waves || '?')]]);
 
     on('#next', function () {
       sfx('ui_tap');
       if (viaDeck) UI.showScreen('loadout', { next: nextId, unlocks: d.unlocks });
       else global.GAME.nextLevel();
     }, sheet);
+    on('#retry', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
+    on('#menu', function () { sfx('ui_back'); global.GAME.quitToMenu(); }, sheet);
+  }
+
+  /* Endless has no stars, objectives or next level: the run is the score.
+   * The wave count is the headline, the record sits beside it, and a new
+   * record gets the same plate a card unlock would. */
+  function screenEndlessResults(d) {
+    var sheet = shell([
+      '<div class="spacer" style="max-height:10px"></div>',
+      dmdBox('dmde'),
+      '<div class="scard stats">',
+      statRow('Waves survived', d.wave || 0, 'cy'),
+      statRow('Best run', d.best || 0, 'amb'),
+      statRow('Destroyed', d.kills, ''),
+      statRow('Leaks', d.leaks, 'mag'),
+      '</div>',
+      d.newBest ? '<div class="unlock">New best · wave ' + d.wave + '</div>' : '',
+      '<div class="spacer"></div>',
+      cab('retry', 'Go again', 'Endless'),
+      '<div class="scard">' + scRow('menu', 'Home', '') + '</div>'
+    ].join(''), true);
+    sheet.classList.add('sub');
+    sheet.classList.add('results-screen');
+
+    dmdRun(sheet, 'dmde', [['RUN OVER'], ['WAVE ' + (d.wave || 0)],
+      d.newBest ? ['NEW BEST', 'WAVE ' + d.wave] : ['BEST RUN', 'WAVE ' + (d.best || 0)]]);
+
     on('#retry', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
     on('#menu', function () { sfx('ui_back'); global.GAME.quitToMenu(); }, sheet);
   }
@@ -821,6 +1405,7 @@
       if (global.GLOBE && global.GLOBE.unmount) global.GLOBE.unmount();
     }
     current = name;
+    while (dmdRuns.length) dmdRuns.pop().stop();
     if (!name) {
       root.classList.remove('on');
       root.innerHTML = '';
@@ -831,6 +1416,7 @@
     else if (name === 'world') screenWorld();
     else if (name === 'levelSelect') screenLevelSelect();
     else if (name === 'loadout') screenLoadout(data);
+    else if (name === 'endless') screenEndless();
     else if (name === 'paused') screenPaused();
     else if (name === 'results') screenResults(data);
     root.scrollTop = 0;

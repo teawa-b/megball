@@ -33,13 +33,16 @@
   /* Presentation constants. Gameplay coordinates stay fixed; these only
    * decide how the machine and its menus occupy a real phone screen. */
   U.UI = {
-    /* How far the two axes may be scaled independently to fill the viewport.
-     * 1.0 is a strict contain-fit (letterboxed); 1.06 lets the board stretch
-     * up to 6% on one axis to reach the screen edges. That is below what the
-     * eye picks up on a ball or a bumper ring — at 1.2 the whole table read as
-     * pulled wide — so it absorbs a little browser chrome and leaves anything
-     * beyond that to clean bars rather than an oval ball. */
-    maxStretch: 1.06,
+    /* The board is always scaled uniformly, so a ball is a circle on every
+     * phone. What varies is how much cabinet is shown. A tall viewport is
+     * width-limited and has spare height; rather than black bars, that
+     * height becomes machine: the HUD rises into the head panel above the
+     * table (up to headMax units, enough to uncover the spawn gates) and the
+     * rest goes to the card tray, whose contents scale up (to trayScaleMax)
+     * to use the room. A short viewport is height-limited and gets slim side
+     * bars. Nothing ever stretches. */
+    headMax: 100,
+    trayScaleMax: 1.3,
     maxMenuWidth: 520,
     minTouch: 48
   };

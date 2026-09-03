@@ -39,11 +39,15 @@ VW = 720     // virtual width
 VH = 1440    // virtual height  (1:2 portrait)
 ```
 
-All gameplay math, positions, radii and speeds are in **virtual units**. On normal phone
-aspect ratios the renderer maps each axis to the viewport independently for a full-bleed
-portrait presentation; the small correction removes device bezels without cropping controls.
-Tablets and desktop use `scale = min(cssW / VW, cssH / VH)` and preserve the full board.
-Never write gameplay layout in CSS pixels — always virtual units.
+All gameplay math, positions, radii and speeds are in **virtual units**. The renderer scales
+the board **uniformly** (`scale = min(cssW / VW, cssH / (VH - VIEW_TOP))`) — it is never
+stretched, so a ball is a circle on every device. A tall phone is width-limited and the spare
+height becomes cabinet rather than bars: the HUD rises into the head panel above the table
+(up to `U.UI.headMax` units) and the rest goes to the card tray, which scales its contents up
+(to `U.UI.trayScaleMax`). Short viewports, tablets and desktop are height-limited and get slim
+side bars with the full board. `DRAW.vp` carries `viewTop / viewBottom / hudShift / trayShift`
+for any module that needs to know what is on screen; the WebGL layer opens its frustum to the
+same band. Never write gameplay layout in CSS pixels — always virtual units.
 
 ### Vertical budget
 
@@ -134,7 +138,13 @@ keeps friend/foe instantly separable from the white enemy balls.
 
 ### Typography
 
-System stack only (offline): `'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif`.
+Two faces. Display type (menu headings, buttons, readouts, captions on the canvas, combat text,
+tutorial titles) is one shipped typeface, "Ken Pixel" (Kenney Pixel, CC0), embedded as a `data:`
+URI in `src/fonts.js` so the built document still has no font subresource; any further font must be
+embedded the same way (see `tools/verify.js`). Body copy (paragraphs, card blurbs, objective text)
+stays on the system stack (offline): `'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial,
+sans-serif`. Menus and the HUD share one hardware language: dot-matrix displays, insert lamps,
+cabinet buttons, scorecard rows, dark plates on a dot grid, glass scanlines.
 Numbers in HUD are heavy weight, tabular, uppercase labels with wide letter-spacing.
 
 ---

@@ -659,7 +659,7 @@
   };
 
   /* Skip pill, just under the HUD's label line, over the spawn gates. */
-  var skipBtn = { x: VW / 2 - 90, y: 102, w: 180, h: 32 };
+  var skipBtn = { x: VW / 2 - 100, y: 102, w: 200, h: 34 };
 
   /* Returns true when the tap was consumed by the tutorial. */
   TUT.pointerDown = function (x, y) {
@@ -693,8 +693,12 @@
     ctx.closePath();
   }
 
+  /* Headings and captions take the pixel face the menus use; body copy
+   * (weights under 800) stays in the system face for reading. */
+  var PXF = '"Ken Pixel","Segoe UI",system-ui,sans-serif';
   function txt(ctx, str, x, y, size, color, align, weight, spacing) {
-    ctx.font = (weight || '800') + ' ' + size + 'px ' + U.FONT;
+    var w = weight || '800';
+    ctx.font = (w === '800' || w === '900') ? size + 'px ' + PXF : w + ' ' + size + 'px ' + U.FONT;
     ctx.textAlign = align || 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = color;
@@ -856,13 +860,36 @@
 
   var MSG_Y = { top: 128, mid: 560, low: 1040 };
 
+  /* The unlit dot grid behind every display, and an insert lamp. */
+  var msgPat = null;
+  function dotPattern(ctx) {
+    if (msgPat) return msgPat;
+    var c = document.createElement('canvas'); c.width = c.height = 8;
+    var g = c.getContext('2d');
+    g.fillStyle = 'rgba(63,224,255,0.11)';
+    g.beginPath(); g.arc(4, 4, 1.5, 0, TAU); g.fill();
+    msgPat = ctx.createPattern(c, 'repeat');
+    return msgPat;
+  }
+  function lamp(ctx, x, y, r, col, a) {
+    var k = a === undefined ? 1 : a;
+    ctx.beginPath(); ctx.arc(x, y, r * 2, 0, TAU);
+    ctx.fillStyle = U.rgba(col, 0.18 * k); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = U.rgba(col, k); ctx.fill();
+  }
+
+  /* The lesson card is a display plate in the backglass language: dark
+   * glass on the dot grid, bezel screws, a lamp before the title, and an
+   * amber lamp that breathes beside "tap to continue". Body copy stays in
+   * the reading face. */
   function drawMsg(ctx, m) {
     var a = U.clamp(m.t / 0.22, 0, 1);
     var ease = U.ease.outCubic(a);
     var w = 640, x = 40;
     var pad = 26;
-    var body = wrap(ctx, m.body, w - pad * 2, 24, '600');
-    var h = pad + (m.title ? 26 : 0) + body.length * 30 + (m.tap ? 34 : 12) + 4;
+    var body = wrap(ctx, m.body, w - pad * 2, 23, '600');
+    var h = pad + (m.title ? 28 : 0) + body.length * 29 + (m.tap ? 36 : 14) + 2;
     var y = MSG_Y[m.pos] || MSG_Y.top;
     if (y + h > 1200) y = 1200 - h;
 
@@ -870,40 +897,55 @@
     ctx.globalAlpha = a;
     ctx.translate(0, (1 - ease) * (m.pos === 'top' ? -24 : 24));
 
-    rr(ctx, x, y, w, h, 18);
-    ctx.fillStyle = 'rgba(5,7,16,0.94)';
+    ctx.save();
+    rr(ctx, x, y, w, h, 14);
+    ctx.fillStyle = 'rgba(3,5,10,0.95)';
     ctx.fill();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = U.rgba(C.cyan, 0.85);
+    ctx.clip();
+    ctx.fillStyle = dotPattern(ctx);
+    ctx.fillRect(x, y, w, h);
+    var sh = ctx.createLinearGradient(0, y, 0, y + 30);
+    sh.addColorStop(0, 'rgba(0,0,0,0.5)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(x, y, w, 30);
+    ctx.restore();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(C.cyan, 0.5);
+    rr(ctx, x, y, w, h, 14);
     ctx.stroke();
-    /* Accent bar top-left, in the same neon language as the wave banner. */
-    ctx.beginPath();
-    ctx.moveTo(x + 24, y + 2); ctx.lineTo(x + 120, y + 2);
-    ctx.lineWidth = 4; ctx.lineCap = 'round';
-    ctx.strokeStyle = C.cyan; ctx.stroke();
+    for (var sx = 0; sx < 2; sx++) {
+      ctx.beginPath(); ctx.arc(sx ? x + w - 8 : x + 8, y + h / 2, 3, 0, TAU);
+      ctx.fillStyle = '#1c2740'; ctx.fill();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(143,232,255,0.35)'; ctx.stroke();
+    }
 
     var cy = y + pad;
     if (m.title) {
-      txt(ctx, m.title, x + pad, cy + 4, 14, C.cyan, 'left', '800', 4);
-      cy += 26;
+      lamp(ctx, x + pad + 5, cy + 4, 4.5, C.cyan);
+      txt(ctx, m.title, x + pad + 19, cy + 4, 14, C.cyan, 'left', '800', 2);
+      cy += 28;
     }
     for (var i = 0; i < body.length; i++) {
-      txt(ctx, body[i], x + pad, cy + 14 + i * 30, 24, C.white, 'left', '600');
+      txt(ctx, body[i], x + pad, cy + 13 + i * 29, 23, C.white, 'left', '600');
     }
     if (m.tap) {
       var pulse = 0.5 + 0.5 * Math.sin(T.time * 4);
-      txt(ctx, 'TAP TO CONTINUE  ▸', x + w - pad, y + h - 22, 12,
-        U.rgba(C.white, 0.35 + 0.45 * pulse), 'right', '800', 3);
+      lamp(ctx, x + w - pad - 4, y + h - 22, 4, C.amber, 0.35 + 0.65 * pulse);
+      txt(ctx, 'TAP TO CONTINUE', x + w - pad - 17, y + h - 22, 12,
+        U.rgba(C.white, 0.4 + 0.4 * pulse), 'right', '800', 2);
     }
     ctx.restore();
   }
 
   function drawSkip(ctx) {
-    rr(ctx, skipBtn.x, skipBtn.y, skipBtn.w, skipBtn.h, 17);
-    ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fill();
-    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.stroke();
-    txt(ctx, 'SKIP TUTORIAL', skipBtn.x + skipBtn.w / 2, skipBtn.y + skipBtn.h / 2 + 1, 12,
-      U.rgba(C.white, 0.6), 'center', '800', 2.5);
+    var b = skipBtn;
+    rr(ctx, b.x, b.y, b.w, b.h, 17);
+    ctx.fillStyle = 'rgba(3,5,10,0.85)'; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(63,224,255,0.35)'; ctx.stroke();
+    lamp(ctx, b.x + 18, b.y + b.h / 2, 3.5, C.cyan, 0.9);
+    txt(ctx, 'SKIP TUTORIAL', b.x + b.w / 2 + 8, b.y + b.h / 2 + 1, 12,
+      U.rgba(C.white, 0.75), 'center', '800', 1.5);
   }
 
   function drawFlipCue(ctx) {

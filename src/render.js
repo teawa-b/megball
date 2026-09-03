@@ -21,7 +21,12 @@
   var TRAY_TOP = U.BAND.trayTop;
 
   /* Viewport: how the 720x1440 virtual board maps onto the real canvas. */
-  var vp = DRAW.vp = { scale: 1, scaleX: 1, scaleY: 1, ox: 0, oy: 0, w: VW, h: VH, dpr: 1 };
+  var vp = DRAW.vp = {
+    scale: 1, scaleX: 1, scaleY: 1, ox: 0, oy: 0, w: VW, h: VH, dpr: 1,
+    /* Virtual y at the top and bottom screen edges, and how far the HUD and
+     * tray bands have been pushed out to use spare height (see resize). */
+    viewTop: U.VIEW_TOP, viewBottom: VH, hudShift: 0, trayShift: 0
+  };
 
   DRAW.resize = function (canvas) {
     var dpr = Math.min(global.devicePixelRatio || 1, 2.5);
@@ -31,41 +36,42 @@
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
 
-    /* Fitting the 720x1440 board onto a real viewport.
+    /* Fitting the board onto a real viewport.
      *
-     * A strict contain-fit letterboxes anything that is not exactly 1:2, and
-     * on a phone that is most of the time: browser chrome (status bar, URL
-     * bar, toolbar) eats the top and bottom, so a 0.46-aspect handset presents
-     * a ~0.60-aspect viewport and the board ends up as a narrow strip with
-     * dead bars either side.
+     * The scale is uniform: the board is never stretched, so a ball is a
+     * circle on every phone. What varies is how much cabinet is shown.
      *
-     * So each axis is fitted independently, capped at U.UI.maxStretch relative
-     * to the other. That reaches the screen edges whenever the mismatch is
-     * within the cap, and degrades to a contain-fit beyond it rather than
-     * distorting without limit. Landscape windows are left contained: they are
-     * far wider than 1:2, stretching could never fill them, and an obviously
-     * squashed table on a big screen reads worse than clean bars.
+     *  - A short viewport (desktop, landscape, a phone with browser chrome)
+     *    is height-limited: it shows y = VIEW_TOP..VH and gets slim side bars.
+     *  - A tall phone is width-limited and has spare height. Rather than
+     *    black bars, that height becomes machine: the HUD rises into the head
+     *    panel above the table (up to U.UI.headMax units, enough to uncover
+     *    the spawn gates) and the rest goes to the card tray below, whose
+     *    contents scale up to fill it (see trayXform).
      *
-     * Both layers honour this: input divides by scaleX/scaleY (game.js
-     * toVirtual) and the WebGL layer renders into the same fitted rectangle
+     * Every layer honours the result: input divides by scale (game.js
+     * toVirtual), the HUD and tray read hudShift / trayShift from here, and
+     * the WebGL layer opens its frustum to the same viewTop..viewBottom band
      * (scene3d.js), so the 3D machine and the 2D balls stay registered. */
-    var viewH = VH - U.VIEW_TOP;
-    var fitX = cw / VW, fitY = ch / viewH;
-    var scale = Math.min(fitX, fitY);
-    var sx = scale, sy = scale;
-    if (cw <= ch) {
-      var k = U.UI.maxStretch;
-      sx = Math.min(fitX, fitY * k);
-      sy = Math.min(fitY, fitX * k);
-    }
-    vp.scale = scale;
-    vp.scaleX = sx;
-    vp.scaleY = sy;
-    vp.ox = (cw - VW * sx) / 2;
-    /* oy is where virtual y = 0 lands; the visible band starts VIEW_TOP
-     * units below that, centred in the canvas. */
-    vp.oy = (ch - viewH * sy) / 2 - U.VIEW_TOP * sy;
+    var minViewH = VH - U.VIEW_TOP;
+    var scale = Math.min(cw / VW, ch / minViewH);
+    /* A hidden or not-yet-laid-out canvas reports 0x0; keep the maths
+     * finite so the first real resize finds a sane state to overwrite. */
+    if (!(scale > 0)) scale = 1;
+    var extra = Math.max(0, ch / scale - minViewH);
+    var headExtra = Math.min(extra, U.UI.headMax);
+    var trayExtra = extra - headExtra;
+
+    vp.scale = vp.scaleX = vp.scaleY = scale;
+    vp.viewTop = U.VIEW_TOP - headExtra;
+    vp.viewBottom = VH + trayExtra;
+    vp.hudShift = -headExtra;
+    vp.trayShift = trayExtra;
+    vp.ox = (cw - VW * scale) / 2;
+    /* oy is where virtual y = 0 lands: the visible band starts at viewTop. */
+    vp.oy = -vp.viewTop * scale;
     vp.w = cw; vp.h = ch; vp.dpr = dpr;
+    trayXform();
 
     if (global.GAME) global.GAME.setViewport(vp);
   };
@@ -112,6 +118,88 @@
     }
   }
   DRAW.text = text;
+
+  /* The pixel face (src/fonts.js) for readouts and captions, so the canvas
+   * UI speaks the same language as the backglass menus. Single weight. */
+  var PXF = '"Ken Pixel","Segoe UI",system-ui,sans-serif';
+  function ptext(ctx, str, x, y, size, color, align, spacing) {
+    ctx.font = size + 'px ' + PXF;
+    ctx.textAlign = align || 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    if (spacing) {
+      var total = 0, i;
+      for (i = 0; i < str.length; i++) total += ctx.measureText(str[i]).width + spacing;
+      total -= spacing;
+      var cx = align === 'center' ? x - total / 2 : (align === 'right' ? x - total : x);
+      ctx.textAlign = 'left';
+      for (i = 0; i < str.length; i++) {
+        ctx.fillText(str[i], cx, y);
+        cx += ctx.measureText(str[i]).width + spacing;
+      }
+    } else {
+      ctx.fillText(str, x, y);
+    }
+  }
+  DRAW.ptext = ptext;
+
+  /* Dot-matrix readouts for the HUD. A string is rasterised through the
+   * pixel face into a small bitmap once and painted as dots into a cached
+   * canvas, so per frame a readout costs one drawImage. The pixel face draws
+   * 14-dot capitals at 16px and 7-dot capitals at 8px. */
+  var dmdCache = {}, dmdKeys = [];
+  function dmdSprite(str, size, color) {
+    var key = str + '|' + size + '|' + color;
+    var c = dmdCache[key];
+    if (c) return c;
+    var off = document.createElement('canvas');
+    var o = off.getContext('2d', { willReadFrequently: true });
+    o.font = size + 'px ' + PXF;
+    var w = Math.ceil(o.measureText(str).width) + 2;
+    var h = Math.ceil(size * 0.875) + 2;
+    off.width = w; off.height = h;
+    o.font = size + 'px ' + PXF;
+    o.fillStyle = '#fff'; o.textBaseline = 'alphabetic'; o.textAlign = 'left';
+    o.fillText(str, 1, h - 1);
+    var px = o.getImageData(0, 0, w, h).data;
+    var P = 4;
+    var cv = document.createElement('canvas'); cv.width = w * P; cv.height = h * P;
+    var g = cv.getContext('2d');
+    g.fillStyle = color;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        if (px[(y * w + x) * 4 + 3] > 110) {
+          g.beginPath(); g.arc(x * P + P / 2, y * P + P / 2, P * 0.42, 0, TAU); g.fill();
+        }
+      }
+    }
+    c = { cv: cv, w: w, h: h };
+    dmdCache[key] = c; dmdKeys.push(key);
+    if (dmdKeys.length > 48) delete dmdCache[dmdKeys.shift()];
+    return c;
+  }
+  /* Paint a readout with its dots `pitch` units apart, anchored at the top
+   * edge and by `align` horizontally. Returns the width drawn. */
+  function dmdText(ctx, str, x, y, size, pitch, color, align) {
+    var sp = dmdSprite(str, size, color);
+    var w = sp.w * pitch, h = sp.h * pitch;
+    var dx = align === 'center' ? x - w / 2 : (align === 'right' ? x - w : x);
+    ctx.drawImage(sp.cv, dx, y, w, h);
+    return w;
+  }
+  DRAW.dmdText = dmdText;
+
+  /* The unlit dot grid behind every display, as a repeating pattern. */
+  var glassPat = null;
+  function glassPattern(ctx) {
+    if (glassPat) return glassPat;
+    var c = document.createElement('canvas'); c.width = c.height = 8;
+    var g = c.getContext('2d');
+    g.fillStyle = 'rgba(63,224,255,0.13)';
+    g.beginPath(); g.arc(4, 4, 1.5, 0, TAU); g.fill();
+    glassPat = ctx.createPattern(c, 'repeat');
+    return glassPat;
+  }
 
   function outlineText(ctx, str, x, y, size, color, align, lw) {
     ctx.font = '800 ' + size + 'px ' + U.FONT;
@@ -839,75 +927,108 @@
 
   function drawHud(ctx, S) {
     hudHits.length = 0;
-    /* Keep the HUD inside the visible virtual rectangle if a future display
-     * mode introduces a crop; full-bleed phone mode currently resolves to 0. */
     var croppedX = Math.max(0, -vp.ox / vp.scale);
     var rightEdge = VW - croppedX;
 
     ctx.save();
-    var g = ctx.createLinearGradient(0, U.VIEW_TOP, 0, U.BAND.hud);
-    g.addColorStop(0, 'rgba(5,6,13,0.97)');
-    g.addColorStop(0.6, 'rgba(5,6,13,0.8)');
-    g.addColorStop(1, 'rgba(5,6,13,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, VW, U.BAND.hud + 10);
+    /* The backbox glass: a dark display strip between the top of the screen
+     * and the table frame, on the same unlit dot grid as the menus. On a
+     * short viewport the band is the 72 units the HUD always had (it laps
+     * the frame top by a few units); on a tall phone (vp.hudShift < 0) it is
+     * the whole head panel, and the strip is capped and centred in it. */
+    var top = vp.viewTop;
+    var bandBot = 96 + 8 * U.clamp((top + 68) / 100, 0, 1);
+    var bandH = bandBot - top;
+    var stripH = Math.min(bandH - 12, 100);
+    var sy0 = top + (bandH - stripH) / 2, sy1 = sy0 + stripH;
+    var sx0 = croppedX + 14, sx1 = rightEdge - 14;
 
-    /* Lives as shield pips — position matters more than the icon: they sit
-     * top-left, where the eye lands first. */
-    var lx = croppedX + 24, ly = 60;
+    ctx.save();
+    rr(ctx, sx0, sy0, sx1 - sx0, stripH, 12);
+    ctx.fillStyle = 'rgba(3,5,10,0.93)';
+    ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = glassPattern(ctx);
+    ctx.fillRect(sx0, sy0, sx1 - sx0, stripH);
+    var sh = ctx.createLinearGradient(0, sy0, 0, sy0 + 26);
+    sh.addColorStop(0, 'rgba(0,0,0,0.55)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(sx0, sy0, sx1 - sx0, 26);
+    ctx.restore();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(63,224,255,0.30)';
+    rr(ctx, sx0, sy0, sx1 - sx0, stripH, 12);
+    ctx.stroke();
+
+    /* The readouts are laid out in a 60-unit box (y = 40..100) and centred
+     * in the strip; the pause hit rect carries the same offset. */
+    var shift = (sy0 + sy1) / 2 - 70;
+    ctx.translate(0, shift);
+
+    /* Lives: insert lamps, top-left where the eye lands first. */
+    var lx = croppedX + 42, ly = 56;
     for (var i = 0; i < S.livesMax; i++) {
-      var alive = i < S.lives;
-      var x = lx + i * 30;
-      ctx.beginPath();
-      ctx.moveTo(x, ly - 13);
-      ctx.lineTo(x + 11, ly - 7);
-      ctx.lineTo(x + 11, ly + 4);
-      ctx.lineTo(x, ly + 14);
-      ctx.lineTo(x - 11, ly + 4);
-      ctx.lineTo(x - 11, ly - 7);
-      ctx.closePath();
-      ctx.fillStyle = alive ? C.magenta : 'rgba(255,255,255,0.09)';
+      var alive = i < S.lives, x = lx + i * 26;
+      ctx.beginPath(); ctx.arc(x, ly, 8.5, 0, TAU);
+      ctx.fillStyle = alive ? C.magenta : 'rgba(255,255,255,0.05)';
       ctx.fill();
-      ctx.lineWidth = 2.5;
-      ctx.strokeStyle = alive ? C.ink : 'rgba(255,255,255,0.16)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = alive ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.14)';
       ctx.stroke();
+      if (alive) {
+        ctx.beginPath(); ctx.arc(x - 2.5, ly - 3, 2.6, 0, TAU);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+      }
     }
-    text(ctx, 'LIVES', lx - 11, 87, 12, U.rgba(C.white, 0.58), 'left', '800', 2);
+    ptext(ctx, 'LIVES', croppedX + 32, 88, 12, 'rgba(143,232,255,0.7)', 'left', 1);
 
-    /* Wave counter, centred. */
+    /* Wave counter in dots, the level name under it. */
     if (S.level) {
       var wn = Math.max(1, S.waveIndex + 1);
-      text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 56, 22, C.white, 'center', '900', 1.3);
-      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 82, 12,
-        U.rgba(C.cyan, 0.9), 'center', '800', 2.6);
+      var sub = S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase();
+      var head;
+      if (S.level.endless) {
+        /* No total to show against: the counter is the score, and the
+         * record sits under it so beating it is a live target. */
+        var best = global.GAME && global.GAME.progress ? (global.GAME.progress.endlessBest || 0) : 0;
+        head = 'WAVE ' + wn;
+        sub = best ? 'ENDLESS   BEST ' + best : 'ENDLESS';
+      } else {
+        head = 'WAVE ' + wn + '/' + S.level.waves.length;
+      }
+      dmdText(ctx, head, VW / 2, 38, 16, 2.4, '#dffaff', 'center');
+      dmdText(ctx, sub, VW / 2, 82, 8, 1.9, 'rgba(63,224,255,0.85)', 'center');
     }
 
-    /* Energy, right-aligned, with the amber currency colour. */
-    var ex = rightEdge - 96;
+    /* Energy: amber dots with a bolt lamp, label under. */
+    var ex = rightEdge - 92;
+    var ew = dmdText(ctx, String(S.energy | 0), ex, 38, 16, 2.4, C.amber, 'right');
+    ptext(ctx, 'ENERGY', ex, 88, 12, 'rgba(255,210,74,0.7)', 'right', 1);
+    var bx = ex - ew - 16, byy = 57;
     ctx.beginPath();
-    ctx.moveTo(ex - 46, 58); ctx.lineTo(ex - 34, 46);
-    ctx.lineTo(ex - 38, 58); ctx.lineTo(ex - 28, 58);
-    ctx.lineTo(ex - 44, 76); ctx.lineTo(ex - 40, 62);
-    ctx.lineTo(ex - 50, 62);
+    ctx.moveTo(bx + 3, byy - 12); ctx.lineTo(bx - 6, byy + 2); ctx.lineTo(bx - 1, byy + 2);
+    ctx.lineTo(bx - 3, byy + 12); ctx.lineTo(bx + 6, byy - 2); ctx.lineTo(bx + 1, byy - 2);
     ctx.closePath();
     ctx.fillStyle = C.amber;
     ctx.fill();
-    text(ctx, String(S.energy | 0), ex - 20, 60, 25, C.amber, 'left', '800');
-    text(ctx, 'ENERGY', ex - 50, 87, 12, U.rgba(C.white, 0.58), 'left', '800', 1.8);
 
-    /* Pause. */
-    var pb = { x: rightEdge - 54, y: 40, w: 42, h: 42, id: 'pause' };
-    rr(ctx, pb.x, pb.y, pb.w, pb.h, 10);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
-    ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = U.rgba(C.white, 0.8);
-    ctx.fillRect(pb.x + 13, pb.y + 12, 5, 18);
-    ctx.fillRect(pb.x + 24, pb.y + 12, 5, 18);
-    hudHits.push(pb);
+    /* Pause: a small cabinet button. */
+    var pcx = rightEdge - 46, pcy = 62;
+    ctx.beginPath(); ctx.arc(pcx, pcy, 22, 0, TAU);
+    ctx.fillStyle = '#0a0d18'; ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(63,224,255,0.55)'; ctx.stroke();
+    var pg = ctx.createRadialGradient(pcx, pcy - 6, 2, pcx, pcy, 18);
+    pg.addColorStop(0, 'rgba(63,224,255,0.30)');
+    pg.addColorStop(1, 'rgba(63,224,255,0.04)');
+    ctx.beginPath(); ctx.arc(pcx, pcy, 17, 0, TAU); ctx.fillStyle = pg; ctx.fill();
+    ctx.fillStyle = 'rgba(223,248,255,0.9)';
+    ctx.fillRect(pcx - 7, pcy - 8, 4.5, 16);
+    ctx.fillRect(pcx + 2.5, pcy - 8, 4.5, 16);
+    hudHits.push({ x: pcx - 24, y: pcy - 24 + shift, w: 48, h: 48, id: 'pause' });
+    ctx.restore();
 
-    /* Active modifier chips. */
+    /* Active modifier chips, under the glass. */
     var chips = [];
     if (S.overchargeT > 0) chips.push(['OVERCHARGE', C.cyan, S.overchargeT]);
     if (S.slowT > 0) chips.push(['SLOW TIME', C.frost, S.slowT]);
@@ -915,16 +1036,16 @@
     if (S.magnetT > 0) chips.push(['MAGNET', C.violet, S.magnetT]);
     if (S.superheatT > 0) chips.push(['SUPERHEAT', C.powerHot, S.superheatT]);
     for (var ci = 0; ci < chips.length; ci++) {
-      var cy = 118 + ci * 26;
-      ctx.font = '800 12px ' + U.FONT;
-      var tw = ctx.measureText(chips[ci][0]).width + 22;
-      rr(ctx, VW / 2 - tw / 2, cy - 9, tw, 20, 10);
-      ctx.fillStyle = U.rgba(chips[ci][1], 0.18); ctx.fill();
+      var cy = sy1 + 16 + ci * 26;
+      ctx.font = '12px ' + PXF;
+      var tw = ctx.measureText(chips[ci][0]).width + 34;
+      rr(ctx, VW / 2 - tw / 2, cy - 10, tw, 21, 10);
+      ctx.fillStyle = 'rgba(3,5,10,0.85)'; ctx.fill();
       ctx.strokeStyle = U.rgba(chips[ci][1], 0.7); ctx.lineWidth = 1.5; ctx.stroke();
-      text(ctx, chips[ci][0], VW / 2, cy + 1, 12, chips[ci][1], 'center', '800', 1);
+      ctx.beginPath(); ctx.arc(VW / 2 - tw / 2 + 11, cy + 0.5, 3.5, 0, TAU);
+      ctx.fillStyle = chips[ci][1]; ctx.fill();
+      ptext(ctx, chips[ci][0], VW / 2 + 5, cy + 1, 12, chips[ci][1], 'center', 1);
     }
-
-    ctx.restore();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -938,20 +1059,54 @@
    * not a toolbar. */
   var CARD_W = 88, CARD_H = 108, HAND_Y = 1254;
   var PILE_W = 86, PILE_H = 118, PILE_Y = 1250;
-  var PANEL = { x: 108, y: 1246, w: VW - 216, h: VH - 1246 - 6, cut: 16 };
+  function panelRect() { return { x: 108, y: 1246, w: TX.W - 216, h: VH - 1246 - 6, cut: 16 }; }
+
+  /* Tray transform. The tray is laid out in the 130-unit band at the foot
+   * of the board (y = TRAY_TOP..VH). On a tall phone DRAW.resize hands it
+   * more room (vp.trayShift); the whole band then scales up by TX.s (capped
+   * at U.UI.trayScaleMax) and is centred in the room it has, so the cards
+   * get bigger rather than the apron getting emptier. Horizontal layout
+   * happens in a TX.W = VW / s wide space, so scaling about x = 0 lands the
+   * build piles back on the screen edges. Hit rects are kept in tray space:
+   * pickTray maps taps in, trayRects / upgradeRects map rects out. */
+  var TX = { s: 1, W: VW, top: TRAY_TOP };
+  function trayXform() {
+    var bandH = VH - TRAY_TOP + vp.trayShift;
+    var s = Math.min(U.UI.trayScaleMax, bandH / (VH - TRAY_TOP));
+    TX.s = s;
+    TX.W = VW / s;
+    TX.top = TRAY_TOP + (bandH - (VH - TRAY_TOP) * s) / 2;
+  }
+  function applyTrayXform(ctx) {
+    ctx.translate(0, TX.top);
+    ctx.scale(TX.s, TX.s);
+    ctx.translate(0, -TRAY_TOP);
+  }
+  /* Tray-space rect -> board space, keeping the identifying fields. */
+  function trayToBoard(r) {
+    var s = TX.s;
+    var o = { x: r.x * s, y: TX.top + (r.y - TRAY_TOP) * s, w: r.w * s, h: r.h * s };
+    if (r.kind !== undefined) o.kind = r.kind;
+    if (r.type !== undefined) o.type = r.type;
+    if (r.index !== undefined) o.index = r.index;
+    if (r.id !== undefined) o.id = r.id;
+    if (r.to !== undefined) o.to = r.to;
+    return o;
+  }
 
   function trayCells(S) {
     var items = [];
+    var P = panelRect();
     items.push({ kind: 'build', type: 'paddle', x: 12, y: PILE_Y, w: PILE_W, h: PILE_H });
-    items.push({ kind: 'build', type: 'bumper', x: VW - 12 - PILE_W, y: PILE_Y, w: PILE_W, h: PILE_H });
+    items.push({ kind: 'build', type: 'bumper', x: TX.W - 12 - PILE_W, y: PILE_Y, w: PILE_W, h: PILE_H });
 
     var n = Math.min(S.cards.length, 4);
     if (n > 0) {
       /* Spread the hand across the panel; overlap once it will not fit flat. */
-      var inner = PANEL.w - 24;
+      var inner = P.w - 24;
       var step = n > 1 ? Math.min(CARD_W + 6, (inner - CARD_W) / (n - 1)) : 0;
       var total = CARD_W + step * (n - 1);
-      var x0 = PANEL.x + (PANEL.w - total) / 2;
+      var x0 = P.x + (P.w - total) / 2;
       var mid = (n - 1) / 2;
       for (var i = 0; i < n; i++) {
         var k = i - mid;
@@ -983,7 +1138,7 @@
   }
 
   function drawHandPanel(ctx, S) {
-    var P = PANEL;
+    var P = panelRect();
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.55)';
     ctx.shadowBlur = 18;
@@ -1018,13 +1173,15 @@
 
     ctx.save();
     if (S.selectedTower) {
+      /* The panel takes the whole apron band, spare room included. */
       ctx.fillStyle = '#070a13';
-      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
+      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP + vp.trayShift);
       ctx.strokeStyle = U.rgba(C.cyan, 0.28);
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(0, TRAY_TOP + 1); ctx.lineTo(VW, TRAY_TOP + 1);
       ctx.stroke();
+      applyTrayXform(ctx);
       drawUpgradePanel(ctx, S);
       ctx.restore();
       return;
@@ -1032,6 +1189,7 @@
 
     /* The apron plate from the 3D machine shows through here; the 2D
      * fallback has already painted the band void. */
+    applyTrayXform(ctx);
     drawHandPanel(ctx, S);
 
     var items = trayCells(S);
@@ -1135,8 +1293,8 @@
     ctx.closePath();
     ctx.fillStyle = afford ? C.amber : 'rgba(255,176,32,0.35)';
     ctx.fill();
-    text(ctx, String(d.cost), cx + 5, by + 0.5, 13,
-      afford ? C.amber : 'rgba(255,176,32,0.35)', 'center', '800');
+    ptext(ctx, String(d.cost), cx + 5, by + 0.5, 13,
+      afford ? C.amber : 'rgba(255,176,32,0.35)', 'center');
     ctx.restore();
   }
 
@@ -1156,8 +1314,8 @@
 
   /* Short uppercase caption, matching the tracking used elsewhere in the HUD. */
   function micro(ctx, str, x, y, color, align, size) {
-    var sz = size || 10;
-    text(ctx, str, x, y, sz, color, align || 'center', '800', sz * 0.14);
+    var sz = (size || 10) + 0.5;
+    ptext(ctx, str, x, y, sz, color, align || 'center', sz * 0.06);
   }
 
   function wrapLines(ctx, str, maxW, size, weight) {
@@ -1184,6 +1342,16 @@
     return s;
   }
 
+  function fitPx(ctx, str, maxW, size, spacing) {
+    var s = size;
+    while (s > 7) {
+      ctx.font = s + 'px ' + PXF;
+      if (ctx.measureText(str).width + (spacing || 0) * (str.length - 1) <= maxW) break;
+      s -= 0.5;
+    }
+    return s;
+  }
+
   function cardLayout(R, big) {
     var pad = R.w * 0.055;
     var artW = R.w - pad * 2;
@@ -1202,7 +1370,7 @@
 
   /* A small pill anchored to one end of a centred inner width. */
   function chip(ctx, cx, y, label, color, side, innerW) {
-    ctx.font = '800 9.5px ' + U.FONT;
+    ctx.font = '10px ' + PXF;
     var w = ctx.measureText(label).width + label.length * 1.33 + 20;
     var x = side === 'right' ? cx + innerW / 2 - w : cx - innerW / 2;
     rr(ctx, x, y - 10, w, 20, 10);
@@ -1280,11 +1448,11 @@
 
     var nm = def.name.toUpperCase();
     var track = big ? 1.6 : 0.7;
-    var ns = fitText(ctx, nm, L.artW - (big ? 22 : 12), big ? 19 : 11.5, '800', track);
+    var ns = fitPx(ctx, nm, L.artW - (big ? 22 : 12), big ? 19 : 12, track);
     /* Ink on the accent band: every accent in this palette is bright enough
      * that black out-contrasts white on it. */
-    text(ctx, nm, L.artX + L.artW / 2, py + L.plateH / 2, ns,
-      ready || big ? 'rgba(0,0,0,0.88)' : 'rgba(0,0,0,0.5)', 'center', '800', track);
+    ptext(ctx, nm, L.artX + L.artW / 2, py + L.plateH / 2 + 0.5, ns,
+      ready || big ? 'rgba(0,0,0,0.88)' : 'rgba(0,0,0,0.5)', 'center', track);
 
     /* --- body ------------------------------------------------------------ */
     var by = py + L.plateH;
@@ -1320,8 +1488,8 @@
     } else {
       var midY = by + (R.y + R.h - by) / 2;
       if (!ready) {
-        text(ctx, Math.ceil(o.cd || 0) + 's', R.x + R.w / 2, midY, 15,
-          U.rgba(col, 0.9), 'center', '800');
+        ptext(ctx, Math.ceil(o.cd || 0) + 'S', R.x + R.w / 2, midY, 15,
+          U.rgba(col, 0.9), 'center');
       } else if (o.levelCard) {
         micro(ctx, 'LEVEL', R.x + R.w / 2, midY, U.rgba(C.green, 0.9), 'center', 8.5);
       } else {
@@ -1355,8 +1523,8 @@
       ctx.lineWidth = 1.75;
       ctx.strokeStyle = U.rgba(col, ready ? 0.85 : 0.3);
       ctx.stroke();
-      text(ctx, String(o.hotkey), bx + bs / 2, byy + bs / 2 + 0.5, bs * 0.56,
-        ready ? U.rgba(col, 0.95) : CTX3, 'center', '800');
+      ptext(ctx, String(o.hotkey), bx + bs / 2, byy + bs / 2 + 0.5, bs * 0.6,
+        ready ? U.rgba(col, 0.95) : CTX3, 'center');
     }
 
     /* --- frame ------------------------------------------------------------ */
@@ -1448,9 +1616,9 @@
 
     ctx.save();
     ctx.fillStyle = U.rgba(C.void, 0.8 * e);
-    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillRect(0, -800, VW, VH + 1600);
 
-    var src = ins.from, dst = ins.to;
+    var src = trayToBoard(ins.from), dst = ins.to;
     var R = {
       x: U.lerp(src.x, dst.x, e),
       y: U.lerp(src.y, dst.y, e),
@@ -1484,9 +1652,9 @@
     var d = t.def;
     var ups = d.upgrades || [];
     var n = ups.length + 1;
-    var w = Math.min(150, (VW - 60 - (n - 1) * 10) / n);
+    var w = Math.min(150, (TX.W - 60 - (n - 1) * 10) / n);
     var x0 = 30, y = TRAY_TOP + 76, h = 92;
-    var out = { back: { x: VW - 92, y: TRAY_TOP + 14, w: 66, h: 34, id: 'closeTower' }, ups: [] };
+    var out = { back: { x: TX.W - 92, y: TRAY_TOP + 14, w: 66, h: 34, id: 'closeTower' }, ups: [] };
     for (var i = 0; i < ups.length; i++) {
       out.ups.push({ x: x0 + i * (w + 10), y: y, w: w, h: h, id: 'upgrade', to: ups[i] });
     }
@@ -1495,7 +1663,11 @@
   }
   DRAW.upgradeRects = function (S) {
     S = S || global.GAME.state;
-    return S && S.selectedTower ? upgradeLayout(S.selectedTower) : null;
+    if (!S || !S.selectedTower) return null;
+    var L = upgradeLayout(S.selectedTower);
+    var out = { back: trayToBoard(L.back), sell: trayToBoard(L.sell), ups: [] };
+    for (var i = 0; i < L.ups.length; i++) out.ups.push(trayToBoard(L.ups[i]));
+    return out;
   };
 
   function drawUpgradePanel(ctx, S) {
@@ -1503,14 +1675,14 @@
     var d = t.def;
     var L = upgradeLayout(t);
 
-    text(ctx, d.name.toUpperCase(), 30, TRAY_TOP + 30, 18, d.color, 'left', '800', 1.5);
+    ptext(ctx, d.name.toUpperCase(), 30, TRAY_TOP + 30, 18, d.color, 'left', 1);
     text(ctx, d.blurb, 30, TRAY_TOP + 54, 13, 'rgba(255,255,255,0.55)', 'left', '600');
 
     var back = L.back;
     rr(ctx, back.x, back.y, back.w, back.h, 9);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
-    text(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2, 12, U.rgba(C.white, 0.8), 'center', '800', 1);
+    ptext(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2, 12, U.rgba(C.white, 0.8), 'center', 1);
     trayHits.push(back);
 
     var ups = d.upgrades || [];
@@ -1526,12 +1698,12 @@
       ctx.lineWidth = 2;
       ctx.strokeStyle = afford ? U.rgba(ud.color, 0.8) : 'rgba(255,255,255,0.1)';
       ctx.stroke();
-      text(ctx, ud.name.toUpperCase(), b.x + b.w / 2, b.y + 20, 12,
-        afford ? ud.color : 'rgba(255,255,255,0.3)', 'center', '800', 0.8);
+      ptext(ctx, ud.name.toUpperCase(), b.x + b.w / 2, b.y + 20, 12,
+        afford ? ud.color : 'rgba(255,255,255,0.3)', 'center', 0.5);
       wrapText(ctx, ud.blurb, b.x + b.w / 2, b.y + 42, b.w - 16, 12,
         afford ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.25)');
-      text(ctx, ud.cost + ' E', b.x + b.w / 2, b.y + b.h - 14, 15,
-        afford ? C.amber : 'rgba(255,176,32,0.3)', 'center', '800');
+      ptext(ctx, ud.cost + ' E', b.x + b.w / 2, b.y + b.h - 14, 14,
+        afford ? C.amber : 'rgba(255,176,32,0.3)', 'center');
       trayHits.push(b);
     }
 
@@ -1539,8 +1711,8 @@
     rr(ctx, sb.x, sb.y, sb.w, sb.h, 12);
     ctx.fillStyle = 'rgba(255,46,136,0.1)'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.magenta, 0.5); ctx.stroke();
-    text(ctx, 'SELL', sb.x + sb.w / 2, sb.y + 26, 14, C.magenta, 'center', '800', 1.2);
-    text(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w / 2, sb.y + 54, 16, C.amber, 'center', '800');
+    ptext(ctx, 'SELL', sb.x + sb.w / 2, sb.y + 26, 14, C.magenta, 'center', 1);
+    ptext(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w / 2, sb.y + 54, 15, C.amber, 'center');
     trayHits.push(sb);
   }
 
@@ -1582,19 +1754,27 @@
     var t = U.clamp(b.t / 0.35, 0, 1);
     var slide = (1 - U.ease.outCubic(t)) * -40;
     var accent = b.boss ? C.magenta : C.cyan;
+    var pulse = 0.5 + 0.5 * Math.sin(S.time * 4);
 
     ctx.save();
     ctx.globalAlpha = t;
     ctx.translate(0, slide);
 
-    rr(ctx, 40, BANNER_Y0, 640, BANNER_H, 16);
-    ctx.fillStyle = 'rgba(6,9,18,0.94)';
+    /* A dark display plate on the dot grid, like the backbox glass. */
+    ctx.save();
+    rr(ctx, 40, BANNER_Y0, 640, BANNER_H, 14);
+    ctx.fillStyle = 'rgba(3,5,10,0.94)';
     ctx.fill();
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = U.rgba(accent, 0.75);
+    ctx.clip();
+    ctx.fillStyle = glassPattern(ctx);
+    ctx.fillRect(40, BANNER_Y0, 640, BANNER_H);
+    ctx.restore();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(accent, 0.55);
+    rr(ctx, 40, BANNER_Y0, 640, BANNER_H, 14);
     ctx.stroke();
 
-    /* Countdown hairline across the top edge of the panel — reads at a glance
+    /* Countdown hairline across the top edge of the panel: reads at a glance
      * without needing to parse a number. */
     var wave = S.level.waves[S.waveIndex + 1];
     var frac = wave ? U.clamp(S.buildT / wave.build, 0, 1) : 0;
@@ -1606,8 +1786,13 @@
     ctx.lineCap = 'round';
     ctx.stroke();
 
-    text(ctx, b.boss ? 'FINAL WAVE' : 'INCOMING', 64, BANNER_Y0 + 30, 12,
-      U.rgba(accent, 0.9), 'left', '800', 3.5);
+    /* Label with its lamp. */
+    ctx.beginPath(); ctx.arc(66, BANNER_Y0 + 28, 8, 0, TAU);
+    ctx.fillStyle = U.rgba(accent, 0.18 + 0.18 * pulse); ctx.fill();
+    ctx.beginPath(); ctx.arc(66, BANNER_Y0 + 28, 4.5, 0, TAU);
+    ctx.fillStyle = accent; ctx.fill();
+    ptext(ctx, b.label || (b.boss ? 'FINAL WAVE' : 'INCOMING'), 82, BANNER_Y0 + 28, 13,
+      U.rgba(accent, 0.95), 'left', 2);
 
     /* Enemy preview drawn as the actual white balls, so the player learns the
      * silhouettes before they ever arrive. */
@@ -1621,20 +1806,36 @@
       ctx.arc(px, yy, r - def.outline * 0.32, 0, TAU);
       ctx.fillStyle = C.white; ctx.fill();
       ctx.lineWidth = def.outline * 0.66; ctx.strokeStyle = C.ink; ctx.stroke();
-      text(ctx, 'x' + pv[i].n, px, yy + r + 16, 13, C.white, 'center', '800');
-      text(ctx, def.name.toUpperCase(), px, yy + r + 31, 8,
-        U.rgba(C.white, 0.4), 'center', '700', 1);
+      ptext(ctx, 'X' + pv[i].n, px, yy + r + 16, 13, C.white, 'center');
+      ptext(ctx, def.name.toUpperCase(), px, yy + r + 31, 8,
+        U.rgba(C.white, 0.45), 'center', 0.5);
       px += 78;
     }
 
-    readyBtn.y = BANNER_Y0 + 34;
-    rr(ctx, readyBtn.x, readyBtn.y, readyBtn.w, readyBtn.h, 14);
-    ctx.fillStyle = U.rgba(accent, 0.2); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = accent; ctx.stroke();
-    text(ctx, 'START', readyBtn.x + readyBtn.w / 2, readyBtn.y + 26, 20, accent, 'center', '800', 2);
-    text(ctx, Math.max(0, Math.ceil(S.buildT)) + 's', readyBtn.x + readyBtn.w / 2,
-      readyBtn.y + 48, 13, U.rgba(C.white, 0.55), 'center', '800', 1);
-    drawChallengeChip(ctx, S, readyBtn.x, BANNER_Y0 + 104, readyBtn.w);
+    /* START: the cabinet button, amber like the one on the backglass. */
+    var rb = readyBtn;
+    rb.y = BANNER_Y0 + 34;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = U.rgba(C.amber, 0.10 + 0.22 * pulse);
+    rr(ctx, rb.x - 3, rb.y - 3, rb.w + 6, rb.h + 6, 19);
+    ctx.stroke();
+    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16);
+    ctx.fillStyle = '#0a0d18'; ctx.fill();
+    var bg = ctx.createRadialGradient(rb.x + rb.w / 2, rb.y + rb.h * 0.25, 4, rb.x + rb.w / 2, rb.y + rb.h / 2, rb.w * 0.6);
+    bg.addColorStop(0, '#fff1bf');
+    bg.addColorStop(0.35, '#ffcf4a');
+    bg.addColorStop(0.75, '#f39316');
+    bg.addColorStop(1, '#8f4306');
+    rr(ctx, rb.x + 4, rb.y + 4, rb.w - 8, rb.h - 8, 13);
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    rr(ctx, rb.x + 16, rb.y + 8, rb.w - 32, 9, 4.5); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.amber, 0.45);
+    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16); ctx.stroke();
+    ptext(ctx, 'START', rb.x + rb.w / 2, rb.y + 27, 24, '#3a1600', 'center', 1);
+    ptext(ctx, Math.max(0, Math.ceil(S.buildT)) + 'S', rb.x + rb.w / 2,
+      rb.y + 50, 11, 'rgba(90,38,0,0.9)', 'center', 1);
+    drawChallengeChip(ctx, S, rb.x, BANNER_Y0 + 104, rb.w);
 
     ctx.restore();
   }
@@ -1668,8 +1869,12 @@
     ctx.strokeStyle = U.rgba(col, failed ? 0.45 : (met ? 0.8 : 0.22));
     ctx.stroke();
 
-    text(ctx, (met ? '★ ' : (failed ? '✕ ' : '☆ ')) + label,
-      x + w / 2, y + 14, 11, U.rgba(col, a), 'center', '800', 1.2);
+    /* Lamp for the state, then the label. */
+    ctx.beginPath(); ctx.arc(x + 14, y + 13, 4, 0, TAU);
+    ctx.fillStyle = met ? C.amber : (failed ? C.magenta : 'rgba(255,255,255,0.12)');
+    ctx.fill();
+    if (!met && !failed) { ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.stroke(); }
+    ptext(ctx, label, x + w / 2 + 8, y + 14, 11, U.rgba(col, a), 'center', 0.6);
 
   }
 
@@ -1720,13 +1925,15 @@
     var a = U.clamp(S.toastT / 0.5, 0, 1);
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.font = '800 15px ' + U.FONT;
-    var w = ctx.measureText(S.toastText).width + 44;
+    ctx.font = '15px ' + PXF;
+    var w = ctx.measureText(S.toastText).width + 60;
     var x = VW / 2 - w / 2, y = 1080;
     rr(ctx, x, y, w, 42, 21);
-    ctx.fillStyle = 'rgba(5,6,13,0.9)'; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.cyan, 0.6); ctx.stroke();
-    text(ctx, S.toastText, VW / 2, y + 21, 15, C.white, 'center', '800');
+    ctx.fillStyle = 'rgba(3,5,10,0.92)'; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = U.rgba(C.cyan, 0.6); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + 20, y + 21, 4.5, 0, TAU);
+    ctx.fillStyle = C.cyan; ctx.fill();
+    ptext(ctx, S.toastText, VW / 2 + 8, y + 22, 15, C.white, 'center');
     ctx.restore();
   }
 
@@ -1820,7 +2027,7 @@
     if (!three) {
       /* Mask anything that strays outside the table into the tray band. */
       ctx.fillStyle = C.void;
-      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
+      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP + 800);
       ctx.fillRect(0, 0, U.WALL_L - 8, TRAY_TOP);
       ctx.fillRect(U.WALL_R + 8, 0, VW - U.WALL_R - 8, TRAY_TOP);
     }
@@ -1908,16 +2115,20 @@
    * `band` is the whole tray strip. */
   DRAW.trayRects = function (S) {
     S = S || global.GAME.state;
+    var cells = S && S.cards ? trayCells(S) : [], out = [];
+    for (var i = 0; i < cells.length; i++) out.push(trayToBoard(cells[i]));
     return {
-      band: { x: 0, y: TRAY_TOP, w: VW, h: VH - TRAY_TOP },
-      cells: S && S.cards ? trayCells(S) : []
+      band: { x: 0, y: TRAY_TOP, w: VW, h: VH - TRAY_TOP + vp.trayShift },
+      cells: out
     };
   };
 
   DRAW.pickTray = function (x, y) {
+    /* Taps arrive in board space; the hit rects live in tray space. */
+    var lx = x / TX.s, ly = TRAY_TOP + (y - TX.top) / TX.s;
     /* Cards overlap in the fan; the later one is drawn on top, so it wins. */
     for (var i = trayHits.length - 1; i >= 0; i--) {
-      if (inRect(x, y, trayHits[i])) return trayHits[i];
+      if (inRect(lx, ly, trayHits[i])) return trayHits[i];
     }
     return null;
   };

@@ -157,7 +157,113 @@
     }
   ];
 
+  /* ---------------------------------------------------------------------- */
+  /* Endless                                                                */
+  /* ---------------------------------------------------------------------- */
+
+  /* Endless is a level whose wave list is grown on demand rather than
+   * authored: GAME asks for wave N the moment it is about to be previewed,
+   * and LEVELS.endlessWave writes it from a points budget that climbs every
+   * wave. It reuses the whole level pipeline (build phase, banner, compile,
+   * results) so the mode costs almost nothing in new plumbing. The waves
+   * array is reset by GAME at the start of every run; `seed` is null so each
+   * run rolls its own. */
+  LEVELS.ENDLESS = {
+    id: 'endless',
+    endless: true,
+    name: 'Endless',
+    subtitle: 'Survive as long as you can',
+    levelCard: 'lastline',
+    startEnergy: 190,
+    lives: 5,
+    seed: null,
+    leakBudget: 0,
+    challenge: null,
+    teach: [
+      { at: 'wave2', text: 'No end to this one. Every 10th wave is a boss: clear it for a life back' }
+    ],
+    waves: []
+  };
+
+  /* Which enemies the generator may draw from, and from which wave (0-based)
+   * each joins the pool. Weight = its share of the wave's points budget. */
+  var ENDLESS_POOL = [
+    { type: 'basic',    from: 0, cost: 1.0 },
+    { type: 'fast',     from: 1, cost: 1.2 },
+    { type: 'heavy',    from: 3, cost: 3.0 },
+    { type: 'armored',  from: 5, cost: 2.5 },
+    { type: 'splitter', from: 7, cost: 2.6 }
+  ];
+
+  /* Enemy HP multiplier for endless wave `n`. Linear early so the first ten
+   * waves feel like the campaign, then a gentle quadratic so a maxed board
+   * still meets its match. */
+  LEVELS.endlessDifficulty = function (n) {
+    return 1 + n * 0.07 + n * n * 0.003;
+  };
+
+  LEVELS.isBossWave = function (n) { return (n + 1) % 10 === 0; };
+
+  /* Write endless wave `n` (0-based) using the run's rng. */
+  LEVELS.endlessWave = function (n, rng) {
+    var build = Math.max(6, 11 - n * 0.25);
+    if (LEVELS.isBossWave(n)) {
+      /* Boss waves: the Colossus plus a rising escort. Its own HP scales
+       * with the shared multiplier, so the 30th-wave boss is a real wall. */
+      var tier = Math.floor((n + 1) / 10);
+      return {
+        build: build + 4, boss: true, endlessIndex: n,
+        entries: [
+          e('boss', 1, 0, 0.6, L.MID),
+          e('fast', 3 + tier * 2, 1.2, 5.0, FLANKS),
+          e('basic', 4 + tier * 3, 0.8, 10.0, ALL, 'random')
+        ]
+      };
+    }
+
+    var budget = 6 + n * 2.1;
+    var pool = [];
+    for (var i = 0; i < ENDLESS_POOL.length; i++) {
+      if (n >= ENDLESS_POOL[i].from) pool.push(ENDLESS_POOL[i]);
+    }
+
+    /* One backbone entry of fodder, then one or two "specials" from the
+     * heavier end of the pool. Fodder always stays: a wave of nothing but
+     * Haulers is a slog, not a puzzle. */
+    var entries = [];
+    var fodder = rng() < 0.35 && n >= 1 ? 'fast' : 'basic';
+    var fodderShare = pool.length > 1 ? rng.range(0.45, 0.65) : 1;
+    var fodderCost = fodder === 'fast' ? 1.2 : 1.0;
+    var fodderN = Math.max(3, Math.round(budget * fodderShare / fodderCost));
+    var laneSets = [ALL, INNER, FLANKS, ALL];
+    var gap = Math.max(0.42, 1.25 - n * 0.03);
+    entries.push(e(fodder, fodderN, gap, 0.3, rng.pick(laneSets), rng() < 0.4 ? 'random' : 'cycle'));
+
+    var left = budget - fodderN * fodderCost;
+    var specials = pool.length > 1 ? (n >= 8 && rng() < 0.5 ? 2 : 1) : 0;
+    var delay = 1.8;
+    for (var k = 0; k < specials && left > 1.5; k++) {
+      /* Bias toward the newest unlock so a wave that introduces Bulwarks
+       * actually shows some. */
+      var cand = pool.slice(1);
+      var pickIdx = rng() < 0.45 ? cand.length - 1 : rng.int(0, cand.length - 1);
+      var sp = cand[pickIdx];
+      var share = k === specials - 1 ? 1 : rng.range(0.4, 0.7);
+      var cnt = Math.max(1, Math.floor(left * share / sp.cost));
+      cnt = Math.min(cnt, 4 + Math.floor(n / 4));
+      left -= cnt * sp.cost;
+      var lanes = sp.type === 'heavy' ? (rng() < 0.5 ? FLANKS : INNER) : rng.pick(laneSets);
+      var sgap = sp.type === 'fast' ? 0.7 : (sp.type === 'heavy' ? 2.2 : 1.4);
+      entries.push(e(sp.type, cnt, sgap, delay + rng.range(0, 1.5), lanes,
+        sp.type === 'basic' ? 'random' : 'cycle'));
+      delay += 2.5;
+    }
+
+    return { build: build, entries: entries, endlessIndex: n };
+  };
+
   LEVELS.byId = function (id) {
+    if (id === 'endless') return LEVELS.ENDLESS;
     for (var i = 0; i < LEVELS.list.length; i++) {
       if (LEVELS.list[i].id === id) return LEVELS.list[i];
     }

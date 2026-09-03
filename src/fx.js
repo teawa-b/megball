@@ -80,7 +80,7 @@
   var CAP_TRAIL     = 12;
   var TRAIL_SAMPLES = 20;
 
-  var FONT = '900 64px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
+  var FONT = '64px "Ken Pixel", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
   var FONT_BASE = 64; // text is drawn at this size and scaled by transform,
                       // which avoids building a font string every frame.
 
@@ -903,8 +903,9 @@
       u = fl.life / fl.life0;
       ctx.globalAlpha = fl.a * u * u; // snap on, fall off fast
       ctx.fillStyle = fl.col;
-      // Overfill so screen shake can never expose an unflashed edge.
-      ctx.fillRect(-120, -120, VW + 240, VH + 240);
+      // Overfill so screen shake can never expose an unflashed edge, and
+      // reach the extra head and apron a tall phone shows (render.js).
+      ctx.fillRect(-120, -620, VW + 240, VH + 1240);
     }
 
     /* -------- pass 3: combat text, on top, normal blend ------------------ */
