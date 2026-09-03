@@ -183,11 +183,19 @@
 
   /* How many substeps this frame needs so that nothing moves more than half
    * a ball radius per step. Tunnelling through a wall is the one bug that
-   * makes a pinball game feel broken, so we spend cycles here. */
-  PHYS.substeps = function (maxSpeed, minRadius, dt) {
+   * makes a pinball game feel broken, so we spend cycles here.
+   *
+   * `maxSpeed` must account for MOVING geometry as well as the balls: a
+   * flipper tip sweeps far faster than the ball speed cap, and sizing the
+   * step off the balls alone lets the arm jump clean over one. `cap` raises
+   * the ceiling for those brief windows (see game.js).
+   */
+  PHYS.SUBSTEP_CAP = 8;
+  PHYS.substeps = function (maxSpeed, minRadius, dt, cap) {
+    cap = cap || PHYS.SUBSTEP_CAP;
     var travel = maxSpeed * dt;
     var n = Math.ceil(travel / (minRadius * 0.5));
-    return n < 1 ? 1 : (n > 8 ? 8 : n);
+    return n < 1 ? 1 : (n > cap ? cap : n);
   };
 
   /* ---------- capsule helpers ------------------------------------------- */

@@ -27,8 +27,12 @@
   /* Presentation constants. Gameplay coordinates stay fixed; these only
    * decide how the machine and its menus occupy a real phone screen. */
   U.UI = {
-    phoneAspectMin: 0.42,
-    phoneAspectMax: 0.58,
+    /* How far the two axes may be scaled independently to fill the viewport.
+     * 1.0 is a strict contain-fit (letterboxed); 1.2 lets the board stretch up
+     * to 20% on one axis to reach the screen edges. Circles read as circles at
+     * this ratio, and it is enough to absorb the browser chrome that pushes a
+     * phone's usable area away from the board's native 1:2. */
+    maxStretch: 1.2,
     maxMenuWidth: 520,
     minTouch: 48
   };

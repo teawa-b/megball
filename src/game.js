@@ -581,12 +581,18 @@
   function restAngleR() { return Math.PI - REST; }
   function activeAngleR() { return Math.PI - REST + SWING; }
 
+  /* Angular speeds, rad/s. The up-swing is much faster than the return: that
+   * asymmetry is what makes a flipper feel like it snaps rather than sweeps.
+   * UP_SPEED over a 132-unit arm puts the tip at ~4500 units/s, well past the
+   * ball speed cap — which is why the substep count below has to know about
+   * it, and why tryFlipper needs a swept test. */
+  var FLIP_UP_SPEED = 34, FLIP_DOWN_SPEED = 15;
+  var FLIP_TIP_SPEED = FLIP_UP_SPEED * F.len;
+
   function updateFlipper(f, rest, active, dt) {
     var target = f.on ? active : rest;
     f.prev = f.angle;
-    /* Up-swing is much faster than the return: that asymmetry is what makes a
-     * flipper feel like it snaps rather than sweeps. */
-    var speed = f.on ? 34 : 15;
+    var speed = f.on ? FLIP_UP_SPEED : FLIP_DOWN_SPEED;
     var d = target - f.angle;
     var step = speed * dt;
     if (Math.abs(d) <= step) f.angle = target;
@@ -720,14 +726,58 @@
     tryFlipper(b, S.flipR, F.rx, 'R');
   }
 
+  /* Signed perpendicular distance from a point to the arm's LINE, positive on
+   * the playfield side of it, plus the along-arm parameter (0 at the pivot,
+   * 1 at the tip) written into `armT`. The two flippers mirror each other, so
+   * `sgn` flips the sense for the right one; neither arm's travel crosses
+   * vertical, so the convention holds through the whole swing. */
+  var armT = 0;
+  function armSide(x, y, angle, pivotX, sgn) {
+    var ax = Math.cos(angle), ay = Math.sin(angle);
+    var dx = x - pivotX, dy = y - F.y;
+    armT = (dx * ax + dy * ay) / F.len;
+    return sgn * (ax * dy - ay * dx);
+  }
+
   function tryFlipper(b, f, px, side) {
-    var cap = flipperCapsule(f, px);
-    if (!PHYS.ballVsCapsule(b.x, b.y, b.r, cap.ax, cap.ay, cap.bx, cap.by, cap.r)) return;
+    var sgn = side === 'L' ? -1 : 1;
+
+    /* --- swept guard --------------------------------------------------
+     * The overlap test below only sees where things are RIGHT NOW. The arm
+     * tip out-runs every ball, so on a late save at speed the ball and the
+     * arm can swap sides within one substep — and then the closest-point
+     * normal points DOWN, so an ordinary resolve de-penetrates the ball
+     * straight through the deck and it drains. That is the "ball phased
+     * through the flipper" bug.
+     *
+     * So: if the ball was above the arm line at the start of the step and is
+     * below it now, treat it as a crossing and put it back on the face,
+     * whichever of the two actually moved. Restricted to the arm's own span
+     * (0..1) so a ball legitimately draining past the tip, which crosses the
+     * same line extended, is left alone. */
+    var sNow = armSide(b.x, b.y, f.angle, px, sgn);
+    var tNow = armT;
+    var swept = false;
+    if (sNow < 0 && tNow >= 0 && tNow <= 1 &&
+        armSide(b.lastX, b.lastY, f.prev, px, sgn) > 0) {
+      var ax = Math.cos(f.angle), ay = Math.sin(f.angle);
+      hit.nx = -sgn * ay; hit.ny = sgn * ax;
+      hit.pen = (b.r + F.rad) - sNow;
+      hit.px = b.x - hit.nx * sNow;
+      hit.py = b.y - hit.ny * sNow;
+      swept = true;
+    } else {
+      var cap = flipperCapsule(f, px);
+      if (!PHYS.ballVsCapsule(b.x, b.y, b.r, cap.ax, cap.ay, cap.bx, cap.by, cap.r)) return;
+    }
 
     var pv = PHYS.pointVelocity(hit.px, hit.py, px, F.y, f.omega);
     /* A swinging flipper gets a guaranteed minimum launch so a well-timed
-     * save always feels decisive, not mushy. */
-    var minOut = (f.on && Math.abs(f.omega) > 6) ? 620 : 0;
+     * save always feels decisive, not mushy. A ball recovered by the swept
+     * guard always gets some kick: it has just been lifted back onto the
+     * face, and leaving it to settle there would read as the same phase-
+     * through, only slower. */
+    var minOut = (f.on && Math.abs(f.omega) > 6) ? 620 : (swept ? 240 : 0);
     var imp = PHYS.resolve(b, 0.62, 0.06, pv[0], pv[1], minOut);
 
     /* Tutorial: any flipper contact that sends the ball back up counts as
@@ -1211,6 +1261,10 @@
         b.stillT = 0;
       }
 
+      /* Where the ball started this substep. tryFlipper needs it to tell a
+       * genuine crossing from a ball that was already under the arm. */
+      b.lastX = b.x; b.lastY = b.y;
+
       PHYS.integrate(b, bdt, b.grav);
       b.rot += b.spin * bdt + b.vx * bdt * 0.02;
 
@@ -1390,7 +1444,12 @@
       if (S.mode === 'wave') spawnFromTimeline(dt);
       updateTowers(dt);
 
-      /* Substep count is driven by the fastest ball so nothing tunnels. */
+      /* Substep count is driven by the fastest thing on the table so nothing
+       * tunnels — and while a flipper is travelling that is the flipper, not
+       * any ball. Its tip covers ~4500 units/s against a 1750 ball cap, so
+       * sizing the step off the balls alone is what let a late save swing
+       * clean over an incoming ball. The raised cap only applies during the
+       * ~50ms of an actual swing. */
       var maxSp = 0, minR = 999;
       for (var i = 0; i < S.balls.length; i++) {
         var b = S.balls[i];
@@ -1399,7 +1458,13 @@
         if (b.r < minR) minR = b.r;
       }
       if (minR === 999) minR = 13;
-      var steps = PHYS.substeps(maxSp, minR, dt);
+      var cap = PHYS.SUBSTEP_CAP;
+      if (S.flipL.angle !== (S.flipL.on ? activeAngleL() : restAngleL()) ||
+          S.flipR.angle !== (S.flipR.on ? activeAngleR() : restAngleR())) {
+        if (FLIP_TIP_SPEED > maxSp) maxSp = FLIP_TIP_SPEED;
+        cap = 16;
+      }
+      var steps = PHYS.substeps(maxSp, minR, dt, cap);
       var sdt = dt / steps;
 
       for (var st = 0; st < steps; st++) {

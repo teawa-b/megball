@@ -31,14 +31,32 @@
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
 
-    var aspect = cw / ch;
-    var phone = cw <= ch && aspect >= U.UI.phoneAspectMin && aspect <= U.UI.phoneAspectMax;
-    /* Phone screens vary around the board's 1:2 design ratio. A modest
-     * independent axis fit (at most the phone range above) removes bezels
-     * without cropping controls. Tablets and desktop retain contain-fit. */
-    var scale = Math.min(cw / VW, ch / VH);
-    var sx = phone ? cw / VW : scale;
-    var sy = phone ? ch / VH : scale;
+    /* Fitting the 720x1440 board onto a real viewport.
+     *
+     * A strict contain-fit letterboxes anything that is not exactly 1:2, and
+     * on a phone that is most of the time: browser chrome (status bar, URL
+     * bar, toolbar) eats the top and bottom, so a 0.46-aspect handset presents
+     * a ~0.60-aspect viewport and the board ends up as a narrow strip with
+     * dead bars either side.
+     *
+     * So each axis is fitted independently, capped at U.UI.maxStretch relative
+     * to the other. That reaches the screen edges whenever the mismatch is
+     * within the cap, and degrades to a contain-fit beyond it rather than
+     * distorting without limit. Landscape windows are left contained: they are
+     * far wider than 1:2, stretching could never fill them, and an obviously
+     * squashed table on a big screen reads worse than clean bars.
+     *
+     * Both layers honour this: input divides by scaleX/scaleY (game.js
+     * toVirtual) and the WebGL layer renders into the same fitted rectangle
+     * (scene3d.js), so the 3D machine and the 2D balls stay registered. */
+    var fitX = cw / VW, fitY = ch / VH;
+    var scale = Math.min(fitX, fitY);
+    var sx = scale, sy = scale;
+    if (cw <= ch) {
+      var k = U.UI.maxStretch;
+      sx = Math.min(fitX, fitY * k);
+      sy = Math.min(fitY, fitX * k);
+    }
     vp.scale = scale;
     vp.scaleX = sx;
     vp.scaleY = sy;

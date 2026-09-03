@@ -71,6 +71,9 @@
       type: type,
       def: d,
       x: x, y: y,
+      /* Position at the start of the current substep — the swept flipper
+       * test in game.js reads it to detect a ball and an arm swapping sides. */
+      lastX: x, lastY: y,
       vx: opts.vx || 0,
       vy: opts.vy || 0,
       r: d.r,
