@@ -31,6 +31,7 @@ Q_STEP = 5
 # Draw sizes, keyed by name prefix. Order matters: first match wins.
 SIZE_RULES = [
     ("bg_", (720, 1440)),
+    ("logo_", (640, 430)),
     ("card_", (320, 320)),
     ("lvl_", (480, 270)),
 ]
@@ -41,6 +42,8 @@ DEFAULT_SIZE = (512, 512)
 KEY_ORDER = [
     "bg_table",
     "bg_menu",
+    "bg_menu_v2",
+    "logo_megaball",
     "lvl_1",
     "lvl_2",
     "lvl_3",
@@ -95,7 +98,8 @@ def main():
     for key in keys:
         src = found[key]
         with Image.open(src) as im:
-            im = im.convert("RGB")
+            # Logos retain real transparency; scene art is flattened to RGB.
+            im = im.convert("RGBA" if key.startswith("logo_") else "RGB")
             w, h = im.size
             tw, th = target_size(key)
             # Cover-fit: the game draws these at fixed aspect ratios, so crop

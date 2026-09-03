@@ -9,7 +9,7 @@
 
   /* ---------- virtual resolution -------------------------------------- */
   /* Every gameplay number in this project is expressed in these units.
-   * The renderer letterboxes them onto whatever the device actually has. */
+   * Phones fill their viewport; wider desktop windows use a contained board. */
   U.VW = 720;
   U.VH = 1440;
 

@@ -45,13 +45,13 @@
     /* The title is the one screen that lets the painted key art breathe: the
      * veil only darkens the top band (under the logo) and the bottom band
      * (under the buttons), and a cyan light bleeds up from the machine. */
-    '#ui .sheet.hero .veil{background:radial-gradient(100% 42% at 50% 68%,rgba(63,224,255,.10),transparent 72%),',
-    '  linear-gradient(180deg,rgba(5,6,13,.86) 0%,rgba(5,6,13,.34) 28%,rgba(5,6,13,.10) 53%,',
-    '  rgba(5,6,13,.72) 74%,rgba(5,6,13,.97) 100%);}',
+    '#ui .sheet.hero{padding:calc(16px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));}',
+    '#ui .sheet.hero .veil{background:linear-gradient(180deg,rgba(2,7,17,.12) 0%,rgba(2,7,17,.04) 48%,',
+    '  rgba(2,7,17,.34) 65%,rgba(2,7,17,.92) 100%);}',
     '#ui .bgimg{background-size:cover;background-position:center;',
     '  opacity:.92;z-index:-2;filter:saturate(1.05) contrast(1.04);}',
-    '#ui .sheet.hero .bgimg{animation:heroDrift 14s ease-in-out infinite alternate;}',
-    '@keyframes heroDrift{from{transform:translateX(-50%) scale(1);}to{transform:translateX(-50%) scale(1.045);}}',
+    '#ui .sheet.hero .bgimg{animation:heroDrift 18s ease-in-out infinite alternate;}',
+    '@keyframes heroDrift{from{transform:translateX(-50%) scale(1.01);}to{transform:translateX(-50%) scale(1.035);}}',
 
     '#ui h1{font-size:clamp(54px,16vw,78px);line-height:.82;margin:0;letter-spacing:-.055em;',
     '  font-weight:900;background:linear-gradient(180deg,#fff 20%,#3fe0ff 130%);',
@@ -61,6 +61,11 @@
     '  opacity:.9;margin:10px 0 0;text-transform:uppercase;}',
     '#ui .sub{color:rgba(255,255,255,.82);font-size:14px;line-height:1.42;font-weight:650;margin:13px 0 0;',
     '  text-shadow:0 2px 8px rgba(0,0,0,.8);}',
+    '#ui .brand-lockup{width:min(92%,420px);margin:4px auto 0;filter:drop-shadow(0 14px 28px rgba(0,0,0,.6));}',
+    '#ui .brand-logo{display:block;width:100%;aspect-ratio:640/430;background-size:contain;background-position:center;background-repeat:no-repeat;}',
+    '#ui .hero-copy{text-align:center;margin-top:-6px;}',
+    '#ui .hero-copy .tag{margin:0;color:#fff;letter-spacing:.28em;font-size:10px;}',
+    '#ui .hero-copy .sub{margin:7px auto 0;max-width:310px;color:rgba(218,240,248,.72);font-size:12px;}',
     '#ui .spacer{flex:1 1 auto;min-height:8px;}',
 
     '#ui .btn{display:block;width:100%;min-height:' + U.UI.minTouch + 'px;box-sizing:border-box;padding:14px 18px;margin:6px 0;font-family:inherit;',
@@ -70,12 +75,8 @@
     '#ui .btn:hover{border-color:rgba(143,232,255,.72);background:rgba(26,47,70,.82);}',
     '#ui .btn:focus-visible{outline:3px solid #ffb020;outline-offset:2px;}',
     '#ui .btn:active{transform:scale(.975);background:rgba(63,224,255,.2);}',
-    '#ui .btn.primary{background:linear-gradient(180deg,rgba(63,224,255,.50),rgba(10,126,164,.55));',
-    '  border-color:#b8f3ff;font-size:17px;padding:18px;text-shadow:0 1px 0 rgba(0,0,0,.4);',
-    '  box-shadow:0 0 34px rgba(63,224,255,.32),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);',
-    '  animation:primaryPulse 2.4s ease-in-out infinite;}',
-    '@keyframes primaryPulse{0%,100%{box-shadow:0 0 26px rgba(63,224,255,.26),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);}',
-    '  50%{box-shadow:0 0 48px rgba(63,224,255,.55),inset 0 1px 0 rgba(255,255,255,.45),0 10px 30px rgba(0,0,0,.45);}}',
+    '#ui .btn.primary{background:#f4fbff;border-color:#fff;color:#06101a;font-size:17px;padding:18px;',
+    '  text-shadow:none;box-shadow:0 12px 34px rgba(0,0,0,.42),0 0 0 1px rgba(63,224,255,.18);}',
     '#ui .btn.ghost{border-color:rgba(143,232,255,.22);background:rgba(10,14,26,.62);',
     '  color:rgba(255,255,255,.82);font-size:14px;padding:14px;backdrop-filter:blur(6px);',
     '  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 6px 18px rgba(0,0,0,.35);}',
@@ -87,8 +88,28 @@
     '#ui .starcount{font-size:15px;font-weight:800;color:#ffb020;letter-spacing:.06em;}',
     '#ui .back{width:auto;padding:11px 18px;margin:0;font-size:12px;}',
 
-    /* World picker. The globe lives in a plain box that eats the leftover
-     * height of the sheet; GLOBE.mount() puts its canvas and its labels in. */
+    /* Campaign navigation. The first world is presented as a single strong
+     * destination; future worlds stay visible without competing for focus. */
+    '#ui .campaign-kicker{margin:3px 0 7px;font:850 10px/1 ' + U.FONT + ';letter-spacing:.22em;color:#3fe0ff;text-transform:uppercase;}',
+    '#ui .campaign-title{font-size:clamp(34px,11vw,48px);line-height:.96;letter-spacing:-.035em;margin:0 0 11px;max-width:360px;}',
+    '#ui .campaign-copy{max-width:330px;margin:0;color:rgba(221,240,247,.64);font-size:12px;line-height:1.45;font-weight:650;}',
+    '#ui .world-feature{position:relative;overflow:hidden;min-height:250px;margin:22px 0 10px;padding:22px;border:1px solid rgba(124,225,255,.25);',
+    '  border-radius:24px;background:linear-gradient(145deg,rgba(12,31,50,.94),rgba(4,10,19,.9));text-align:left;color:#fff;cursor:pointer;',
+    '  box-shadow:0 24px 54px rgba(0,0,0,.44),inset 0 1px 0 rgba(255,255,255,.08);}',
+    '#ui .world-feature:before{content:"";position:absolute;width:250px;height:250px;right:-74px;top:-68px;border-radius:50%;',
+    '  background:radial-gradient(circle at 38% 35%,#dffaff 0 3%,#33dffc 4% 7%,#0c668a 17%,#07192b 55%,#02060d 72%);',
+    '  box-shadow:0 0 50px rgba(63,224,255,.24);opacity:.92;}',
+    '#ui .world-feature:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 45%,rgba(255,46,136,.08));pointer-events:none;}',
+    '#ui .world-feature>*{position:relative;z-index:1;}',
+    '#ui .world-index{display:block;font:850 9px/1 ' + U.FONT + ';letter-spacing:.24em;color:#7eeaff;text-transform:uppercase;}',
+    '#ui .world-feature strong{display:block;margin-top:72px;font:900 28px/.95 ' + U.FONT + ';letter-spacing:-.02em;text-transform:uppercase;}',
+    '#ui .world-feature small{display:block;margin-top:9px;font:750 10px/1 ' + U.FONT + ';letter-spacing:.16em;color:rgba(223,244,250,.55);}',
+    '#ui .world-enter{display:flex;align-items:center;justify-content:space-between;margin-top:21px;font:900 12px/1 ' + U.FONT + ';letter-spacing:.16em;text-transform:uppercase;}',
+    '#ui .world-enter i{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#effcff;color:#06101a;font:400 20px/1 Arial;font-style:normal;}',
+    '#ui .worlds-soon{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:12px;}',
+    '#ui .world-soon{padding:13px 14px;border-radius:15px;border:1px solid rgba(255,255,255,.09);background:rgba(2,8,17,.58);color:rgba(255,255,255,.38);text-align:left;}',
+    '#ui .world-soon b{display:block;font:800 10px/1 ' + U.FONT + ';letter-spacing:.14em;text-transform:uppercase;}',
+    '#ui .world-soon small{display:block;margin-top:6px;font:700 8px/1 ' + U.FONT + ';letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,.22);}',
     '#ui .globe{position:relative;flex:1 1 auto;min-height:280px;margin:2px 0 6px;overflow:hidden;}',
     '#ui .gpin{position:absolute;top:0;left:0;padding:7px 12px;border-radius:11px;',
     '  background:rgba(5,6,13,.80);border:2px solid rgba(63,224,255,.55);',
@@ -177,23 +198,43 @@
     '#ui .title-big{font-size:30px;font-weight:900;letter-spacing:.06em;text-align:center;',
     '  margin:0 0 2px;text-transform:uppercase;}',
     '#ui .muted{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;font-family:inherit;',
-    '  width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.16);',
-    '  background:rgba(255,255,255,.05);color:#fff;font-size:19px;cursor:pointer;z-index:3;}',
+    '  width:42px;height:42px;border-radius:50%;border:1px solid rgba(176,228,244,.26);',
+    '  background:rgba(3,10,20,.68);color:#dff8ff;cursor:pointer;z-index:3;display:grid;place-items:center;backdrop-filter:blur(12px);}',
+    '#ui .muted svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}',
     '#ui .legend{display:flex;gap:8px 12px;flex-wrap:wrap;margin:10px 0 0;}',
     '#ui .lg{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;',
     '  color:rgba(255,255,255,.55);}',
     '#ui .lg em{width:16px;height:16px;border-radius:50%;background:#fff;',
     '  border:3px solid #000;display:block;flex:0 0 16px;}',
-    '#ui .hero-actions{flex:0 0 auto;}',
+    '#ui .hero-actions{flex:0 0 auto;display:flex;flex-direction:column;gap:9px;}',
+    '#ui .play-card{position:relative;width:100%;min-height:74px;border:0;border-radius:18px;padding:14px 62px 14px 18px;',
+    '  background:linear-gradient(110deg,#f4fbff 0%,#bfefff 100%);color:#06101a;text-align:left;cursor:pointer;',
+    '  box-shadow:0 16px 40px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.8);transition:transform .12s,filter .15s;}',
+    '#ui .play-card:active{transform:scale(.98)}#ui .play-card:hover{filter:brightness(1.05)}',
+    '#ui .play-card b{display:block;font:900 19px/1 ' + U.FONT + ';letter-spacing:.12em;}',
+    '#ui .play-card small{display:block;margin-top:7px;font:800 9px/1 ' + U.FONT + ';letter-spacing:.18em;color:#275062;}',
+    '#ui .play-card i{position:absolute;right:17px;top:50%;width:36px;height:36px;margin-top:-18px;border-radius:50%;',
+    '  display:grid;place-items:center;background:#071521;color:#fff;font:400 22px/1 Arial;font-style:normal;}',
+    '#ui .home-nav{display:grid;grid-template-columns:1fr 1fr;gap:9px;}',
+    '#ui .nav-card{min-height:62px;border-radius:16px;border:1px solid rgba(157,218,238,.2);padding:12px 14px;',
+    '  background:rgba(3,10,20,.74);color:#fff;text-align:left;cursor:pointer;backdrop-filter:blur(14px);',
+    '  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);transition:transform .12s,border-color .15s;}',
+    '#ui .nav-card:active{transform:scale(.97)}#ui .nav-card:hover{border-color:rgba(63,224,255,.58)}',
+    '#ui .nav-card b{display:block;font:850 12px/1 ' + U.FONT + ';letter-spacing:.12em;text-transform:uppercase;}',
+    '#ui .nav-card small{display:block;margin-top:7px;font:650 9px/1.15 ' + U.FONT + ';color:rgba(208,233,241,.56);letter-spacing:.04em;}',
     '#ui .level-card{padding:14px;border:1px solid rgba(63,224,255,.18);border-radius:16px;',
     '  background:linear-gradient(145deg,rgba(15,30,51,.82),rgba(6,10,20,.76));box-shadow:0 14px 36px rgba(0,0,0,.25);}',
     '#ui .level-card .note{font-size:14px;margin-bottom:5px;}',
+    '#ui .level-name{display:block;color:#3fe0ff;font-size:14px;font-weight:900;letter-spacing:.03em;}',
+    '#ui .level-subtitle{display:block;margin-top:5px;color:rgba(223,240,247,.58);font-size:11px;font-weight:650;}',
     '#ui .menu-actions{margin-top:auto;flex:0 0 auto;padding-top:10px;}',
     '@media(max-height:720px){#ui .sheet{padding-top:14px;padding-bottom:12px}#ui .hdr{margin-bottom:9px}',
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .note{line-height:1.3}',
     '  #ui .btn{min-height:44px;padding:11px 15px;margin:4px 0}#ui .slots{margin-bottom:7px}',
-    '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}}',
-    '@media(prefers-reduced-motion:reduce){#ui.on .sheet,#ui .sheet.hero .bgimg,#ui .btn.primary{animation:none!important}}'
+    '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
+    '  #ui .brand-lockup{width:min(78%,330px);margin-top:-2px}#ui .hero-copy{margin-top:-12px}',
+    '  #ui .play-card{min-height:64px}.home-nav .nav-card{min-height:54px;padding:9px 12px}}',
+    '@media(prefers-reduced-motion:reduce){#ui.on .sheet,#ui .sheet.hero .bgimg{animation:none!important}}'
   ].join('\n');
 
   /* ---------------------------------------------------------------------- */
@@ -219,6 +260,12 @@
     return a ? 'background-image:url(' + a.src + ')' : '';
   }
 
+  function soundIcon(muted) {
+    return muted
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="m16 9 5 6M21 9l-5 6"></path></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"></path></svg>';
+  }
+
   function el(html) {
     var d = document.createElement('div');
     d.innerHTML = html;
@@ -235,7 +282,7 @@
     if (withBg) {
       var bi = document.createElement('div');
       bi.className = 'bgimg';
-      bi.setAttribute('style', bgStyle('bg_menu'));
+      bi.setAttribute('style', bgStyle('bg_menu_v2'));
       sheet.appendChild(bi);
     }
     sheet.insertAdjacentHTML('beforeend', inner);
@@ -269,24 +316,20 @@
 
   function screenTitle() {
     var muted = global.SFX && global.SFX.isMuted && global.SFX.isMuted();
+    var logo = global.ART && global.ART.get ? global.ART.get('logo_megaball') : null;
     var sheet = shell([
-      '<button class="muted" id="mute">' + (muted ? '🔇' : '🔊') + '</button>',
+      '<button class="muted" id="mute" aria-label="' + (muted ? 'Unmute' : 'Mute') + '">' + soundIcon(muted) + '</button>',
+      logo ? '<div class="brand-lockup"><div class="brand-logo" role="img" aria-label="Megaball" style="background-image:url(' + logo.src + ')"></div></div>' : '<h1>MEGA<br>BALL</h1>',
+      '<div class="hero-copy"><p class="tag">Pinball defense, reloaded</p>',
+      '<p class="sub">Build the board. Break the swarm. Save the drain.</p></div>',
       '<div class="spacer"></div>',
-      '<p class="tag">Tower Defense · Pinball</p>',
-      '<h1>MEGA<br>BALL</h1>',
-      '<p class="sub">Build the board. Flip the stragglers.<br>',
-      'Turn enemy balls into weapons.</p>',
-      '<div class="legend">',
-      '  <div class="lg"><em></em>Enemy ball</div>',
-      '  <div class="lg" style="color:#3fe0ff">◗ Your defenses</div>',
-      '  <div class="lg" style="color:#ff2e88">▁ Don\'t let them out</div>',
-      '</div>',
-      '<div class="spacer"></div>',
-      '<div class="hero-actions"><button class="btn primary" id="play">Start</button>',
-      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
-      '<button class="btn ghost" id="howto">Tutorial</button></div></div>'
+      '<div class="hero-actions"><button class="play-card" id="play"><b>Play</b><small>WORLD 1 · FIVE STAGES</small><i>›</i></button>',
+      '<div class="home-nav"><button class="nav-card" id="deck"><b>Power Cards</b><small>Choose your loadout</small></button>',
+      '<button class="nav-card" id="howto"><b>Learn</b><small>Interactive tutorial</small></button></div></div>'
     ].join(''), true);
     sheet.classList.add('hero');
+    var heroBg = sheet.querySelector('.bgimg');
+    if (heroBg) heroBg.setAttribute('style', bgStyle('bg_menu_v2'));
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'title' }); }, sheet);
@@ -303,7 +346,8 @@
       var m = !s.isMuted();
       s.setMuted(m);
       GAMEsave('muted', m);
-      e.target.textContent = m ? '🔇' : '🔊';
+      e.currentTarget.innerHTML = soundIcon(m);
+      e.currentTarget.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
     }, sheet);
   }
 
@@ -315,44 +359,29 @@
   /* World picker                                                           */
   /* ---------------------------------------------------------------------- */
 
-  /* Where each world sits on the planet. Only World 1 exists; the other two
-   * are pinned far enough apart that a single drag never reveals all three,
-   * which is the whole point of putting them on a globe. */
-  var WORLDS = [
-    { id: 1, lat: 14, lon: -62, label: 'World 1', locked: false },
-    { id: 2, lat: 44, lon: 78, label: 'World 2', locked: true },
-    { id: 3, lat: -32, lon: 168, label: 'World 3', locked: true }
-  ];
-
   function screenWorld() {
     var GAME = global.GAME;
     var total = GAME.totalStars();
 
     var sheet = shell([
-      '<div class="hdr"><h2>Select World</h2>',
+      '<div class="hdr"><span class="campaign-kicker">Campaign</span>',
       '<span class="starcount">\u2605 ' + total + ' / 15</span></div>',
-      '<div class="globe" id="globe"></div>',
-      '<p class="hint">Drag to spin \u00b7 tap a world</p>',
-      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
-      '<button class="btn ghost" id="back">Title</button></div>'
+      '<h2 class="campaign-title">Choose your battlefield.</h2>',
+      '<p class="campaign-copy">Every stage reshapes the table. Clear objectives, earn stars, and unlock stronger power cards.</p>',
+      '<button class="world-feature" id="world1"><span class="world-index">World 01 · Active</span>',
+      '<strong>The first<br>circuit</strong><small>5 stages · ' + total + ' stars earned</small>',
+      '<span class="world-enter">Select stages <i>›</i></span></button>',
+      '<div class="worlds-soon"><button class="world-soon" id="world2"><b>World 02</b><small>Locked</small></button>',
+      '<button class="world-soon" id="world3"><b>World 03</b><small>Locked</small></button></div>',
+      '<div class="row"><button class="btn ghost" id="deck">Loadout</button>',
+      '<button class="btn ghost" id="back">Home</button></div>'
     ].join(''), true);
 
+    on('#world1', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
+    on('#world2', function () { sfx('ui_error'); }, sheet);
+    on('#world3', function () { sfx('ui_error'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'world' }); }, sheet);
     on('#back', function () { sfx('ui_back'); UI.showScreen('title'); }, sheet);
-
-    var box = sheet.querySelector('#globe');
-    var G = global.GLOBE;
-    if (G && G.mount) {
-      G.mount(box, {
-        pins: WORLDS,
-        onPick: function () { sfx('ui_tap'); UI.showScreen('levelSelect'); },
-        onLockedPick: function () { sfx('ui_error'); }
-      });
-    } else {
-      /* No WebGL: the grid is still one tap away. */
-      box.innerHTML = '<button class="btn primary" id="w1">World 1</button>';
-      on('#w1', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
-    }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -405,7 +434,7 @@
 
     var cur = LEVELS.byId(curId);
     var blurb = cur
-      ? '<b style="color:#3fe0ff">' + cur.id + '. ' + cur.name + '</b> \u2014 ' + cur.subtitle
+      ? '<b class="level-name">Stage ' + cur.id + ' · ' + cur.name + '</b><span class="level-subtitle">' + cur.subtitle + '</span>'
       : '';
 
     /* The three objectives of the current level, stated up front. A "use no
@@ -421,8 +450,8 @@
       '<div id="objs">' + objList + '</div></div>',
       '<div class="spacer"></div>',
       '<div class="menu-actions"><button class="btn primary" id="launch">Play Level ' + curId + '</button>',
-      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
-      '<button class="btn ghost" id="back">Worlds</button></div></div>'
+      '<div class="row"><button class="btn ghost" id="deck">Loadout</button>',
+      '<button class="btn ghost" id="back">Campaign</button></div></div>'
     ].join(''), true);
     sheet.classList.add('level-select');
 
@@ -437,8 +466,8 @@
         var allTiles = sheet.querySelectorAll('.tile');
         for (var ti = 0; ti < allTiles.length; ti++) allTiles[ti].classList.remove('cur');
         n.classList.add('cur');
-        note.innerHTML = '<b style="color:#3fe0ff">' + L.id + '. ' + L.name +
-          '</b> \u2014 ' + L.subtitle;
+        note.innerHTML = '<b class="level-name">Stage ' + L.id + ' · ' + L.name +
+          '</b><span class="level-subtitle">' + L.subtitle + '</span>';
         var ob = sheet.querySelector('#objs');
         if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
         var launch = sheet.querySelector('#launch');
