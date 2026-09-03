@@ -38,18 +38,27 @@
     '#ui .veil,#ui .bgimg{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:560px;',
     '  transform:translateX(-50%);pointer-events:none;}',
     '#ui .veil{background:radial-gradient(120% 80% at 50% 0%,',
-    '  rgba(63,224,255,.10),transparent 60%),linear-gradient(180deg,rgba(5,6,13,.86),rgba(5,6,13,.97));',
+    '  rgba(63,224,255,.10),transparent 60%),linear-gradient(180deg,rgba(5,6,13,.88),rgba(5,6,13,.96));',
     '  z-index:-1;}',
+    /* The title is the one screen that lets the painted key art breathe: the
+     * veil only darkens the top band (under the logo) and the bottom band
+     * (under the buttons), and a cyan light bleeds up from the machine. */
+    '#ui .sheet.hero .veil{background:radial-gradient(90% 40% at 50% 100%,rgba(63,224,255,.16),transparent 70%),',
+    '  linear-gradient(180deg,rgba(5,6,13,.78) 0%,rgba(5,6,13,.30) 26%,rgba(5,6,13,.06) 46%,',
+    '  rgba(5,6,13,.42) 66%,rgba(5,6,13,.90) 100%);}',
     '#ui .bgimg{background-size:cover;background-position:center;',
-    '  opacity:.5;z-index:-2;filter:saturate(.85);}',
+    '  opacity:.92;z-index:-2;filter:saturate(1.05) contrast(1.04);}',
+    '#ui .sheet.hero .bgimg{animation:heroDrift 14s ease-in-out infinite alternate;}',
+    '@keyframes heroDrift{from{transform:translateX(-50%) scale(1);}to{transform:translateX(-50%) scale(1.045);}}',
 
     '#ui h1{font-size:15vw;max-font-size:74px;line-height:.92;margin:0;letter-spacing:-.03em;',
     '  font-weight:900;background:linear-gradient(180deg,#fff 20%,#3fe0ff 130%);',
     '  -webkit-background-clip:text;background-clip:text;color:transparent;',
-    '  filter:drop-shadow(0 0 26px rgba(63,224,255,.45));}',
+    '  filter:drop-shadow(0 0 28px rgba(63,224,255,.55)) drop-shadow(0 6px 0 rgba(0,0,0,.55));}',
     '#ui .tag{letter-spacing:.42em;font-size:11px;font-weight:800;color:#3fe0ff;',
     '  opacity:.85;margin:10px 0 0;text-transform:uppercase;}',
-    '#ui .sub{color:rgba(255,255,255,.55);font-size:14px;line-height:1.5;font-weight:500;margin:14px 0 0;}',
+    '#ui .sub{color:rgba(255,255,255,.72);font-size:14px;line-height:1.5;font-weight:600;margin:14px 0 0;',
+    '  text-shadow:0 2px 8px rgba(0,0,0,.8);}',
     '#ui .spacer{flex:1 1 auto;min-height:12px;}',
 
     '#ui .btn{display:block;width:100%;box-sizing:border-box;padding:17px 20px;margin:9px 0;font-family:inherit;',
@@ -57,10 +66,15 @@
     '  color:#fff;font:800 16px/1 ' + U.FONT + ';letter-spacing:.16em;text-transform:uppercase;',
     '  cursor:pointer;transition:transform .08s,background .15s,border-color .15s;}',
     '#ui .btn:active{transform:scale(.975);background:rgba(63,224,255,.2);}',
-    '#ui .btn.primary{background:linear-gradient(180deg,rgba(63,224,255,.28),rgba(63,224,255,.12));',
-    '  border-color:#3fe0ff;box-shadow:0 6px 30px rgba(63,224,255,.22);font-size:19px;padding:21px;}',
-    '#ui .btn.ghost{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.04);',
-    '  color:rgba(255,255,255,.7);font-size:14px;padding:14px;}',
+    '#ui .btn.primary{background:linear-gradient(180deg,rgba(63,224,255,.50),rgba(10,126,164,.55));',
+    '  border-color:#8fe8ff;font-size:19px;padding:21px;text-shadow:0 1px 0 rgba(0,0,0,.4);',
+    '  box-shadow:0 0 34px rgba(63,224,255,.32),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);',
+    '  animation:primaryPulse 2.4s ease-in-out infinite;}',
+    '@keyframes primaryPulse{0%,100%{box-shadow:0 0 26px rgba(63,224,255,.26),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);}',
+    '  50%{box-shadow:0 0 48px rgba(63,224,255,.55),inset 0 1px 0 rgba(255,255,255,.45),0 10px 30px rgba(0,0,0,.45);}}',
+    '#ui .btn.ghost{border-color:rgba(143,232,255,.22);background:rgba(10,14,26,.62);',
+    '  color:rgba(255,255,255,.82);font-size:14px;padding:14px;backdrop-filter:blur(6px);',
+    '  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 6px 18px rgba(0,0,0,.35);}',
     '#ui .btn.danger{border-color:rgba(255,46,136,.5);background:rgba(255,46,136,.10);}',
     '#ui .row{display:flex;gap:10px;}#ui .row>*{flex:1;}',
 
@@ -92,16 +106,17 @@
     '#ui .tile{position:relative;aspect-ratio:1;box-sizing:border-box;padding:0;margin:0;',
     '  border-radius:16px;cursor:pointer;font-family:inherit;color:#fff;',
     '  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;',
-    '  border:2px solid rgba(63,224,255,.30);background:#0a0e1a;',
+    '  border:2px solid rgba(63,224,255,.34);background:linear-gradient(160deg,#152040 0%,#0a0e1a 65%);',
+    '  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 8px 20px rgba(0,0,0,.4);',
     '  transition:transform .08s,border-color .15s,box-shadow .2s;}',
     '#ui .tile:active{transform:scale(.96);}',
     '#ui .tile .n{font:900 34px/1 ' + U.FONT + ';letter-spacing:-.03em;',
     '  text-shadow:0 0 18px rgba(63,224,255,.45);}',
     '#ui .tile .st{font-size:12px;letter-spacing:2px;color:#ffb020;line-height:1;}',
-    '#ui .tile.cur{border-color:#3fe0ff;box-shadow:0 0 0 1px rgba(63,224,255,.18),',
-    '  0 8px 28px rgba(63,224,255,.22);}',
+    '#ui .tile.cur{border-color:#3fe0ff;background:linear-gradient(160deg,#124a66 0%,#0b1a30 70%);',
+    '  box-shadow:0 0 0 1px rgba(63,224,255,.18),0 8px 28px rgba(63,224,255,.30),inset 0 1px 0 rgba(255,255,255,.18);}',
     '#ui .tile.locked{cursor:not-allowed;border-color:rgba(255,46,136,.16);',
-    '  background:#0b0f1c;color:rgba(255,255,255,.30);}',
+    '  background:linear-gradient(160deg,#0f1224,#080a14);color:rgba(255,255,255,.30);box-shadow:none;}',
     '#ui .tile.locked .lk{color:rgba(255,46,136,.34);}',
 
     '#ui .cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 18px;}',
@@ -258,6 +273,7 @@
       '<button class="btn ghost" id="deck">Deck</button>',
       '<button class="btn ghost" id="howto">How to play</button>'
     ].join(''), true);
+    sheet.classList.add('hero');
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);

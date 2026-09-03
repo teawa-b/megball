@@ -83,6 +83,31 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
 - Build phases now nudge: if the player can afford a defense and has placed nothing this
   phase, the tray buttons pulse amber and a one-line toast says to spend the Energy.
 
+## 4c. Visual pass 2: make it look like a machine people want to play
+
+- The author's verdict on the first 3D table: works, but "not the biggest fan of the visual
+  design". Diagnosis from screenshots: a flat, straight-down slab with tiny pins, no light in
+  the scene, and a title screen whose key art was hidden behind a 95% veil.
+- Key art regenerated with the codex CLI image tool (two prompts, run from a scratch
+  directory so its auto-commit habit could not fire): a cinematic neon cabinet hero for the
+  title (dark top band reserved for the logo), and a deliberately quiet PCB-motif playfield
+  print. `src/scene3d.js` now reads the print from `ART` once it has decoded (the renderer
+  boots before the assets do) and composites the lane marks, drain apron and the
+  load-bearing vignette on top of it, so the ball-readability rule in CONTRACT §3 still holds.
+- The machine itself: chrome pins, posts, hubs and an inner chrome lip on a clear-coated
+  gloss frame; brushed cabinet panels above (HUD) and below (card tray) with cyan pinstripes;
+  corner bolts; a frosted dome with a lit core on every bumper; and a bloom stand-in — an
+  additive "glow" layer of soft sprites (dot and bar textures) merged into one draw call per
+  table for pins, rails, slingshots, gates and the neon rim, plus live ones on towers,
+  flippers and the drain that brighten when the thing under them fires. A faint diagonal
+  sheen plane sells the glass over the playfield.
+- Menus: the title lets the art breathe (light veil, slow 14 s drift, cyan light bleeding up
+  from the machine, pulsing primary button); level tiles gained depth and a lit "current"
+  state. The flow — title → globe → 3×3 grid — is unchanged, as the author asked.
+- Verified in the in-app browser at 375×812: no console errors, ≈147 draw calls / 100k
+  triangles on Level 3 with four towers, `node tools/build.js` + `node tools/verify.js` PASS
+  (zip 0.76 MB).
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

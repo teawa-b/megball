@@ -836,11 +836,8 @@
     var ring = new THREE.Mesh(ringGeo(12.5, 2.6), led(d.color, 1));
     ring.position.z = 24.5;
     grp.add(ring);
-    /* Ground halo: a flat lit disc under the hub so the tower's colour reads
-     * from across the table. */
-    var halo = new THREE.Mesh(postGeo(24, 0.8), led(d.color, 0.35));
-    halo.position.z = 0.4;
-    grp.add(halo);
+    /* The glow sprite doubles as the ground halo, so the tower's colour reads
+     * from across the table without a second draw call. */
     var gl = glowMesh(d.color, 0.5, 0, 0, 30, 96);
     grp.add(gl);
     var cap = new THREE.Mesh(postGeo(8, 3, 7), M.polyDark);
@@ -879,9 +876,6 @@
     var ring = new THREE.Mesh(ringGeo(r - 2.5, 3.2), led(d.color, 1));
     ring.position.z = 18.5;
     grp.add(ring);
-    var halo = new THREE.Mesh(postGeo(r + 14, 0.8), led(d.color, 0.3));
-    halo.position.z = 0.4;
-    grp.add(halo);
     /* Lit core under a frosted dome: the bit that flashes when it fires. */
     var core = new THREE.Mesh(new THREE.SphereGeometry(r - 9, 20, 12), led(d.color, 1.4));
     core.position.z = 18;
