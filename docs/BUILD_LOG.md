@@ -108,6 +108,28 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   triangles on Level 3 with four towers, `node tools/build.js` + `node tools/verify.js` PASS
   (zip 0.76 MB).
 
+## 4d. Portrait UI and presentation revamp
+
+- Rebuilt the title hierarchy around a shorter two-line pitch and one dominant START action,
+  with Cards and Tutorial grouped as secondary actions. Buttons now have consistent touch
+  height, clearer focus/hover states, tighter phone spacing and reduced-motion support.
+- Replaced the nine-tile stage grid (four tiles were decorative locks) with the five actual
+  stages in a single progression row. Selecting a stage now updates a compact objective card;
+  a separate PLAY LEVEL action prevents accidental launches and makes the flow explicit.
+- Reworked Power Cards into a one-screen 3x2 collection at normal phone heights, with a
+  compact short-phone variant. Copy is shorter and Back returns to the title, world, or level
+  screen that opened it instead of always dumping the player into level select.
+- Phone aspect ratios now fill the complete portrait viewport with matched X/Y input mapping;
+  tablets and desktop retain contain-fit. This removes device letterboxing without cropping
+  the HUD or card tray. The live HUD was enlarged and given stronger contrast.
+- Lifted the 3D playfield exposure, environment fill, key light and cyan kicker, reduced the
+  dark wash over the painted board, and added a restrained emissive base so slots, rails and
+  balls remain legible without flattening the neon-night art direction.
+- Verified title, world, level select, Power Cards, tutorial, build phase, live wave and pause
+  at 375x667 and 390x844. Navigation return paths passed; no clipping or menu scrolling was
+  present. `node tools/build.js`, `node tools/verify.js`, syntax checks and `git diff --check`
+  passed after the source changes.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

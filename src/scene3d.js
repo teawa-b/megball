@@ -354,7 +354,7 @@
       var aw = art.naturalWidth || art.width, ah = art.naturalHeight || art.height;
       var sy = top / VH * ah, sh = h / VH * ah;
       ctx.drawImage(art, 0, sy, aw, sh, 0, 0, w, h);
-      ctx.fillStyle = 'rgba(8,11,22,0.30)';
+      ctx.fillStyle = 'rgba(8,11,22,0.16)';
       ctx.fillRect(0, 0, w, h);
     } else {
       /* Fine speckle so the surface reads as material, not flat paint. */
@@ -493,7 +493,10 @@
     var Phys = THREE.MeshPhysicalMaterial || THREE.MeshStandardMaterial;
 
     M.slab = new THREE.MeshStandardMaterial({ color: 0x070a12, roughness: 0.9, metalness: 0.05 });
-    M.field = new THREE.MeshStandardMaterial({ map: playfieldTexture(null), roughness: 0.86, metalness: 0.02, envMapIntensity: 0.25 });
+    M.field = new THREE.MeshStandardMaterial({
+      map: playfieldTexture(null), color: 0xffffff, emissive: 0x071521,
+      emissiveIntensity: 0.42, roughness: 0.78, metalness: 0.04, envMapIntensity: 0.38
+    });
     /* The cabinet: gloss black-navy toy plastic with a clear coat. */
     M.frame = new Phys({ color: 0x0f1630, roughness: 0.42, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.12 });
     M.cab = new Phys({ map: brushedTexture(), color: 0xffffff, roughness: 0.5, metalness: 0.6, clearcoat: 0.6, clearcoatRoughness: 0.25 });
@@ -987,14 +990,16 @@
     }
     renderer.setClearColor(col(C.void), 1);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    /* PCFSoftShadowMap aliases to PCFShadowMap in current Three.js and logs a
+     * deprecation warning; the supported mode keeps the same soft filtered look. */
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.12;
+    renderer.toneMappingExposure = 1.26;
 
     scene = new THREE.Scene();
     scene.background = col(C.void);
     scene.environment = studioEnvironment();
-    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.7;
+    if ('environmentIntensity' in scene) scene.environmentIntensity = 0.82;
 
     camera = new THREE.PerspectiveCamera(FOV, VW / VH, 200, CAM_Z + 400);
     camera.position.set(VW / 2, -VH / 2, CAM_Z);
@@ -1004,9 +1009,9 @@
     /* Lighting: one cool-white key from the upper left with soft shadows,
      * a cool hemisphere fill, a cyan kicker from below so chrome edges catch
      * the player's colour, and a faint magenta kicker from the top. */
-    var hemi = new THREE.HemisphereLight(0xbfe6ff, 0x05060d, 0.9);
+    var hemi = new THREE.HemisphereLight(0xd7efff, 0x071020, 1.08);
     scene.add(hemi);
-    keyLight = new THREE.DirectionalLight(0xf4f9ff, 2.4);
+    keyLight = new THREE.DirectionalLight(0xf4f9ff, 2.75);
     keyLight.position.set(-300, -120, 1500);
     keyLight.target.position.set(VW / 2, -680, 0);
     scene.add(keyLight.target);
@@ -1022,7 +1027,7 @@
     keyLight.shadow.normalBias = 1.5;
     keyLight.shadow.radius = 3;
     scene.add(keyLight);
-    var kick = new THREE.DirectionalLight(col(C.cyan), 0.7);
+    var kick = new THREE.DirectionalLight(col(C.cyan), 0.92);
     kick.position.set(400, -1500, 600);
     scene.add(kick);
     var kick2 = new THREE.DirectionalLight(col(C.magenta), 0.3);
@@ -1093,9 +1098,9 @@
     pivot.scale.set(zs, zs, zs);
     board.position.set(-zfx, zfy, 0);
 
-    /* Letterbox: clear the whole canvas, then draw into the same rectangle
-     * the 2D layer uses so both layers share one pixel grid. */
-    var w = VW * vp.scale, h = VH * vp.scale;
+    /* Clear the whole canvas, then draw into the same fitted rectangle the
+     * 2D layer uses so both layers share one pixel grid. */
+    var w = VW * (vp.scaleX || vp.scale), h = VH * (vp.scaleY || vp.scale);
     var x = vp.ox, y = vp.h - (vp.oy + h);
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, vp.w, vp.h);

@@ -28,14 +28,16 @@
     '#ui{position:fixed;inset:0;z-index:20;display:none;font-family:' + U.FONT + ';',
     '  color:#fff;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;}',
     '#ui.on{display:flex;align-items:stretch;justify-content:center;}',
-    '#ui .sheet{position:relative;width:100%;max-width:560px;height:100%;display:flex;',
-    '  flex-direction:column;padding:26px 22px calc(26px + env(safe-area-inset-bottom));',
-    '  box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;}',
+    '#ui .sheet{position:relative;width:100%;max-width:' + U.UI.maxMenuWidth + 'px;height:100dvh;display:flex;',
+    '  flex-direction:column;padding:calc(20px + env(safe-area-inset-top)) 22px calc(18px + env(safe-area-inset-bottom));',
+    '  box-sizing:border-box;overflow:hidden;overscroll-behavior:none;}',
+    '#ui.on .sheet{animation:screenIn .28s cubic-bezier(.2,.8,.2,1) both;}',
+    '@keyframes screenIn{from{opacity:0;transform:translateY(10px) scale(.992)}to{opacity:1;transform:none}}',
     /* Pinned to the viewport rather than to the sheet's padding box: the sheet
      * is the scroll container, so an absolutely positioned backdrop stops at
      * the first screenful and lets the canvas show through underneath once a
      * long list scrolls. Width is matched to the sheet so nothing else moves. */
-    '#ui .veil,#ui .bgimg{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:560px;',
+    '#ui .veil,#ui .bgimg{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:' + U.UI.maxMenuWidth + 'px;',
     '  transform:translateX(-50%);pointer-events:none;}',
     '#ui .veil{background:radial-gradient(120% 80% at 50% 0%,',
     '  rgba(63,224,255,.10),transparent 60%),linear-gradient(180deg,rgba(5,6,13,.88),rgba(5,6,13,.96));',
@@ -43,31 +45,33 @@
     /* The title is the one screen that lets the painted key art breathe: the
      * veil only darkens the top band (under the logo) and the bottom band
      * (under the buttons), and a cyan light bleeds up from the machine. */
-    '#ui .sheet.hero .veil{background:radial-gradient(90% 40% at 50% 100%,rgba(63,224,255,.16),transparent 70%),',
-    '  linear-gradient(180deg,rgba(5,6,13,.78) 0%,rgba(5,6,13,.30) 26%,rgba(5,6,13,.06) 46%,',
-    '  rgba(5,6,13,.42) 66%,rgba(5,6,13,.90) 100%);}',
+    '#ui .sheet.hero .veil{background:radial-gradient(100% 42% at 50% 68%,rgba(63,224,255,.10),transparent 72%),',
+    '  linear-gradient(180deg,rgba(5,6,13,.86) 0%,rgba(5,6,13,.34) 28%,rgba(5,6,13,.10) 53%,',
+    '  rgba(5,6,13,.72) 74%,rgba(5,6,13,.97) 100%);}',
     '#ui .bgimg{background-size:cover;background-position:center;',
     '  opacity:.92;z-index:-2;filter:saturate(1.05) contrast(1.04);}',
     '#ui .sheet.hero .bgimg{animation:heroDrift 14s ease-in-out infinite alternate;}',
     '@keyframes heroDrift{from{transform:translateX(-50%) scale(1);}to{transform:translateX(-50%) scale(1.045);}}',
 
-    '#ui h1{font-size:15vw;max-font-size:74px;line-height:.92;margin:0;letter-spacing:-.03em;',
+    '#ui h1{font-size:clamp(54px,16vw,78px);line-height:.82;margin:0;letter-spacing:-.055em;',
     '  font-weight:900;background:linear-gradient(180deg,#fff 20%,#3fe0ff 130%);',
     '  -webkit-background-clip:text;background-clip:text;color:transparent;',
     '  filter:drop-shadow(0 0 28px rgba(63,224,255,.55)) drop-shadow(0 6px 0 rgba(0,0,0,.55));}',
-    '#ui .tag{letter-spacing:.42em;font-size:11px;font-weight:800;color:#3fe0ff;',
-    '  opacity:.85;margin:10px 0 0;text-transform:uppercase;}',
-    '#ui .sub{color:rgba(255,255,255,.72);font-size:14px;line-height:1.5;font-weight:600;margin:14px 0 0;',
+    '#ui .tag{letter-spacing:.34em;font-size:10px;font-weight:900;color:#3fe0ff;',
+    '  opacity:.9;margin:10px 0 0;text-transform:uppercase;}',
+    '#ui .sub{color:rgba(255,255,255,.82);font-size:14px;line-height:1.42;font-weight:650;margin:13px 0 0;',
     '  text-shadow:0 2px 8px rgba(0,0,0,.8);}',
-    '#ui .spacer{flex:1 1 auto;min-height:12px;}',
+    '#ui .spacer{flex:1 1 auto;min-height:8px;}',
 
-    '#ui .btn{display:block;width:100%;box-sizing:border-box;padding:17px 20px;margin:9px 0;font-family:inherit;',
-    '  border-radius:14px;border:2px solid rgba(63,224,255,.45);background:rgba(63,224,255,.10);',
-    '  color:#fff;font:800 16px/1 ' + U.FONT + ';letter-spacing:.16em;text-transform:uppercase;',
+    '#ui .btn{display:block;width:100%;min-height:' + U.UI.minTouch + 'px;box-sizing:border-box;padding:14px 18px;margin:6px 0;font-family:inherit;',
+    '  border-radius:16px;border:1px solid rgba(143,232,255,.38);background:rgba(12,22,39,.76);',
+    '  color:#fff;font:850 14px/1 ' + U.FONT + ';letter-spacing:.14em;text-transform:uppercase;',
     '  cursor:pointer;transition:transform .08s,background .15s,border-color .15s;}',
+    '#ui .btn:hover{border-color:rgba(143,232,255,.72);background:rgba(26,47,70,.82);}',
+    '#ui .btn:focus-visible{outline:3px solid #ffb020;outline-offset:2px;}',
     '#ui .btn:active{transform:scale(.975);background:rgba(63,224,255,.2);}',
     '#ui .btn.primary{background:linear-gradient(180deg,rgba(63,224,255,.50),rgba(10,126,164,.55));',
-    '  border-color:#8fe8ff;font-size:19px;padding:21px;text-shadow:0 1px 0 rgba(0,0,0,.4);',
+    '  border-color:#b8f3ff;font-size:17px;padding:18px;text-shadow:0 1px 0 rgba(0,0,0,.4);',
     '  box-shadow:0 0 34px rgba(63,224,255,.32),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);',
     '  animation:primaryPulse 2.4s ease-in-out infinite;}',
     '@keyframes primaryPulse{0%,100%{box-shadow:0 0 26px rgba(63,224,255,.26),inset 0 1px 0 rgba(255,255,255,.35),0 10px 30px rgba(0,0,0,.45);}',
@@ -78,7 +82,7 @@
     '#ui .btn.danger{border-color:rgba(255,46,136,.5);background:rgba(255,46,136,.10);}',
     '#ui .row{display:flex;gap:10px;}#ui .row>*{flex:1;}',
 
-    '#ui .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}',
+    '#ui .hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex:0 0 auto;}',
     '#ui .hdr h2{font-size:22px;margin:0;letter-spacing:.12em;font-weight:900;text-transform:uppercase;}',
     '#ui .starcount{font-size:15px;font-weight:800;color:#ffb020;letter-spacing:.06em;}',
     '#ui .back{width:auto;padding:11px 18px;margin:0;font-size:12px;}',
@@ -101,25 +105,25 @@
     '  text-transform:uppercase;color:rgba(255,255,255,.32);margin:0 0 14px;}',
 
     /* Level grid: three across, square tiles, big numerals. */
-    '#ui .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;',
-    '  margin:2px 0 14px;flex:0 0 auto;}',
+    '#ui .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;',
+    '  margin:2px 0 16px;flex:0 0 auto;}',
     '#ui .tile{position:relative;aspect-ratio:1;box-sizing:border-box;padding:0;margin:0;',
-    '  border-radius:16px;cursor:pointer;font-family:inherit;color:#fff;',
+    '  border-radius:14px;cursor:pointer;font-family:inherit;color:#fff;',
     '  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;',
     '  border:2px solid rgba(63,224,255,.34);background:linear-gradient(160deg,#152040 0%,#0a0e1a 65%);',
     '  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 8px 20px rgba(0,0,0,.4);',
     '  transition:transform .08s,border-color .15s,box-shadow .2s;}',
     '#ui .tile:active{transform:scale(.96);}',
-    '#ui .tile .n{font:900 34px/1 ' + U.FONT + ';letter-spacing:-.03em;',
+    '#ui .tile .n{font:900 27px/1 ' + U.FONT + ';letter-spacing:-.03em;',
     '  text-shadow:0 0 18px rgba(63,224,255,.45);}',
-    '#ui .tile .st{font-size:12px;letter-spacing:2px;color:#ffb020;line-height:1;}',
+    '#ui .tile .st{font-size:9px;letter-spacing:1px;color:#ffb020;line-height:1;}',
     '#ui .tile.cur{border-color:#3fe0ff;background:linear-gradient(160deg,#124a66 0%,#0b1a30 70%);',
     '  box-shadow:0 0 0 1px rgba(63,224,255,.18),0 8px 28px rgba(63,224,255,.30),inset 0 1px 0 rgba(255,255,255,.18);}',
     '#ui .tile.locked{cursor:not-allowed;border-color:rgba(255,46,136,.16);',
     '  background:linear-gradient(160deg,#0f1224,#080a14);color:rgba(255,255,255,.30);box-shadow:none;}',
     '#ui .tile.locked .lk{color:rgba(255,46,136,.34);}',
 
-    '#ui .cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 18px;}',
+    '#ui .cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:4px 0 10px;}',
     '#ui .pc{position:relative;border-radius:13px;overflow:hidden;cursor:pointer;',
     '  border:2px solid rgba(255,255,255,.10);background:#0b0f1c;aspect-ratio:3/4;',
     '  transition:transform .08s,border-color .15s;}',
@@ -129,19 +133,19 @@
     '#ui .pc .art{position:absolute;inset:0;background-size:cover;background-position:center top;}',
     '#ui .pc .shade{position:absolute;inset:0;background:linear-gradient(180deg,',
     '  transparent 38%,rgba(7,10,19,.93) 82%);}',
-    '#ui .pc .nm{position:absolute;left:0;right:0;bottom:22px;text-align:center;',
-    '  font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;}',
+    '#ui .pc .nm{position:absolute;left:2px;right:2px;bottom:18px;text-align:center;',
+    '  font-size:9px;font-weight:850;letter-spacing:.035em;text-transform:uppercase;}',
     '#ui .pc .cd{position:absolute;left:0;right:0;bottom:7px;text-align:center;',
-    '  font-size:9px;font-weight:700;color:rgba(255,255,255,.45);letter-spacing:.1em;}',
+    '  font-size:7px;font-weight:750;color:rgba(255,255,255,.52);letter-spacing:.05em;}',
     '#ui .pc .eqbadge{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;',
     '  background:#3fe0ff;color:#05060d;font:900 11px/20px ' + U.FONT + ';text-align:center;}',
-    '#ui .slots{display:flex;gap:9px;margin:4px 0 16px;}',
-    '#ui .slot{flex:1;height:56px;border-radius:12px;border:2px dashed rgba(255,255,255,.16);',
+    '#ui .slots{display:flex;gap:8px;margin:2px 0 10px;}',
+    '#ui .slot{flex:1;height:50px;border-radius:12px;border:2px dashed rgba(255,255,255,.16);',
     '  display:flex;align-items:center;justify-content:center;font:800 10px/1 ' + U.FONT + ';',
     '  letter-spacing:.14em;color:rgba(255,255,255,.35);text-transform:uppercase;text-align:center;padding:4px;}',
     '#ui .slot.full{border-style:solid;border-color:#3fe0ff;background:rgba(63,224,255,.12);color:#fff;}',
     '#ui .slot.lockd{opacity:.4;}',
-    '#ui .note{font-size:12px;color:rgba(255,255,255,.42);font-weight:600;line-height:1.5;margin:0 0 14px;}',
+    '#ui .note{font-size:12px;color:rgba(255,255,255,.62);font-weight:650;line-height:1.42;margin:0 0 10px;}',
 
     '#ui .stars{font-size:44px;letter-spacing:8px;text-align:center;margin:6px 0 4px;}',
     '#ui .stars span{display:inline-block;opacity:0;transform:scale(.3);',
@@ -150,10 +154,10 @@
     /* Objective rows. The same markup serves the level-select preview (all
        rows pending) and the results verdict (each row resolved), so what the
        level promised and what it awarded can never drift apart. */
-    '#ui .objs{display:flex;flex-direction:column;gap:7px;margin:14px 0 4px;}',
+    '#ui .objs{display:flex;flex-direction:column;gap:6px;margin:10px 0 4px;}',
     '#ui .obj{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;',
     '  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);',
-    '  font-size:12px;font-weight:700;line-height:1.35;color:rgba(255,255,255,.62);}',
+    '  font-size:12px;font-weight:700;line-height:1.3;color:rgba(255,255,255,.72);}',
     '#ui .obj .mk{flex:0 0 20px;width:20px;height:20px;border-radius:50%;text-align:center;',
     '  font:900 12px/20px ' + U.FONT + ';border:2px solid rgba(255,255,255,.18);',
     '  color:rgba(255,255,255,.3);}',
@@ -175,11 +179,21 @@
     '#ui .muted{position:absolute;top:calc(14px + env(safe-area-inset-top));right:16px;font-family:inherit;',
     '  width:44px;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.16);',
     '  background:rgba(255,255,255,.05);color:#fff;font-size:19px;cursor:pointer;z-index:3;}',
-    '#ui .legend{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0 0;}',
+    '#ui .legend{display:flex;gap:8px 12px;flex-wrap:wrap;margin:10px 0 0;}',
     '#ui .lg{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;',
     '  color:rgba(255,255,255,.55);}',
     '#ui .lg em{width:16px;height:16px;border-radius:50%;background:#fff;',
-    '  border:3px solid #000;display:block;flex:0 0 16px;}'
+    '  border:3px solid #000;display:block;flex:0 0 16px;}',
+    '#ui .hero-actions{flex:0 0 auto;}',
+    '#ui .level-card{padding:14px;border:1px solid rgba(63,224,255,.18);border-radius:16px;',
+    '  background:linear-gradient(145deg,rgba(15,30,51,.82),rgba(6,10,20,.76));box-shadow:0 14px 36px rgba(0,0,0,.25);}',
+    '#ui .level-card .note{font-size:14px;margin-bottom:5px;}',
+    '#ui .menu-actions{margin-top:auto;flex:0 0 auto;padding-top:10px;}',
+    '@media(max-height:720px){#ui .sheet{padding-top:14px;padding-bottom:12px}#ui .hdr{margin-bottom:9px}',
+    '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .note{line-height:1.3}',
+    '  #ui .btn{min-height:44px;padding:11px 15px;margin:4px 0}#ui .slots{margin-bottom:7px}',
+    '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}}',
+    '@media(prefers-reduced-motion:reduce){#ui.on .sheet,#ui .sheet.hero .bgimg,#ui .btn.primary{animation:none!important}}'
   ].join('\n');
 
   /* ---------------------------------------------------------------------- */
@@ -260,23 +274,22 @@
       '<div class="spacer"></div>',
       '<p class="tag">Tower Defense · Pinball</p>',
       '<h1>MEGA<br>BALL</h1>',
-      '<p class="sub">Build paddles and bumpers on a pinball table.<br>',
-      'Flip the ones that get through.<br>',
-      'Ignite an enemy and turn it on the swarm.</p>',
+      '<p class="sub">Build the board. Flip the stragglers.<br>',
+      'Turn enemy balls into weapons.</p>',
       '<div class="legend">',
       '  <div class="lg"><em></em>Enemy ball</div>',
       '  <div class="lg" style="color:#3fe0ff">◗ Your defenses</div>',
       '  <div class="lg" style="color:#ff2e88">▁ Don\'t let them out</div>',
       '</div>',
       '<div class="spacer"></div>',
-      '<button class="btn primary" id="play">Play</button>',
-      '<button class="btn ghost" id="deck">Deck</button>',
-      '<button class="btn ghost" id="howto">How to play</button>'
+      '<div class="hero-actions"><button class="btn primary" id="play">Start</button>',
+      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
+      '<button class="btn ghost" id="howto">Tutorial</button></div></div>'
     ].join(''), true);
     sheet.classList.add('hero');
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
-    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
+    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'title' }); }, sheet);
     /* Replays the Level 1 tutorial on demand. */
     on('#howto', function () {
       sfx('ui_tap');
@@ -320,11 +333,11 @@
       '<span class="starcount">\u2605 ' + total + ' / 15</span></div>',
       '<div class="globe" id="globe"></div>',
       '<p class="hint">Drag to spin \u00b7 tap a world</p>',
-      '<div class="row"><button class="btn ghost" id="deck">Deck</button>',
+      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
       '<button class="btn ghost" id="back">Title</button></div>'
     ].join(''), true);
 
-    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
+    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'world' }); }, sheet);
     on('#back', function () { sfx('ui_back'); UI.showScreen('title'); }, sheet);
 
     var box = sheet.querySelector('#globe');
@@ -358,8 +371,7 @@
     return '<button class="tile locked" data-id="' + i + '">' + LOCK_SVG + '</button>';
   }
 
-  /* Nine square tiles. Five are the real levels; the rest are placeholders so
-   * the shape of the world is visible from the first visit. */
+  /* Five stages, shown as one clean progression row. */
   function screenLevelSelect() {
     var GAME = global.GAME, LEVELS = global.LEVELS;
     var total = GAME.totalStars();
@@ -373,7 +385,7 @@
     if (!curId) curId = LEVELS.list.length ? LEVELS.list[0].id : 0;
 
     var tiles = '';
-    for (var i = 1; i <= 9; i++) {
+    for (var i = 1; i <= LEVELS.list.length; i++) {
       var L = LEVELS.byId(i);
       if (!L) {
         tiles += lockedTile(i);
@@ -405,28 +417,37 @@
       '<div class="hdr"><h2>World 1</h2>',
       '<span class="starcount">\u2605 ' + total + ' / 15</span></div>',
       '<div class="grid">' + tiles + '</div>',
-      '<p class="note" id="blurb">' + blurb + '</p>',
-      '<div id="objs">' + objList + '</div>',
+      '<div class="level-card"><p class="note" id="blurb">' + blurb + '</p>',
+      '<div id="objs">' + objList + '</div></div>',
       '<div class="spacer"></div>',
-      '<div class="row"><button class="btn ghost" id="deck">Deck</button>',
-      '<button class="btn ghost" id="back">Back</button></div>'
+      '<div class="menu-actions"><button class="btn primary" id="launch">Play Level ' + curId + '</button>',
+      '<div class="row"><button class="btn ghost" id="deck">Cards</button>',
+      '<button class="btn ghost" id="back">Worlds</button></div></div>'
     ].join(''), true);
+    sheet.classList.add('level-select');
 
     var note = sheet.querySelector('#blurb');
+    var selectedId = curId;
     onAll('.tile', function (n) {
       var id = parseInt(n.getAttribute('data-id'), 10);
       if (n.classList.contains('locked')) { sfx('ui_error'); return; }
       var L = LEVELS.byId(id);
       if (note && L) {
+        selectedId = id;
+        var allTiles = sheet.querySelectorAll('.tile');
+        for (var ti = 0; ti < allTiles.length; ti++) allTiles[ti].classList.remove('cur');
+        n.classList.add('cur');
         note.innerHTML = '<b style="color:#3fe0ff">' + L.id + '. ' + L.name +
           '</b> \u2014 ' + L.subtitle;
         var ob = sheet.querySelector('#objs');
         if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
+        var launch = sheet.querySelector('#launch');
+        if (launch) launch.textContent = 'Play Level ' + L.id;
       }
       sfx('ui_tap');
-      if (hooks.onStartLevel) hooks.onStartLevel(id);
     }, sheet);
-    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
+    on('#launch', function () { sfx('ui_tap'); if (hooks.onStartLevel) hooks.onStartLevel(selectedId); }, sheet);
+    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'levelSelect' }); }, sheet);
     on('#back', function () { sfx('ui_back'); UI.showScreen('world'); }, sheet);
   }
 
@@ -484,11 +505,11 @@
       }
     }
     var lead = owned.cards.length > owned.slots
-      ? 'You own more cards than you have slots. Tap a card to swap it into your loadout — the one it replaces stays in your collection.'
-      : 'Cards are active powers you trigger mid-run. Each level also lends you its own card for free.';
+      ? 'Slots full. Tap a card to swap it into your loadout.'
+      : 'Tap to equip. Cards recharge during play; each level lends one bonus card.';
 
     var sheet = shell([
-      '<div class="hdr"><h2>Deck</h2><span class="starcount">★ ' + total + '</span></div>',
+      '<div class="hdr"><h2>Power Cards</h2><span class="starcount">★ ' + total + '</span></div>',
       unl,
       '<p class="note">' + lead + '</p>',
       '<div class="slots">' + slots + '</div>',
@@ -498,8 +519,9 @@
       nextLvl
         ? '<button class="btn primary" id="play">Play ' + nextLvl.id + '. ' + nextLvl.name + '</button>' +
           '<button class="btn ghost" id="back">Level Select</button>'
-        : '<button class="btn" id="back">Done</button>'
+        : '<button class="btn" id="back">Back</button>'
     ].join(''), true);
+    sheet.classList.add('deck-screen');
 
     onAll('.pc', function (n) {
       var id = n.getAttribute('data-id');
@@ -517,7 +539,10 @@
       sfx('ui_tap');
       if (hooks.onStartLevel) hooks.onStartLevel(nextLvl.id);
     }, sheet);
-    on('#back', function () { sfx('ui_back'); UI.showScreen('levelSelect'); }, sheet);
+    on('#back', function () {
+      sfx('ui_back');
+      UI.showScreen(nextLvl ? 'levelSelect' : ((ctx && ctx.back) || 'levelSelect'));
+    }, sheet);
   }
 
   function slotStarReq(index) {
@@ -608,7 +633,7 @@
       '<div class="spacer"></div>',
       d.win && d.hasNext
         ? '<button class="btn primary" id="next">' +
-            (viaDeck ? 'Deck &amp; Next Level' : 'Next Level') + '</button>'
+            (viaDeck ? 'Choose Cards &amp; Continue' : 'Next Level') + '</button>'
         : '',
       viaDeck && d.unlocks.length
         ? '<p class="note" style="text-align:center;margin:2px 0 0">Pick which cards you take in.</p>'
@@ -617,6 +642,7 @@
       '<button class="btn' + (d.win ? ' ghost' : ' primary') + '" id="retry">' + (d.win ? 'Replay' : 'Try Again') + '</button>',
       '<button class="btn ghost" id="menu">Level Select</button>'
     ].join(''), true);
+    sheet.classList.add('results-screen');
 
     on('#next', function () {
       sfx('ui_tap');

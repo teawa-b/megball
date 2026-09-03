@@ -1497,8 +1497,8 @@
   function toVirtual(clientX, clientY) {
     var vp = GAME.vp;
     return {
-      x: (clientX - vp.ox) / vp.scale,
-      y: (clientY - vp.oy) / vp.scale
+      x: (clientX - vp.ox) / (vp.scaleX || vp.scale),
+      y: (clientY - vp.oy) / (vp.scaleY || vp.scale)
     };
   }
   GAME.toVirtual = toVirtual;

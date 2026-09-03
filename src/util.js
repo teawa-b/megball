@@ -24,6 +24,15 @@
     trayTop: 1240
   };
 
+  /* Presentation constants. Gameplay coordinates stay fixed; these only
+   * decide how the machine and its menus occupy a real phone screen. */
+  U.UI = {
+    phoneAspectMin: 0.42,
+    phoneAspectMax: 0.58,
+    maxMenuWidth: 520,
+    minTouch: 48
+  };
+
   U.WALL_L = 40;
   U.WALL_R = 680;
 

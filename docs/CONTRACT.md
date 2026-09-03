@@ -39,9 +39,11 @@ VW = 720     // virtual width
 VH = 1440    // virtual height  (1:2 portrait)
 ```
 
-All gameplay math, positions, radii and speeds are in **virtual units**. The renderer
-scales the whole canvas with `scale = min(cssW / VW, cssH / VH)` and letterboxes.
-Never write layout code in CSS pixels — always virtual units.
+All gameplay math, positions, radii and speeds are in **virtual units**. On normal phone
+aspect ratios the renderer maps each axis to the viewport independently for a full-bleed
+portrait presentation; the small correction removes device bezels without cropping controls.
+Tablets and desktop use `scale = min(cssW / VW, cssH / VH)` and preserve the full board.
+Never write gameplay layout in CSS pixels — always virtual units.
 
 ### Vertical budget
 

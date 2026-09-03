@@ -107,7 +107,7 @@ embedded as base64 data URIs.
 | `src/vendor/three.min.js` | `THREE` | three.js r185, unmodified vendor bundle (ships as `vendor/three.min.js`) |
 | `src/scene3d.js` | `SCENE3D` | The WebGL machine: procedural table, rails, towers and flippers, lighting, shake pivot |
 | `src/globe.js` | `GLOBE` | The world picker: a drag-to-rotate neon globe with world pins, mounted inside the menu overlay |
-| `src/render.js` | `DRAW` | All canvas drawing, letterbox scaling, and hit-testing for the on-canvas HUD and card tray |
+| `src/render.js` | `DRAW` | Canvas drawing, full-bleed phone scaling, and hit-testing for the on-canvas HUD and card tray |
 | `src/ui.js` | `UI` | DOM overlay screens: title, level select, deck builder, pause, results |
 | `src/game.js` | `GAME` | State machine, economy, wave director, collision resolution, input routing, the update loop |
 

@@ -21,7 +21,7 @@
   var TRAY_TOP = U.BAND.trayTop;
 
   /* Viewport: how the 720x1440 virtual board maps onto the real canvas. */
-  var vp = DRAW.vp = { scale: 1, ox: 0, oy: 0, w: VW, h: VH, dpr: 1 };
+  var vp = DRAW.vp = { scale: 1, scaleX: 1, scaleY: 1, ox: 0, oy: 0, w: VW, h: VH, dpr: 1 };
 
   DRAW.resize = function (canvas) {
     var dpr = Math.min(global.devicePixelRatio || 1, 2.5);
@@ -31,10 +31,19 @@
     canvas.width = Math.round(cw * dpr);
     canvas.height = Math.round(ch * dpr);
 
+    var aspect = cw / ch;
+    var phone = cw <= ch && aspect >= U.UI.phoneAspectMin && aspect <= U.UI.phoneAspectMax;
+    /* Phone screens vary around the board's 1:2 design ratio. A modest
+     * independent axis fit (at most the phone range above) removes bezels
+     * without cropping controls. Tablets and desktop retain contain-fit. */
     var scale = Math.min(cw / VW, ch / VH);
+    var sx = phone ? cw / VW : scale;
+    var sy = phone ? ch / VH : scale;
     vp.scale = scale;
-    vp.ox = (cw - VW * scale) / 2;
-    vp.oy = (ch - VH * scale) / 2;
+    vp.scaleX = sx;
+    vp.scaleY = sy;
+    vp.ox = (cw - VW * sx) / 2;
+    vp.oy = (ch - VH * sy) / 2;
     vp.w = cw; vp.h = ch; vp.dpr = dpr;
 
     if (global.GAME) global.GAME.setViewport(vp);
@@ -809,17 +818,21 @@
 
   function drawHud(ctx, S) {
     hudHits.length = 0;
+    /* Keep the HUD inside the visible virtual rectangle if a future display
+     * mode introduces a crop; full-bleed phone mode currently resolves to 0. */
+    var croppedX = Math.max(0, -vp.ox / vp.scale);
+    var rightEdge = VW - croppedX;
 
     ctx.save();
     var g = ctx.createLinearGradient(0, 0, 0, U.BAND.hud);
-    g.addColorStop(0, 'rgba(5,6,13,0.92)');
+    g.addColorStop(0, 'rgba(5,6,13,0.97)');
     g.addColorStop(1, 'rgba(5,6,13,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VW, U.BAND.hud + 10);
 
     /* Lives as shield pips — position matters more than the icon: they sit
      * top-left, where the eye lands first. */
-    var lx = 30, ly = 46;
+    var lx = croppedX + 24, ly = 43;
     for (var i = 0; i < S.livesMax; i++) {
       var alive = i < S.lives;
       var x = lx + i * 30;
@@ -837,18 +850,18 @@
       ctx.strokeStyle = alive ? C.ink : 'rgba(255,255,255,0.16)';
       ctx.stroke();
     }
-    text(ctx, 'LIVES', lx - 11, 72, 12, U.rgba(C.white, 0.42), 'left', '700', 2);
+    text(ctx, 'LIVES', lx - 11, 72, 14, U.rgba(C.white, 0.58), 'left', '800', 2);
 
     /* Wave counter, centred. */
     if (S.level) {
       var wn = Math.max(1, S.waveIndex + 1);
-      text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 34, 20, C.white, 'center', '800', 1.5);
-      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 58, 12,
-        U.rgba(C.cyan, 0.7), 'center', '700', 3);
+      text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 32, 23, C.white, 'center', '900', 1.3);
+      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 60, 14,
+        U.rgba(C.cyan, 0.9), 'center', '800', 2.6);
     }
 
     /* Energy, right-aligned, with the amber currency colour. */
-    var ex = VW - 96;
+    var ex = rightEdge - 96;
     ctx.beginPath();
     ctx.moveTo(ex - 46, 40); ctx.lineTo(ex - 34, 28);
     ctx.lineTo(ex - 38, 40); ctx.lineTo(ex - 28, 40);
@@ -858,10 +871,10 @@
     ctx.fillStyle = C.amber;
     ctx.fill();
     text(ctx, String(S.energy | 0), ex - 20, 42, 26, C.amber, 'left', '800');
-    text(ctx, 'ENERGY', ex - 50, 68, 12, U.rgba(C.white, 0.42), 'left', '700', 2);
+    text(ctx, 'ENERGY', ex - 50, 68, 14, U.rgba(C.white, 0.58), 'left', '800', 1.8);
 
     /* Pause. */
-    var pb = { x: VW - 58, y: 18, w: 42, h: 42, id: 'pause' };
+    var pb = { x: rightEdge - 54, y: 18, w: 42, h: 42, id: 'pause' };
     rr(ctx, pb.x, pb.y, pb.w, pb.h, 10);
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fill();
@@ -1585,7 +1598,7 @@
 
     ctx.save();
     ctx.translate(vp.ox, vp.oy);
-    ctx.scale(vp.scale, vp.scale);
+    ctx.scale(vp.scaleX || vp.scale, vp.scaleY || vp.scale);
 
     /* Screen shake applies to the board only — a shaking HUD is unreadable. */
     var cam = FX && FX.camera ? FX.camera() : null;
