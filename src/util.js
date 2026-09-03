@@ -28,11 +28,12 @@
    * decide how the machine and its menus occupy a real phone screen. */
   U.UI = {
     /* How far the two axes may be scaled independently to fill the viewport.
-     * 1.0 is a strict contain-fit (letterboxed); 1.2 lets the board stretch up
-     * to 20% on one axis to reach the screen edges. Circles read as circles at
-     * this ratio, and it is enough to absorb the browser chrome that pushes a
-     * phone's usable area away from the board's native 1:2. */
-    maxStretch: 1.2,
+     * 1.0 is a strict contain-fit (letterboxed); 1.06 lets the board stretch
+     * up to 6% on one axis to reach the screen edges. That is below what the
+     * eye picks up on a ball or a bumper ring — at 1.2 the whole table read as
+     * pulled wide — so it absorbs a little browser chrome and leaves anything
+     * beyond that to clean bars rather than an oval ball. */
+    maxStretch: 1.06,
     maxMenuWidth: 520,
     minTouch: 48
   };

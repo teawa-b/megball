@@ -574,8 +574,10 @@
     /* Cabinet frame: a rounded ring standing 34 units proud of the print,
      * gloss plastic outside, chrome lip inside. The lip's inner edge sits
      * exactly where the wall colliders (r = 8) stop the ball, so what you
-     * see is what the ball hits. */
-    var outer = roundedRectShape(6, -(TRAY_TOP + 20), VW - 12, TRAY_TOP + 20 - 66, 28);
+     * see is what the ball hits. The ring hugs the playfield walls — a wide
+     * plastic band down each side made the table look boxed in, so the sides
+     * are a slim 12-unit bead and the head and apron panels carry the rest. */
+    var outer = roundedRectShape(WL - 16, -(TRAY_TOP + 20), WR - WL + 32, TRAY_TOP + 20 - 66, 28);
     var lipOuter = roundedRectShape(WL - 4, -(TRAY_TOP + 12), WR - WL + 8, TRAY_TOP + 12 - (BOARD.CEIL - 4), 50);
     outer.holes.push(lipOuter);
     g = new THREE.ExtrudeGeometry(outer, {

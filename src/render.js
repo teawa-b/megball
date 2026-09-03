@@ -927,99 +927,213 @@
   /* Tray: build buttons + cards                                            */
   /* ---------------------------------------------------------------------- */
 
-  var CELL_W = 104, CELL_H = 132, CELL_Y = 1272, GAP = 8;
+  /* Rogue-like hand: the cards fan out of a chamfered panel in the middle of
+   * the apron, and the two build buttons sit either side of it as card piles,
+   * the way a deck and a discard pile flank a hand. Cards overlap a little
+   * and tilt away from the centre, so four in hand still read as a fan and
+   * not a toolbar. */
+  var CARD_W = 116, CARD_H = 152, HAND_Y = 1268;
+  var PILE_W = 104, PILE_H = 160, PILE_Y = 1264;
+  var PANEL = { x: 124, y: 1252, w: VW - 248, h: VH - 1252 - 8, cut: 22 };
 
   function trayCells(S) {
-    /* Six slots across: 2 build buttons + up to 4 cards. Uniform cells keep
-     * every touch target the same generous size. */
     var items = [];
-    items.push({ kind: 'build', type: 'paddle' });
-    items.push({ kind: 'build', type: 'bumper' });
-    for (var i = 0; i < S.cards.length && items.length < 6; i++) {
-      items.push({ kind: 'card', index: i });
-    }
-    var n = items.length;
-    var total = n * CELL_W + (n - 1) * GAP;
-    var x0 = (VW - total) / 2;
-    for (var k = 0; k < n; k++) {
-      items[k].x = x0 + k * (CELL_W + GAP);
-      items[k].y = CELL_Y;
-      items[k].w = CELL_W;
-      items[k].h = CELL_H;
+    items.push({ kind: 'build', type: 'paddle', x: 12, y: PILE_Y, w: PILE_W, h: PILE_H });
+    items.push({ kind: 'build', type: 'bumper', x: VW - 12 - PILE_W, y: PILE_Y, w: PILE_W, h: PILE_H });
+
+    var n = Math.min(S.cards.length, 4);
+    if (n > 0) {
+      /* Spread the hand across the panel; overlap once it will not fit flat. */
+      var inner = PANEL.w - 28;
+      var step = n > 1 ? Math.min(CARD_W + 8, (inner - CARD_W) / (n - 1)) : 0;
+      var total = CARD_W + step * (n - 1);
+      var x0 = PANEL.x + (PANEL.w - total) / 2;
+      var mid = (n - 1) / 2;
+      for (var i = 0; i < n; i++) {
+        var k = i - mid;
+        items.push({
+          kind: 'card', index: i,
+          x: x0 + i * step,
+          /* A shallow arc: outer cards sit a touch lower, like a held fan. */
+          y: HAND_Y + Math.abs(k) * Math.abs(k) * 3,
+          w: CARD_W, h: CARD_H,
+          rot: k * 0.055
+        });
+      }
     }
     return items;
+  }
+
+  /* Octagon with clipped corners — the same silhouette the DOM menus use. */
+  function oct(ctx, x, y, w, h, c) {
+    ctx.beginPath();
+    ctx.moveTo(x + c, y);
+    ctx.lineTo(x + w - c, y);
+    ctx.lineTo(x + w, y + c);
+    ctx.lineTo(x + w, y + h - c);
+    ctx.lineTo(x + w - c, y + h);
+    ctx.lineTo(x + c, y + h);
+    ctx.lineTo(x, y + h - c);
+    ctx.lineTo(x, y + c);
+    ctx.closePath();
+  }
+
+  function drawHandPanel(ctx, S) {
+    var P = PANEL;
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.55)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 4;
+    oct(ctx, P.x, P.y, P.w, P.h, P.cut);
+    var g = ctx.createLinearGradient(0, P.y, 0, P.y + P.h);
+    g.addColorStop(0, 'rgba(16,24,46,0.94)');
+    g.addColorStop(1, 'rgba(7,10,19,0.96)');
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    oct(ctx, P.x, P.y, P.w, P.h, P.cut);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = U.rgba(C.cyan, 0.42);
+    ctx.stroke();
+    /* Inner hairline: gives the plate a bevelled, moulded edge. */
+    oct(ctx, P.x + 5, P.y + 5, P.w - 10, P.h - 10, P.cut - 3);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.stroke();
+
+    if (!S.cards.length) {
+      micro(ctx, 'NO CARDS IN HAND', P.x + P.w / 2, P.y + P.h / 2, CTX3, 'center', 11);
+    }
+    ctx.restore();
   }
 
   function drawTray(ctx, S) {
     trayHits.length = 0;
 
     ctx.save();
-    ctx.fillStyle = '#070a13';
-    ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
-    ctx.strokeStyle = U.rgba(C.cyan, 0.28);
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, TRAY_TOP + 1); ctx.lineTo(VW, TRAY_TOP + 1);
-    ctx.stroke();
+    if (S.selectedTower) {
+      ctx.fillStyle = '#070a13';
+      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
+      ctx.strokeStyle = U.rgba(C.cyan, 0.28);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, TRAY_TOP + 1); ctx.lineTo(VW, TRAY_TOP + 1);
+      ctx.stroke();
+      drawUpgradePanel(ctx, S);
+      ctx.restore();
+      return;
+    }
 
-    if (S.selectedTower) { drawUpgradePanel(ctx, S); ctx.restore(); return; }
+    /* The apron plate from the 3D machine shows through here; the 2D
+     * fallback has already painted the band void. */
+    drawHandPanel(ctx, S);
 
     var items = trayCells(S);
+    var held = null;
     for (var i = 0; i < items.length; i++) {
-      if (items[i].kind === 'build') drawBuildCell(ctx, S, items[i]);
-      else drawCardCell(ctx, S, items[i]);
-      trayHits.push(items[i]);
+      var it = items[i];
+      trayHits.push(it);
+      if (it.kind === 'build') { drawBuildCell(ctx, S, it); continue; }
+      /* A lifted card is drawn last so it rises over its neighbours. */
+      if ((S.cards[it.index].lift || 0) > 0.01 && (!held ||
+        S.cards[it.index].lift > S.cards[held.index].lift)) {
+        if (held) drawCardCell(ctx, S, held);
+        held = it;
+        continue;
+      }
+      drawCardCell(ctx, S, it);
     }
+    if (held) drawCardCell(ctx, S, held);
     ctx.restore();
   }
 
+  /* A build button drawn as a small pile of cards with the tower on the top
+   * one and its price on a plate underneath. */
   function drawBuildCell(ctx, S, it) {
     var d = ENT.TOWERS[it.type];
     var afford = S.energy >= d.cost;
     var active = S.buildPick === it.type;
+    var col = C.cyan;
 
-    rr(ctx, it.x, it.y, it.w, it.h, 14);
-    ctx.fillStyle = active ? U.rgba(C.cyan, 0.2) : 'rgba(255,255,255,0.045)';
+    var cw = it.w - 20, ch = 112;
+    var cx0 = it.x + 10, cy0 = it.y + 6;
+
+    ctx.save();
+    /* Two cards peeking out underneath. */
+    for (var s = 2; s >= 1; s--) {
+      rr(ctx, cx0 + s * 3, cy0 - s * 4, cw, ch, 12);
+      ctx.fillStyle = s === 2 ? '#0a1020' : '#0e1730';
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = active ? U.rgba(col, 0.4) : 'rgba(255,255,255,0.08)';
+      ctx.stroke();
+    }
+
+    if (active) {
+      ctx.shadowColor = U.rgba(col, 0.7);
+      ctx.shadowBlur = 18;
+    }
+    rr(ctx, cx0, cy0, cw, ch, 12);
+    var g = ctx.createLinearGradient(0, cy0, 0, cy0 + ch);
+    g.addColorStop(0, active ? '#12314a' : '#111c33');
+    g.addColorStop(1, active ? '#0a1a2c' : '#080c18');
+    ctx.fillStyle = g;
     ctx.fill();
-    ctx.lineWidth = active ? 3 : 2;
-    ctx.strokeStyle = active ? C.cyan : (afford ? U.rgba(C.cyan, 0.35) : 'rgba(255,255,255,0.1)');
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = active ? 2.5 : 1.75;
+    ctx.strokeStyle = active ? col : (afford ? U.rgba(col, 0.45) : 'rgba(255,255,255,0.12)');
     ctx.stroke();
 
-    var cx = it.x + it.w / 2, cy = it.y + 46;
+    /* Art. */
+    var cx = cx0 + cw / 2, cy = cy0 + 44;
     ctx.save();
     ctx.globalAlpha = afford ? 1 : 0.35;
     if (it.type === 'paddle') {
       ctx.strokeStyle = C.ink;
-      capsule(ctx, cx - 24, cy + 12, cx + 22, cy - 8, 11);
-      ctx.strokeStyle = C.cyan;
-      capsule(ctx, cx - 24, cy + 12, cx + 22, cy - 8, 8);
-      ctx.beginPath(); ctx.arc(cx - 24, cy + 12, 8, 0, TAU);
+      capsule(ctx, cx - 22, cy + 11, cx + 20, cy - 8, 11);
+      ctx.strokeStyle = col;
+      capsule(ctx, cx - 22, cy + 11, cx + 20, cy - 8, 8);
+      ctx.beginPath(); ctx.arc(cx - 22, cy + 11, 8, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
       ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
     } else {
-      ctx.beginPath(); ctx.arc(cx, cy + 2, 24, 0, TAU);
+      ctx.beginPath(); ctx.arc(cx, cy + 2, 23, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
       ctx.lineWidth = 4.5; ctx.strokeStyle = C.ink; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy + 2, 19, 0, TAU);
-      ctx.lineWidth = 3.5; ctx.strokeStyle = C.cyan; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + 2, 18, 0, TAU);
+      ctx.lineWidth = 3.5; ctx.strokeStyle = col; ctx.stroke();
       ctx.beginPath(); ctx.arc(cx, cy + 2, 8, 0, TAU);
-      ctx.fillStyle = U.rgba(C.cyan, 0.5); ctx.fill();
+      ctx.fillStyle = U.rgba(col, 0.5); ctx.fill();
     }
     ctx.restore();
 
-    text(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, it.y + 92, 13,
-      afford ? C.white : 'rgba(255,255,255,0.32)', 'center', '800', 1.2);
+    /* Name band across the bottom of the top card. */
+    rr(ctx, cx0 + 6, cy0 + ch - 30, cw - 12, 22, 7);
+    ctx.fillStyle = active ? U.rgba(col, 0.95) : (afford ? U.rgba(col, 0.22) : 'rgba(255,255,255,0.06)');
+    ctx.fill();
+    micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 18.5,
+      active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 10);
 
+    /* Price plate under the pile. */
+    var py = cy0 + ch + 10, ph = 26, pw = 64;
+    oct(ctx, cx - pw / 2, py, pw, ph, 7);
+    ctx.fillStyle = 'rgba(7,10,19,0.92)';
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = afford ? U.rgba(C.amber, 0.7) : 'rgba(255,255,255,0.1)';
+    ctx.stroke();
+    var bx = cx - 14, by = py + ph / 2;
     ctx.beginPath();
-    ctx.moveTo(cx - 26, it.y + 114); ctx.lineTo(cx - 21, it.y + 108);
-    ctx.lineTo(cx - 23, it.y + 114); ctx.lineTo(cx - 18, it.y + 114);
-    ctx.lineTo(cx - 26, it.y + 123); ctx.lineTo(cx - 24, it.y + 116);
-    ctx.lineTo(cx - 29, it.y + 116);
+    ctx.moveTo(bx - 3, by - 7); ctx.lineTo(bx + 2, by - 1); ctx.lineTo(bx, by - 1);
+    ctx.lineTo(bx + 3, by + 7); ctx.lineTo(bx - 2, by + 1); ctx.lineTo(bx, by + 1);
     ctx.closePath();
     ctx.fillStyle = afford ? C.amber : 'rgba(255,176,32,0.35)';
     ctx.fill();
-    text(ctx, String(d.cost), cx + 4, it.y + 115, 17,
+    text(ctx, String(d.cost), cx + 6, by + 0.5, 15,
       afford ? C.amber : 'rgba(255,176,32,0.35)', 'center', '800');
+    ctx.restore();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1263,12 +1377,32 @@
     var gh = it.h * (1 + 0.06 * lift);
     var R = {
       x: it.x - (gw - it.w) / 2,
-      y: it.y - (gh - it.h) / 2 - 14 * lift,
+      y: it.y - (gh - it.h) / 2 - 18 * lift,
       w: gw,
       h: gh
     };
 
     ctx.save();
+
+    /* Fan tilt about the card's bottom edge; a lifted card straightens up. */
+    var rot = (it.rot || 0) * (1 - lift);
+    if (rot) {
+      var px = R.x + R.w / 2, py = R.y + R.h;
+      ctx.translate(px, py);
+      ctx.rotate(rot);
+      ctx.translate(-px, -py);
+    }
+
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = -3;
+    ctx.shadowOffsetY = 3;
+    rr(ctx, R.x, R.y, R.w, R.h, R.w * 0.115);
+    ctx.fillStyle = '#070a13';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
 
     if (pulse > 0) {
       rr(ctx, R.x - 4 * pulse, R.y - 4 * pulse, R.w + 8 * pulse, R.h + 8 * pulse, 16);
@@ -1777,7 +1911,8 @@
   };
 
   DRAW.pickTray = function (x, y) {
-    for (var i = 0; i < trayHits.length; i++) {
+    /* Cards overlap in the fan; the later one is drawn on top, so it wins. */
+    for (var i = trayHits.length - 1; i >= 0; i--) {
       if (inRect(x, y, trayHits[i])) return trayHits[i];
     }
     return null;
