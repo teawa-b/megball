@@ -130,6 +130,27 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   present. `node tools/build.js`, `node tools/verify.js`, syntax checks and `git diff --check`
   passed after the source changes.
 
+## 4e. Menu system rebuilt around the logo and a neon HUD reference
+
+- Home now leads with the generated MEGABALL logo (transparent WebP, soft cyan/magenta bloom,
+  slow bob), a shield tagline panel, one dominant PLAY button with a "World 1 · Five stages"
+  subtitle, and two icon cards (Power Cards in magenta, Learn in cyan) — matching the
+  reference mock the author supplied.
+- One frame language everywhere: chamfered octagonal panels drawn with a `clip-path` edge
+  layer plus a `::before` fill, outer bloom from a `drop-shadow` filter on the wrapper so the
+  glow follows the silhouette. Buttons, chips, level tiles, card tiles, stat boxes, unlock
+  banners and globe pins all share it (`src/ui.js`).
+- Every sub-screen has the same top bar: back chip on the left, title, star chip on the
+  right. The campaign screen keeps the "Choose your battlefield." copy and the drag-to-spin
+  globe, with an explicit Enter World 1 button under it for keyboard players.
+- Keyboard/gamepad-style menu navigation: arrows move focus to the nearest control in that
+  direction, Enter/Space press it, Escape/Backspace goes back; the ring is a white-hot edge
+  that reads on any backdrop. Menu keys are swallowed so flippers stay quiet.
+- Unused `bg_menu` art removed from the pack (payload 533 KB across 14 assets).
+- Verified in the in-app browser at 390×844: home, campaign, level select, Power Cards,
+  results and pause; no console errors; `node tools/build.js` + `node tools/verify.js` PASS
+  (document 1.12 MB).
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
