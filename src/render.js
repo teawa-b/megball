@@ -925,45 +925,136 @@
   var hudHits = [];
   var trayHits = [];
 
+  /* Scanlines over the glass, as a repeating pattern. */
+  var scanPat = null;
+  function scanPattern(ctx) {
+    if (scanPat) return scanPat;
+    var c = document.createElement('canvas'); c.width = 4; c.height = 3;
+    var g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,255,255,0.045)';
+    g.fillRect(0, 0, 4, 1);
+    scanPat = ctx.createPattern(c, 'repeat');
+    return scanPat;
+  }
+
+  /* A bezel screw: chrome dot, slot, catchlight. */
+  function screw(ctx, x, y) {
+    ctx.beginPath(); ctx.arc(x, y, 3.2, 0, TAU);
+    ctx.fillStyle = C.steel; ctx.fill();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.1, 0, TAU);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fill();
+  }
+
+  /* What the ticker line on the backglass says. Active card effects come
+   * first (the player is timing them); otherwise, during the build the next
+   * wave and the star challenge take turns, and during a wave it counts the
+   * balls still to deal with. Returns [text, colour]. */
+  function hudTicker(S) {
+    var mods = [];
+    if (S.overchargeT > 0) mods.push(['OVERCHARGE ' + Math.ceil(S.overchargeT) + 'S', C.cyan]);
+    if (S.slowT > 0) mods.push(['SLOW TIME ' + Math.ceil(S.slowT) + 'S', C.frost]);
+    if (S.barrierT > 0) mods.push(['BARRIER ' + Math.ceil(S.barrierT) + 'S', C.cyan]);
+    if (S.magnetT > 0) mods.push(['MAGNET ' + Math.ceil(S.magnetT) + 'S', C.violet]);
+    if (S.superheatT > 0) mods.push(['SUPERHEAT ' + Math.ceil(S.superheatT) + 'S', C.powerHot]);
+    if (mods.length) return mods[Math.floor(S.time * 0.8) % mods.length];
+
+    var dim = 'rgba(63,224,255,0.85)';
+    if (S.mode === 'tutorial') return ['TUTORIAL', dim];
+    var lv = S.level, GAME = global.GAME, L = global.LEVELS;
+    if (S.mode === 'build') {
+      var slot = Math.floor(S.time / 2.6) % 2;
+      if (slot === 0 && S.banner && S.banner.preview && S.banner.preview.length) {
+        var parts = [];
+        for (var i = 0; i < S.banner.preview.length; i++) {
+          var pv = S.banner.preview[i], def = ENT.BALL_TYPES[pv.type];
+          parts.push('X' + pv.n + ' ' + (def ? def.name : pv.type).toUpperCase());
+        }
+        return [(S.banner.boss ? 'BOSS  ' : 'NEXT  ') + parts.join('  '), S.banner.boss ? C.magenta : '#dffaff'];
+      }
+      if (lv && lv.challenge && L && GAME && GAME.runSummary) {
+        var run = GAME.runSummary(false, false);
+        var failed = L.challengeFailed(lv, run);
+        var met = !failed && L.challengeMet(lv, run);
+        return ['STAR  ' + L.challengeProgress(lv, run) + (failed ? '  LOST' : ''),
+          failed ? 'rgba(255,46,136,0.8)' : (met ? C.amber : dim)];
+      }
+      return ['BUILD PHASE', dim];
+    }
+    if (S.mode === 'wave') {
+      var left = S.waveTimeline ? Math.max(0, S.waveTimeline.length - S.spawnedThisWave) : 0;
+      for (var b = 0; b < S.balls.length; b++) if (!S.balls[b].dead) left++;
+      return [left > 0 ? left + (left === 1 ? ' BALL LEFT' : ' BALLS LEFT') : 'WAVE CLEAR', '#dffaff'];
+    }
+    return ['MEGABALL', dim];
+  }
+
+  /* The head of the machine is its backglass: one black display plate on
+   * the dot grid, running the width of the cabinet, with the lives as insert
+   * lamps, the wave and energy as dot-matrix readouts and a cabinet pause
+   * button. A tall phone sees more head panel (vp.hudShift < 0): the glass
+   * grows to two rows and the spare one carries the ticker, so the extra
+   * height reads as display rather than as margin; what is left above it is
+   * cabinet. A short viewport keeps the one-row glass lapping the frame top.
+   * A pill floating on a grey plate, with margins all round, was the thing
+   * that made the in-game view look unlike the menus. */
   function drawHud(ctx, S) {
     hudHits.length = 0;
     var croppedX = Math.max(0, -vp.ox / vp.scale);
     var rightEdge = VW - croppedX;
 
     ctx.save();
-    /* The backbox glass: a dark display strip between the top of the screen
-     * and the table frame, on the same unlit dot grid as the menus. On a
-     * short viewport the band is the 72 units the HUD always had (it laps
-     * the frame top by a few units); on a tall phone (vp.hudShift < 0) it is
-     * the whole head panel, and the strip is capped and centred in it. */
     var top = vp.viewTop;
     var bandBot = 96 + 8 * U.clamp((top + 68) / 100, 0, 1);
     var bandH = bandBot - top;
-    var stripH = Math.min(bandH - 12, 100);
-    var sy0 = top + (bandH - stripH) / 2, sy1 = sy0 + stripH;
-    var sx0 = croppedX + 14, sx1 = rightEdge - 14;
+    var tall = bandH >= 130;
+    var sx0 = croppedX + 8, sx1 = rightEdge - 8;
+    var sy1 = bandBot - 4;
+    var gh = Math.min(sy1 - (top + (tall ? 8 : 2)), tall ? 124 : 66);
+    var sy0 = sy1 - gh;
+    var gw = sx1 - sx0;
+    var rad = tall ? 10 : 8;
 
+    /* The glass: dot grid, scanlines, shadow under the top bezel, a breath
+     * of cyan along the bottom edge where it meets the pinstripe. */
     ctx.save();
-    rr(ctx, sx0, sy0, sx1 - sx0, stripH, 12);
-    ctx.fillStyle = 'rgba(3,5,10,0.93)';
+    rr(ctx, sx0, sy0, gw, gh, rad);
+    ctx.fillStyle = 'rgba(3,5,10,0.94)';
     ctx.fill();
     ctx.clip();
     ctx.fillStyle = glassPattern(ctx);
-    ctx.fillRect(sx0, sy0, sx1 - sx0, stripH);
-    var sh = ctx.createLinearGradient(0, sy0, 0, sy0 + 26);
-    sh.addColorStop(0, 'rgba(0,0,0,0.55)');
+    ctx.fillRect(sx0, sy0, gw, gh);
+    ctx.fillStyle = scanPattern(ctx);
+    ctx.fillRect(sx0, sy0, gw, gh);
+    var sh = ctx.createLinearGradient(0, sy0, 0, sy0 + 30);
+    sh.addColorStop(0, 'rgba(0,0,0,0.6)');
     sh.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = sh;
-    ctx.fillRect(sx0, sy0, sx1 - sx0, 26);
+    ctx.fillRect(sx0, sy0, gw, 30);
+    var lift = ctx.createLinearGradient(0, sy1 - 22, 0, sy1);
+    lift.addColorStop(0, 'rgba(63,224,255,0)');
+    lift.addColorStop(1, 'rgba(63,224,255,0.07)');
+    ctx.fillStyle = lift;
+    ctx.fillRect(sx0, sy1 - 22, gw, 22);
     ctx.restore();
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = 'rgba(63,224,255,0.30)';
-    rr(ctx, sx0, sy0, sx1 - sx0, stripH, 12);
+    rr(ctx, sx0, sy0, gw, gh, rad);
     ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    rr(ctx, sx0 + 3, sy0 + 3, gw - 6, gh - 6, rad - 2);
+    ctx.stroke();
+    if (tall) {
+      screw(ctx, sx0 + 11, sy0 + 11); screw(ctx, sx1 - 11, sy0 + 11);
+      screw(ctx, sx0 + 11, sy1 - 11); screw(ctx, sx1 - 11, sy1 - 11);
+    }
 
-    /* The readouts are laid out in a 60-unit box (y = 40..100) and centred
-     * in the strip; the pause hit rect carries the same offset. */
-    var shift = (sy0 + sy1) / 2 - 70;
+    /* The readouts are laid out in a 60-unit box (y = 40..100) and docked
+     * to the bottom of the glass, nearest the table; the pause hit rect
+     * carries the same offset. */
+    var shift = sy1 - 4 - 100;
+    ctx.save();
     ctx.translate(0, shift);
 
     /* Lives: insert lamps, top-left where the eye lands first. */
@@ -1028,24 +1119,38 @@
     hudHits.push({ x: pcx - 24, y: pcy - 24 + shift, w: 48, h: 48, id: 'pause' });
     ctx.restore();
 
-    /* Active modifier chips, under the glass. */
-    var chips = [];
-    if (S.overchargeT > 0) chips.push(['OVERCHARGE', C.cyan, S.overchargeT]);
-    if (S.slowT > 0) chips.push(['SLOW TIME', C.frost, S.slowT]);
-    if (S.barrierT > 0) chips.push(['BARRIER', C.cyan, S.barrierT]);
-    if (S.magnetT > 0) chips.push(['MAGNET', C.violet, S.magnetT]);
-    if (S.superheatT > 0) chips.push(['SUPERHEAT', C.powerHot, S.superheatT]);
-    for (var ci = 0; ci < chips.length; ci++) {
-      var cy = sy1 + 16 + ci * 26;
-      ctx.font = '12px ' + PXF;
-      var tw = ctx.measureText(chips[ci][0]).width + 34;
-      rr(ctx, VW / 2 - tw / 2, cy - 10, tw, 21, 10);
-      ctx.fillStyle = 'rgba(3,5,10,0.85)'; ctx.fill();
-      ctx.strokeStyle = U.rgba(chips[ci][1], 0.7); ctx.lineWidth = 1.5; ctx.stroke();
-      ctx.beginPath(); ctx.arc(VW / 2 - tw / 2 + 11, cy + 0.5, 3.5, 0, TAU);
-      ctx.fillStyle = chips[ci][1]; ctx.fill();
-      ptext(ctx, chips[ci][0], VW / 2 + 5, cy + 1, 12, chips[ci][1], 'center', 1);
+    if (tall) {
+      /* Second row: plate captions in the corners and the ticker between
+       * them and the readouts, the way the menu displays carry a label on
+       * their bezel and a message on the glass. */
+      ptext(ctx, 'MEGABALL', sx0 + 26, sy0 + 13, 9, 'rgba(143,232,255,0.45)', 'left', 1.2);
+      var tag = S.mode === 'tutorial' ? 'TUTORIAL'
+        : (S.level ? (S.level.endless ? 'ENDLESS' : 'STAGE ' + S.level.id) : '');
+      if (tag) ptext(ctx, tag, sx1 - 26, sy0 + 13, 9, 'rgba(143,232,255,0.45)', 'right', 1.2);
+      var tk = hudTicker(S);
+      var tcy = (sy0 + 20 + shift + 40) / 2;
+      dmdText(ctx, tk[0], VW / 2, tcy - 8, 8, 2.2, tk[1], 'center');
+    } else {
+      /* One-row glass: active modifier chips sit under it, over the frame. */
+      var chips = [];
+      if (S.overchargeT > 0) chips.push(['OVERCHARGE', C.cyan, S.overchargeT]);
+      if (S.slowT > 0) chips.push(['SLOW TIME', C.frost, S.slowT]);
+      if (S.barrierT > 0) chips.push(['BARRIER', C.cyan, S.barrierT]);
+      if (S.magnetT > 0) chips.push(['MAGNET', C.violet, S.magnetT]);
+      if (S.superheatT > 0) chips.push(['SUPERHEAT', C.powerHot, S.superheatT]);
+      for (var ci = 0; ci < chips.length; ci++) {
+        var cy = sy1 + 16 + ci * 26;
+        ctx.font = '12px ' + PXF;
+        var tw = ctx.measureText(chips[ci][0]).width + 34;
+        rr(ctx, VW / 2 - tw / 2, cy - 10, tw, 21, 10);
+        ctx.fillStyle = 'rgba(3,5,10,0.85)'; ctx.fill();
+        ctx.strokeStyle = U.rgba(chips[ci][1], 0.7); ctx.lineWidth = 1.5; ctx.stroke();
+        ctx.beginPath(); ctx.arc(VW / 2 - tw / 2 + 11, cy + 0.5, 3.5, 0, TAU);
+        ctx.fillStyle = chips[ci][1]; ctx.fill();
+        ptext(ctx, chips[ci][0], VW / 2 + 5, cy + 1, 12, chips[ci][1], 'center', 1);
+      }
     }
+    ctx.restore();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1137,30 +1242,45 @@
     ctx.closePath();
   }
 
+  /* The hand sits in a well let into the apron glass: darker than the
+   * plate, the top edge in shadow, a breath of cyan along the bottom lip and
+   * a caption plate breaking the edge, as the menu displays have. It used to
+   * be a bright-bordered box sitting on a box. */
   function drawHandPanel(ctx, S) {
     var P = panelRect();
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.55)';
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 4;
     oct(ctx, P.x, P.y, P.w, P.h, P.cut);
-    var g = ctx.createLinearGradient(0, P.y, 0, P.y + P.h);
-    g.addColorStop(0, 'rgba(16,24,46,0.94)');
-    g.addColorStop(1, 'rgba(7,10,19,0.96)');
-    ctx.fillStyle = g;
+    ctx.fillStyle = 'rgba(2,4,9,0.80)';
     ctx.fill();
-    ctx.restore();
-
     ctx.save();
     oct(ctx, P.x, P.y, P.w, P.h, P.cut);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = U.rgba(C.cyan, 0.42);
+    ctx.clip();
+    ctx.fillStyle = glassPattern(ctx);
+    ctx.fillRect(P.x, P.y, P.w, P.h);
+    var sh = ctx.createLinearGradient(0, P.y, 0, P.y + 28);
+    sh.addColorStop(0, 'rgba(0,0,0,0.75)');
+    sh.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(P.x, P.y, P.w, 28);
+    var lift = ctx.createLinearGradient(0, P.y + P.h - 18, 0, P.y + P.h);
+    lift.addColorStop(0, 'rgba(63,224,255,0)');
+    lift.addColorStop(1, 'rgba(63,224,255,0.09)');
+    ctx.fillStyle = lift;
+    ctx.fillRect(P.x, P.y + P.h - 18, P.w, 18);
+    ctx.restore();
+    oct(ctx, P.x, P.y, P.w, P.h, P.cut);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(C.cyan, 0.24);
     ctx.stroke();
-    /* Inner hairline: gives the plate a bevelled, moulded edge. */
-    oct(ctx, P.x + 4, P.y + 4, P.w - 8, P.h - 8, P.cut - 3);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-    ctx.stroke();
+
+    /* Caption plate on the lip. */
+    var lab = 'POWER CARDS';
+    ctx.font = '8px ' + PXF;
+    var lw = ctx.measureText(lab).width + lab.length * 0.8 + 12;
+    var lx = P.x + P.w - P.cut - lw - 2;
+    ctx.fillStyle = '#05060d';
+    ctx.fillRect(lx, P.y - 5, lw, 10);
+    ptext(ctx, lab, lx + lw / 2, P.y + 0.5, 8, 'rgba(143,232,255,0.55)', 'center', 0.8);
 
     if (!S.cards.length) {
       micro(ctx, 'NO CARDS IN HAND', P.x + P.w / 2, P.y + P.h / 2, CTX3, 'center', 10);
@@ -1172,21 +1292,6 @@
     trayHits.length = 0;
 
     ctx.save();
-    if (S.selectedTower) {
-      /* The panel takes the whole apron band, spare room included. */
-      ctx.fillStyle = '#070a13';
-      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP + vp.trayShift);
-      ctx.strokeStyle = U.rgba(C.cyan, 0.28);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, TRAY_TOP + 1); ctx.lineTo(VW, TRAY_TOP + 1);
-      ctx.stroke();
-      applyTrayXform(ctx);
-      drawUpgradePanel(ctx, S);
-      ctx.restore();
-      return;
-    }
-
     /* The apron plate from the 3D machine shows through here; the 2D
      * fallback has already painted the band void. */
     applyTrayXform(ctx);
@@ -1278,23 +1383,18 @@
     micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 14.5,
       active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 8.5);
 
-    /* Price plate under the pile. */
-    var py = cy0 + ch + 6, ph = 22, pw = 56;
-    oct(ctx, cx - pw / 2, py, pw, ph, 6);
-    ctx.fillStyle = 'rgba(7,10,19,0.92)';
-    ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = afford ? U.rgba(C.amber, 0.7) : 'rgba(255,255,255,0.1)';
-    ctx.stroke();
-    var bx = cx - 12, by = py + ph / 2;
+    /* Price under the pile: a bolt lamp and the cost in amber dots, the
+     * same readout language as the energy counter on the backglass. */
+    var py = cy0 + ch + 8;
+    var pc = afford ? C.amber : 'rgba(255,176,32,0.35)';
+    var dw = dmdText(ctx, String(d.cost), cx + 7, py, 8, 2.0, pc, 'center');
+    var bx = cx + 7 - dw / 2 - 10, by = py + 9;
     ctx.beginPath();
-    ctx.moveTo(bx - 3, by - 6); ctx.lineTo(bx + 2, by - 1); ctx.lineTo(bx, by - 1);
-    ctx.lineTo(bx + 3, by + 6); ctx.lineTo(bx - 2, by + 1); ctx.lineTo(bx, by + 1);
+    ctx.moveTo(bx + 2.5, by - 7); ctx.lineTo(bx - 3.5, by + 1); ctx.lineTo(bx - 0.5, by + 1);
+    ctx.lineTo(bx - 2.5, by + 7); ctx.lineTo(bx + 3.5, by - 1); ctx.lineTo(bx + 0.5, by - 1);
     ctx.closePath();
-    ctx.fillStyle = afford ? C.amber : 'rgba(255,176,32,0.35)';
+    ctx.fillStyle = pc;
     ctx.fill();
-    ptext(ctx, String(d.cost), cx + 5, by + 0.5, 13,
-      afford ? C.amber : 'rgba(255,176,32,0.35)', 'center');
     ctx.restore();
   }
 
@@ -1372,7 +1472,7 @@
   function chip(ctx, cx, y, label, color, side, innerW) {
     ctx.font = '10px ' + PXF;
     var w = ctx.measureText(label).width + label.length * 1.33 + 20;
-    var x = side === 'right' ? cx + innerW / 2 - w : cx - innerW / 2;
+    var x = side === 'right' ? cx + innerW / 2 - w : side === 'center' ? cx - w / 2 : cx - innerW / 2;
     rr(ctx, x, y - 10, w, 20, 10);
     ctx.fillStyle = U.rgba(color, 0.14);
     ctx.fill();
@@ -1644,79 +1744,202 @@
     ctx.restore();
   }
 
-  /* Upgrade panel replaces the tray while a tower is selected — on a phone
-   * that beats a floating popover, which would cover the board. */
-  /* Geometry of the upgrade panel, shared by the painter and by the tutorial
-   * (which spotlights individual buttons). */
+  /* Upgrade pick. Tapping a tower used to swap the tray for a strip of
+   * small buttons; now it is the level-up screen of a roguelike: the table
+   * drops to a crawl, the field dims, and the choices arrive as big cards
+   * in the middle of the screen, one after another from the bottom edge.
+   * Laid out in board space; hit rects are the same rects the painter uses,
+   * and DRAW.upgradeRects hands them to the tutorial for its spotlights. */
+  var upHits = [];
+  var UP_CARD_H = 330, UP_CY = 680;
   function upgradeLayout(t) {
     var d = t.def;
     var ups = d.upgrades || [];
-    var n = ups.length + 1;
-    var w = Math.min(150, (TX.W - 60 - (n - 1) * 10) / n);
-    var x0 = 30, y = TRAY_TOP + 76, h = 92;
-    var out = { back: { x: TX.W - 92, y: TRAY_TOP + 14, w: 66, h: 34, id: 'closeTower' }, ups: [] };
-    for (var i = 0; i < ups.length; i++) {
-      out.ups.push({ x: x0 + i * (w + 10), y: y, w: w, h: h, id: 'upgrade', to: ups[i] });
+    var n = ups.length;
+    var cw = n >= 3 ? 206 : 236, gap = 16;
+    var x0 = (VW - (n * cw + (n - 1) * gap)) / 2;
+    var y = UP_CY - UP_CARD_H / 2;
+    var out = { ups: [], head: y - 96, n: n };
+    for (var i = 0; i < n; i++) {
+      out.ups.push({ x: x0 + i * (cw + gap), y: y, w: cw, h: UP_CARD_H, id: 'upgrade', to: ups[i] });
     }
-    out.sell = { x: x0 + ups.length * (w + 10), y: y, w: w, h: h, id: 'sell' };
+    /* SELL and CLOSE share a row under the cards (or sit alone, mid-screen,
+     * on a tower that has nothing left to become). */
+    var by = n ? y + UP_CARD_H + 30 : UP_CY - 36;
+    out.sell = { x: 102, y: by, w: 300, h: 72, id: 'sell' };
+    out.back = { x: 418, y: by, w: 200, h: 72, id: 'closeTower' };
     return out;
   }
   DRAW.upgradeRects = function (S) {
     S = S || global.GAME.state;
     if (!S || !S.selectedTower) return null;
-    var L = upgradeLayout(S.selectedTower);
-    var out = { back: trayToBoard(L.back), sell: trayToBoard(L.sell), ups: [] };
-    for (var i = 0; i < L.ups.length; i++) out.ups.push(trayToBoard(L.ups[i]));
-    return out;
+    return upgradeLayout(S.selectedTower);
+  };
+  /* Board-space tap against the open pick; true if a button took it. */
+  DRAW.hitUpgrade = function (x, y) {
+    for (var i = upHits.length - 1; i >= 0; i--) {
+      if (inRect(x, y, upHits[i])) return DRAW.applyTray(upHits[i]);
+    }
+    return false;
   };
 
-  function drawUpgradePanel(ctx, S) {
-    var t = S.selectedTower;
-    var d = t.def;
-    var L = upgradeLayout(t);
-
-    ptext(ctx, d.name.toUpperCase(), 30, TRAY_TOP + 30, 18, d.color, 'left', 1);
-    text(ctx, d.blurb, 30, TRAY_TOP + 54, 13, 'rgba(255,255,255,0.55)', 'left', '600');
-
-    var back = L.back;
-    rr(ctx, back.x, back.y, back.w, back.h, 9);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
-    ptext(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2, 12, U.rgba(C.white, 0.8), 'center', 1);
-    trayHits.push(back);
-
-    var ups = d.upgrades || [];
-    var w = L.sell.w, x0 = 30, y = L.sell.y, h = L.sell.h;
-
-    for (var i = 0; i < ups.length; i++) {
-      var ud = ENT.TOWERS[ups[i]];
-      var afford = S.energy >= ud.cost;
-      var b = L.ups[i];
-      rr(ctx, b.x, b.y, b.w, b.h, 12);
-      ctx.fillStyle = afford ? U.rgba(ud.color, 0.14) : 'rgba(255,255,255,0.04)';
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = afford ? U.rgba(ud.color, 0.8) : 'rgba(255,255,255,0.1)';
-      ctx.stroke();
-      ptext(ctx, ud.name.toUpperCase(), b.x + b.w / 2, b.y + 20, 12,
-        afford ? ud.color : 'rgba(255,255,255,0.3)', 'center', 0.5);
-      wrapText(ctx, ud.blurb, b.x + b.w / 2, b.y + 42, b.w - 16, 12,
-        afford ? 'rgba(255,255,255,0.62)' : 'rgba(255,255,255,0.25)');
-      ptext(ctx, ud.cost + ' E', b.x + b.w / 2, b.y + b.h - 14, 14,
-        afford ? C.amber : 'rgba(255,176,32,0.3)', 'center');
-      trayHits.push(b);
-    }
-
-    var sb = L.sell;
-    rr(ctx, sb.x, sb.y, sb.w, sb.h, 12);
-    ctx.fillStyle = 'rgba(255,46,136,0.1)'; ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.magenta, 0.5); ctx.stroke();
-    ptext(ctx, 'SELL', sb.x + sb.w / 2, sb.y + 26, 14, C.magenta, 'center', 1);
-    ptext(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w / 2, sb.y + 54, 15, C.amber, 'center');
-    trayHits.push(sb);
+  /* Each option rises from below the screen edge in turn, left to right,
+   * overshooting its seat and settling (outBack) -- the level-up pick of a
+   * roguelike rather than a panel that is simply there. Applies transform +
+   * alpha to the current context; the caller saves and restores. `sel` is
+   * the seconds the pick has been open, `i` the option's order. */
+  function popIn(ctx, b, sel, i) {
+    var p = U.clamp((sel - i * 0.09) / 0.42, 0, 1);
+    var e = U.ease.outBack(p);
+    var cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    var sc = 0.78 + 0.22 * e;
+    ctx.translate(cx, cy + (1 - e) * (VH + 60 - b.y));
+    ctx.scale(sc, sc);
+    ctx.translate(-cx, -cy);
+    ctx.globalAlpha *= Math.min(1, p * 2.5);
   }
 
-  function wrapText(ctx, str, cx, y, maxW, size, color) {
+  /* The tower's silhouette, big, as the card's art. */
+  function towerGlyph(ctx, ud, cx, cy, on) {
+    var col = on ? ud.color : 'rgba(255,255,255,0.22)';
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (on) { ctx.shadowColor = ud.color; ctx.shadowBlur = 26; }
+    if (ud.family === 'paddle') {
+      ctx.translate(cx, cy);
+      ctx.rotate(-0.55);
+      rr(ctx, -46, -11, 92, 22, 11);
+      ctx.fillStyle = U.rgba(col, on ? 0.22 : 0.4); ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = col; ctx.stroke();
+      ctx.beginPath(); ctx.arc(-46, 0, 8, 0, TAU);
+      ctx.fillStyle = col; ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(cx, cy, 40, 0, TAU);
+      ctx.fillStyle = U.rgba(col, on ? 0.16 : 0.4); ctx.fill();
+      ctx.lineWidth = 4; ctx.strokeStyle = col; ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(cx, cy, 22, 0, TAU);
+      ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(col, 0.6); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, TAU);
+      ctx.fillStyle = col; ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* What a tower's cooldown means in words, for the upgrade pick. Paddles
+   * have a swing cooldown, the specialised bumpers a re-arm on their ability,
+   * plain and launch bumpers are always on. */
+  function towerCdLabel(ud) {
+    if (ud.family === 'paddle') return ud.cd + 'S SWING CD';
+    if (ud.blastCd) return ud.blastCd + 'S BLAST CD';
+    if (ud.chainCd) return ud.chainCd + 'S CHAIN CD';
+    return 'NO COOLDOWN';
+  }
+
+  function drawUpgradeModal(ctx, S) {
+    upHits.length = 0;
+    var t = S.selectedTower;
+    if (!t) return;
+    var d = t.def;
+    var L = upgradeLayout(t);
+    var sel = S.selT || 0;
+    var e = U.ease.outCubic(U.clamp(sel / 0.22, 0, 1));
+
+    ctx.save();
+    /* The field goes dark under the pick: this is a decision, not a glance. */
+    ctx.fillStyle = U.rgba(C.void, 0.8 * e);
+    ctx.fillRect(0, -800, VW, VH + 1600);
+
+    /* Heading: what you tapped, and what it does now. */
+    ctx.save();
+    ctx.globalAlpha = e;
+    ctx.translate(0, (1 - e) * -18);
+    ptext(ctx, L.n ? 'CHOOSE AN UPGRADE' : 'DEFENSE', VW / 2, L.head - 40, 12, C.amber, 'center', 3);
+    ptext(ctx, d.name.toUpperCase(), VW / 2, L.head, 30, d.color, 'center', 1.5);
+    text(ctx, d.blurb, VW / 2, L.head + 34, 14, 'rgba(255,255,255,0.62)', 'center', '600');
+    /* The tower's cooldown, and where it is in it right now. */
+    var curCd = d.family === 'paddle' ? t.cd : t.abilityCd;
+    var curMax = d.family === 'paddle' ? d.cd : (d.blastCd || d.chainCd || 0);
+    var hdrLabel = towerCdLabel(d);
+    if (curMax && curCd > 0) hdrLabel += '  /  READY IN ' + curCd.toFixed(1) + 'S';
+    else if (curMax) hdrLabel += '  /  READY';
+    chip(ctx, VW / 2, L.head + 62, hdrLabel, curMax && curCd > 0 ? C.amber : d.color, 'center', 0);
+    ctx.restore();
+
+    for (var i = 0; i < L.ups.length; i++) {
+      var ud = ENT.TOWERS[L.ups[i].to];
+      var b = L.ups[i];
+      var afford = S.energy >= ud.cost;
+      ctx.save();
+      popIn(ctx, b, sel, i);
+
+      /* Plate: dark glass, the option's colour as edge and glow. */
+      if (afford) { ctx.shadowColor = U.rgba(ud.color, 0.55); ctx.shadowBlur = 34; }
+      rr(ctx, b.x, b.y, b.w, b.h, 22);
+      ctx.fillStyle = 'rgba(7,10,20,0.97)'; ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = afford ? U.rgba(ud.color, 0.12) : 'rgba(255,255,255,0.03)'; ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = afford ? U.rgba(ud.color, 0.9) : 'rgba(255,255,255,0.14)';
+      ctx.stroke();
+      /* Header band. */
+      ctx.save();
+      rr(ctx, b.x, b.y, b.w, b.h, 22); ctx.clip();
+      ctx.fillStyle = afford ? U.rgba(ud.color, 0.2) : 'rgba(255,255,255,0.05)';
+      ctx.fillRect(b.x, b.y, b.w, 58);
+      ctx.restore();
+      var nm = ud.name.toUpperCase().split(' ');
+      ptext(ctx, nm[0], b.x + b.w / 2, b.y + 22, 17, afford ? ud.color : 'rgba(255,255,255,0.35)', 'center', 1);
+      ptext(ctx, nm.slice(1).join(' '), b.x + b.w / 2, b.y + 42, 12, afford ? U.rgba(ud.color, 0.8) : 'rgba(255,255,255,0.28)', 'center', 2);
+
+      towerGlyph(ctx, ud, b.x + b.w / 2, b.y + 128, afford);
+
+      wrapText(ctx, ud.blurb, b.x + b.w / 2, b.y + 196, b.w - 30, 14.5,
+        afford ? 'rgba(255,255,255,0.78)' : 'rgba(255,255,255,0.28)', 3);
+
+      /* Cooldown readout: how often this tower can act. */
+      chip(ctx, b.x + b.w / 2, b.y + b.h - 80, towerCdLabel(ud),
+        afford ? ud.color : 'rgba(255,255,255,0.35)', 'center', 0);
+
+      /* Price plate at the foot. */
+      rr(ctx, b.x + 16, b.y + b.h - 62, b.w - 32, 46, 12);
+      ctx.fillStyle = afford ? 'rgba(255,176,32,0.14)' : 'rgba(255,255,255,0.04)'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = afford ? U.rgba(C.amber, 0.7) : 'rgba(255,255,255,0.1)'; ctx.stroke();
+      if (afford) {
+        ptext(ctx, ud.cost + ' E', b.x + b.w / 2, b.y + b.h - 39, 22, C.amber, 'center', 1);
+      } else {
+        ptext(ctx, ud.cost + ' E', b.x + b.w / 2, b.y + b.h - 47, 16, 'rgba(255,176,32,0.4)', 'center', 1);
+        ptext(ctx, 'NEED ' + (ud.cost - S.energy) + ' MORE', b.x + b.w / 2, b.y + b.h - 29, 10, U.rgba(C.magenta, 0.8), 'center', 2);
+      }
+      ctx.restore();
+      upHits.push(b);
+    }
+
+    /* SELL and CLOSE arrive together, last. */
+    var sb = L.sell, back = L.back, k = L.ups.length;
+    ctx.save();
+    popIn(ctx, sb, sel, k);
+    rr(ctx, sb.x, sb.y, sb.w, sb.h, 16);
+    ctx.fillStyle = 'rgba(40,6,24,0.96)'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(C.magenta, 0.75); ctx.stroke();
+    ptext(ctx, 'SELL', sb.x + 96, sb.y + sb.h / 2 + 1, 20, C.magenta, 'center', 2);
+    ptext(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w - 86, sb.y + sb.h / 2 + 1, 20, C.amber, 'center', 1);
+    ctx.restore();
+    upHits.push(sb);
+
+    ctx.save();
+    popIn(ctx, back, sel, k);
+    rr(ctx, back.x, back.y, back.w, back.h, 16);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.stroke();
+    ptext(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2 + 1, 18, U.rgba(C.white, 0.85), 'center', 2);
+    ctx.restore();
+    upHits.push(back);
+
+    ctx.restore();
+  }
+
+  function wrapText(ctx, str, cx, y, maxW, size, color, maxLines) {
     ctx.font = '600 ' + size + 'px ' + U.FONT;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -1728,7 +1951,8 @@
       else line = test;
     }
     if (line) lines.push(line);
-    for (var k = 0; k < lines.length && k < 3; k++) {
+    var cap = maxLines || 3;
+    for (var k = 0; k < lines.length && k < cap; k++) {
       ctx.fillText(lines[k], cx, y + k * (size + 3));
     }
   }
@@ -2037,6 +2261,7 @@
     drawHud(ctx, S);
     drawTray(ctx, S);
     drawBuildHint(ctx, S);
+    drawUpgradeModal(ctx, S);
     /* Tutorial overlay sits above the HUD and tray (it points at them) but
      * below an open card popout, which must always win the screen. */
     if (S.mode === 'tutorial' && global.TUT && global.TUT.draw) global.TUT.draw(ctx, S);

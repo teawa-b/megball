@@ -20,6 +20,7 @@
   var UI = {};
 
   var root = null;
+  var back = null;
   var hooks = {};
   var current = null;
 
@@ -41,6 +42,14 @@
     return 'polygon(' + c + 'px 0,calc(100% - ' + c + 'px) 0,100% ' + c + 'px,100% calc(100% - ' + c + 'px),' +
       'calc(100% - ' + c + 'px) 100%,' + c + 'px 100%,0 calc(100% - ' + c + 'px),0 ' + c + 'px)';
   }
+  /* Stair-cut corners: the same silhouette as oct() but resolved in whole
+   * cells, so it reads as pixel art instead of a machined bevel. */
+  function pxc(a) {
+    var A = a + 'px', N = 'calc(100% - ' + a + 'px)';
+    return 'polygon(' + A + ' 0,' + N + ' 0,' + N + ' ' + A + ',100% ' + A + ',' +
+      '100% ' + N + ',' + N + ' ' + N + ',' + N + ' 100%,' + A + ' 100%,' +
+      A + ' ' + N + ',0 ' + N + ',0 ' + A + ',' + A + ' ' + A + ')';
+  }
   var CY_EDGE = 'linear-gradient(180deg,rgba(143,240,255,.95),rgba(31,143,242,.75) 50%,rgba(63,224,255,.85))';
   var MG_EDGE = 'linear-gradient(180deg,rgba(255,120,190,.95),rgba(200,20,106,.8) 50%,rgba(255,46,136,.9))';
   var DIM_EDGE = 'linear-gradient(180deg,rgba(63,224,255,.42),rgba(31,143,242,.30))';
@@ -57,10 +66,11 @@
     '  flex-direction:column;padding:calc(14px + env(safe-area-inset-top)) 18px calc(16px + env(safe-area-inset-bottom));',
     '  box-sizing:border-box;overflow:hidden;overscroll-behavior:none;}',
     '#ui.on .sheet{animation:screenIn .26s cubic-bezier(.2,.8,.2,1) both;}',
-    '@keyframes screenIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}',
+    '@keyframes screenIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}',
 
     /* Backdrop: painted key art, then a veil that keeps text legible. Pinned to
      * the viewport so a scrolling sheet never exposes the canvas beneath. */
+    '#ui.nobg .bgimg{display:none;}',
     '#ui .veil,#ui .bgimg,#ui .grain{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:' + U.UI.maxMenuWidth + 'px;',
     '  transform:translateX(-50%);pointer-events:none;}',
     '#ui .bgimg{background-size:cover;background-position:center 30%;z-index:-3;opacity:.9;background-color:#05060d;}',
@@ -73,11 +83,11 @@
     '  linear-gradient(180deg,rgba(63,224,255,.10) 1px,transparent 1px) 0 0/28px 28px;',
     '  -webkit-mask:linear-gradient(180deg,rgba(0,0,0,.9),transparent 45%,transparent 60%,rgba(0,0,0,.9));',
     '  mask:linear-gradient(180deg,rgba(0,0,0,.9),transparent 45%,transparent 60%,rgba(0,0,0,.9));}',
-    '#ui .sheet:not(.hero) .bgimg{filter:blur(2px) saturate(1.15);opacity:.6;transform:translateX(-50%) scale(1.04);}',
+    '#ui:not(.hero) .bgimg{filter:blur(2px) saturate(1.15);opacity:.6;transform:translateX(-50%) scale(1.04);}',
     /* Title: light veil at top for the logo, heavy under the buttons. */
-    '#ui .sheet.hero .bgimg{opacity:1;filter:saturate(1.1) contrast(1.05);animation:heroDrift 20s ease-in-out infinite alternate;}',
+    '#ui.hero .bgimg{opacity:1;filter:saturate(1.1) contrast(1.05);animation:heroDrift 20s ease-in-out infinite alternate;}',
     '@keyframes heroDrift{from{transform:translateX(-50%) scale(1.02);}to{transform:translateX(-50%) scale(1.06);}}',
-    '#ui .sheet.hero .veil{background:',
+    '#ui.hero .veil{background:',
     '  radial-gradient(80% 30% at 50% 100%,rgba(255,46,136,.20),transparent 70%),',
     '  radial-gradient(120% 50% at 50% -10%,rgba(63,224,255,.16),transparent 60%),',
     '  linear-gradient(180deg,rgba(4,7,18,.55) 0%,rgba(4,7,18,.18) 30%,rgba(4,7,18,.06) 50%,',
@@ -108,9 +118,6 @@
     '#ui .iconbtn::before{clip-path:' + oct(12) + ';}',
     '#ui .iconbtn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 6px rgba(63,224,255,.8));}',
     '#ui .iconbtn:hover{filter:brightness(1.15);}#ui .iconbtn:active{transform:translateY(2px);}',
-    '#ui .backbtn{width:auto;padding:0 14px 0 9px;gap:4px;display:inline-flex;align-items:center;',
-    '  font:900 12px/1 ' + F + ';letter-spacing:.12em;text-transform:uppercase;}',
-    '#ui .backbtn svg{width:16px;height:16px;}',
 
     /* ---- hero -------------------------------------------------------- */
     '#ui .brand{position:relative;flex:0 0 auto;margin:0 auto;width:min(96%,440px);}',
@@ -119,7 +126,7 @@
     '  radial-gradient(35% 35% at 62% 62%,rgba(255,46,136,.24),transparent 70%);filter:blur(8px);',
     '  animation:glowPulse 3.2s ease-in-out infinite;}',
     '@keyframes glowPulse{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.06)}}',
-    '#ui .brand-logo{position:relative;display:block;width:100%;aspect-ratio:640/430;background-size:contain;',
+    '#ui .brand-logo{position:relative;display:block;width:100%;aspect-ratio:3/1;background-size:contain;',
     '  background-position:center;background-repeat:no-repeat;filter:drop-shadow(0 16px 22px rgba(0,0,0,.65));',
     '  animation:bob 4.2s ease-in-out infinite;}',
     '@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}',
@@ -251,14 +258,14 @@
      * the cabinet START button pulsing, and a scorecard of modes with insert
      * lamps. Type is the pixel face (src/fonts.js), the only one shipped. */
     '#ui .sheet.home{padding:calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));}',
-    '#ui.on .sheet.home{animation:lampsOn 1s steps(1,end) both;}',
+    '#ui.on .sheet.home.boot{animation:lampsOn 1s steps(1,end) both;}',
     '@keyframes lampsOn{0%,100%{opacity:1}6%{opacity:.15}12%{opacity:.8}18%{opacity:.1}26%{opacity:.9}33%{opacity:.4}42%{opacity:1}}',
-    '#ui .sheet.home .bgimg{opacity:.9;filter:saturate(.85) contrast(1.08);animation:heroDrift 24s ease-in-out infinite alternate;}',
-    '#ui .sheet.home .veil{background:',
+    '#ui.home .bgimg{opacity:.9;filter:saturate(.85) contrast(1.08);animation:heroDrift 24s ease-in-out infinite alternate;}',
+    '#ui.home .veil{background:',
     '  radial-gradient(70% 34% at 50% 26%,rgba(63,224,255,.14),transparent 70%),',
     '  radial-gradient(80% 30% at 50% 100%,rgba(255,46,136,.14),transparent 70%),',
     '  linear-gradient(180deg,rgba(4,7,18,.72) 0%,rgba(4,7,18,.30) 22%,rgba(4,7,18,.22) 40%,rgba(4,7,18,.78) 60%,rgba(4,7,18,.96) 100%);}',
-    '#ui .sheet.home .grain{display:none;}',
+    '#ui.home .grain{display:none;}',
     /* Glass over everything: scanlines and a slow reflection sweeping across. */
     '#ui .glass{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:' + U.UI.maxMenuWidth + 'px;transform:translateX(-50%);',
     '  pointer-events:none;z-index:5;overflow:hidden;',
@@ -277,15 +284,19 @@
     '#ui .hline .sndbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(63,224,255,.8));}',
     '#ui .hline .sndbtn.off{color:rgba(255,255,255,.4);}#ui .hline .sndbtn.off svg{filter:none;}',
     /* Logo on the glass. */
-    '#ui .sheet.home .brand{width:min(88%,400px);animation:logoOn .8s cubic-bezier(.2,.8,.2,1) .2s both;}',
+    '#ui .sheet.home .brand{width:min(100%,460px);}',
+    '#ui .sheet.home.boot .brand{animation:logoOn .8s cubic-bezier(.2,.8,.2,1) .2s both;}',
     '#ui .sheet.home .brand-logo{animation:bob 5s ease-in-out infinite;}',
     '@keyframes logoOn{from{opacity:0;transform:scale(1.1)}to{opacity:1;transform:none}}',
-    '#ui .sheet.home .spacer.top{flex:.5 1 auto;min-height:4px;}',
+    /* The wordmark is a wide, short banner, so it rides high on the
+     * backglass rather than floating in the middle of the art. */
+    '#ui .sheet.home .spacer.top{flex:.28 1 auto;min-height:4px;}',
     '#ui .sheet.home .spacer.mid{flex:.6 1 auto;min-height:8px;}',
     /* The display: a real 128x32 DMD in a black bezel. */
     '#ui .dmd{position:relative;flex:0 0 auto;padding:7px 8px;background:#03050a;',
     '  border:1px solid rgba(63,224,255,.30);box-shadow:inset 0 0 0 2px #000,inset 0 6px 22px rgba(0,0,0,.9),0 0 26px rgba(63,224,255,.12),0 10px 24px rgba(0,0,0,.55);',
-    '  animation:dmdOn .5s ease-out .35s both;}',
+    '  animation:dmdOn .3s ease-out both;}',
+    '#ui .sheet.home.boot .dmd{animation:dmdOn .5s ease-out .35s both;}',
     '@keyframes dmdOn{from{opacity:0}to{opacity:1}}',
     '#ui .dmd canvas{display:block;width:100%;height:auto;aspect-ratio:4/1;}',
     '#ui .dmd .plate{position:absolute;right:10px;top:-6px;padding:0 5px;background:#05060d;font:8px/10px ' + PX + ';color:rgba(143,232,255,.55);letter-spacing:.14em;text-transform:uppercase;}',
@@ -296,7 +307,8 @@
     '#ui .start{flex:0 0 116px;width:116px;height:116px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
     '  background:radial-gradient(circle at 50% 36%,#fff1bf 0%,#ffcf4a 30%,#f39316 60%,#8f4306 100%);',
     '  box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 34px rgba(255,176,32,.35);',
-    '  animation:startPulse 1.9s ease-in-out infinite,startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;transition:transform .08s,filter .12s;}',
+    '  animation:startPulse 1.9s ease-in-out infinite;transition:transform .08s,filter .12s;}',
+    '#ui .sheet.home.boot .start{animation:startPulse 1.9s ease-in-out infinite,startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;}',
     '@keyframes startOn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}',
     '@keyframes startPulse{0%,100%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.4),0 14px 30px rgba(0,0,0,.6),0 0 26px rgba(255,176,32,.25)}',
     '  50%{box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,210,74,.7),0 14px 30px rgba(0,0,0,.6),0 0 60px rgba(255,190,50,.7)}}',
@@ -306,10 +318,14 @@
     '#ui .start small{position:relative;z-index:1;display:block;margin-top:5px;font:10px/1 ' + PX + ';color:#5a2600;letter-spacing:.06em;text-transform:uppercase;}',
     '#ui .start:hover{filter:brightness(1.08);}#ui .start:active{transform:scale(.94);filter:brightness(1.18);}',
     '#ui .scard{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}',
+    /* A scorecard directly above the back button must not stretch, or the
+     * button drifts away from the option it belongs under. */
+    '#ui .scard.tight{flex:0 0 auto;}',
     '#ui .sc{display:flex;align-items:center;gap:9px;width:100%;min-height:46px;padding:0 2px;margin:0;background:none;border:0;',
     '  border-bottom:1px solid rgba(63,224,255,.18);color:#fff;font:15px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.02em;text-align:left;cursor:pointer;',
     '  animation:rowIn .45s cubic-bezier(.2,.8,.2,1) both;transition:background .1s;}',
-    '#ui .sc:nth-child(1){animation-delay:.45s}#ui .sc:nth-child(2){animation-delay:.53s}#ui .sc:nth-child(3){animation-delay:.61s}#ui .sc:nth-child(4){animation-delay:.69s}',
+    '#ui .sc:nth-child(1){animation-delay:.05s}#ui .sc:nth-child(2){animation-delay:.11s}#ui .sc:nth-child(3){animation-delay:.17s}#ui .sc:nth-child(4){animation-delay:.23s}',
+    '#ui .sheet.home.boot .sc:nth-child(1){animation-delay:.45s}#ui .sheet.home.boot .sc:nth-child(2){animation-delay:.53s}#ui .sheet.home.boot .sc:nth-child(3){animation-delay:.61s}#ui .sheet.home.boot .sc:nth-child(4){animation-delay:.69s}',
     '@keyframes rowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}',
     '#ui .sc:last-child{border-bottom:0;}',
     '#ui .sc i{flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff,0 0 2px #fff;transition:background .1s,box-shadow .1s;}',
@@ -330,19 +346,30 @@
      * pixel readouts, insert lamps, cabinet buttons, scorecard rows, dark
      * display plates on the dot grid. */
     '#ui .sheet.sub{padding:calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));}',
-    '#ui.on .sheet.sub{animation:lampsOnFast .42s steps(1,end) both;}',
-    '@keyframes lampsOnFast{0%,100%{opacity:1}18%{opacity:.2}34%{opacity:.85}48%{opacity:.35}62%{opacity:1}}',
-    '#ui .sheet.sub .grain{display:none;}',
-    '#ui .sheet.sub .bgimg{opacity:.55;filter:blur(2px) saturate(.8);transform:translateX(-50%) scale(1.04);}',
-    '#ui .sheet.sub .veil{background:radial-gradient(70% 30% at 50% 0%,rgba(63,224,255,.10),transparent 70%),',
+    '#ui.sub .grain{display:none;}',
+    '#ui.sub .bgimg{opacity:.55;filter:blur(2px) saturate(.8);transform:translateX(-50%) scale(1.04);}',
+    '#ui.sub .veil{background:radial-gradient(70% 30% at 50% 0%,rgba(63,224,255,.10),transparent 70%),',
     '  linear-gradient(180deg,rgba(4,7,18,.86) 0%,rgba(4,7,18,.80) 50%,rgba(4,7,18,.94) 100%);}',
-    '#ui .sheet.pause .veil{background:rgba(4,7,18,.74);}',
-    /* Text button with a lamp or chevron: back links, quiet actions. */
-    '#ui .txtbtn{display:inline-flex;align-items:center;gap:7px;background:none;border:0;padding:8px 10px 8px 0;margin:0;color:#8fe8ff;',
-    '  font:12px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.04em;cursor:pointer;}',
-    '#ui .txtbtn svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(63,224,255,.8));}',
-    '#ui .txtbtn:active{color:#fff;}',
-    '#ui .hline.sub{min-height:36px;}',
+    '#ui.pause .veil{background:rgba(4,7,18,.74);}',
+    /* Pixel back button: the way out of every sub-screen, parked at the
+     * bottom of the sheet under the last option rather than floating above
+     * the readout where it competed with the star count. */
+    '#ui .pxbk{display:flex;align-items:center;justify-content:center;gap:11px;width:100%;min-height:46px;',
+    '  margin:10px 0 0;padding:0 16px;border:0;position:relative;isolation:isolate;box-sizing:border-box;flex:0 0 auto;',
+    '  cursor:pointer;color:#8fe8ff;font:15px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.12em;',
+    '  clip-path:' + pxc(5) + ';background:' + DIM_EDGE + ';transition:transform .08s,color .12s;}',
+    '#ui .pxbk::before{content:"";position:absolute;inset:3px;z-index:-1;clip-path:' + pxc(4) + ';',
+    '  background:linear-gradient(180deg,rgba(12,22,48,.96),rgba(5,9,22,.98));',
+    '  box-shadow:inset 0 0 22px rgba(63,224,255,.12),inset 0 1px 0 rgba(255,255,255,.10);}',
+    '#ui .pxbk .pxa{width:16px;height:16px;flex:0 0 16px;fill:currentColor;',
+    '  filter:drop-shadow(0 0 6px rgba(63,224,255,.75));}',
+    '#ui .pxbk:hover{color:#dffaff;}',
+    '#ui .pxbk:active{transform:scale(.985);color:#fff;}',
+    /* The sheet is fixed-height and clipped, so the slack the button needs
+     * comes out of the spacer rather than the bottom padding. */
+    '#ui .sheet.sub .spacer{min-height:0;}',
+    /* Only the star readout lives up here now, so it needs less room. */
+    '#ui .hline.sub{min-height:26px;}',
     /* Headings and copy. */
     '#ui .pxh{margin:6px 0 4px;font:22px/1.1 ' + PX + ';color:#fff;text-transform:uppercase;letter-spacing:.02em;flex:0 0 auto;',
     '  text-shadow:0 0 14px rgba(63,224,255,.45),0 2px 0 rgba(0,0,0,.6);}',
@@ -476,8 +503,8 @@
     '  #ui .btn.play{min-height:76px}#ui .btn.play b{font-size:28px}#ui .btn.card{min-height:64px}',
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .slots{margin-bottom:7px}',
     '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
-    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{-webkit-line-clamp:2}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(74%,320px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}}',
-    '@media(max-height:600px){#ui .attract{display:none}#ui .sheet.home .brand{width:min(58%,240px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
+    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{-webkit-line-clamp:2}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
+    '@media(max-height:600px){#ui .attract{display:none}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
     '@media(prefers-reduced-motion:reduce){#ui *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
@@ -493,6 +520,14 @@
     root = document.createElement('div');
     root.id = 'ui';
     document.body.appendChild(root);
+
+    /* The backdrop (key art, veil, grid, glass) is built once and stays put
+     * across screen changes; only the sheet is swapped, so a change is a
+     * cross-fade over a steady picture rather than a rebuild. */
+    back = document.createElement('div');
+    back.className = 'back';
+    back.innerHTML = '<div class="bgimg"></div><div class="veil"></div><div class="grain"></div><div class="glass"></div>';
+    root.appendChild(back);
 
     /* The globe sizes itself to its box, which changes with the viewport. */
     global.addEventListener('resize', function () {
@@ -584,7 +619,10 @@
   var ICON = {
     sound: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="M15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"></path></svg>',
     muted: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="m16 9 5 6M21 9l-5 6"></path></svg>',
-    back: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"></path></svg>',
+    /* Back arrow drawn on an 8x8 grid as whole cells, so it stays blocky at
+     * any size instead of anti-aliasing into a smooth chevron. */
+    pxback: '<svg class="pxa" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">' +
+      '<path d="M4 0h1v1H4zM3 1h1v1H3zM2 2h1v1H2zM1 3h1v1H1zM1 4h1v1H1zM2 5h1v1H2zM3 6h1v1H3zM4 7h1v1H4zM2 3h5v2H2z"></path></svg>',
     play: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"></path></svg>',
     star: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 2.5 2.9 6.2 6.7.8-5 4.6 1.4 6.7L12 17.4l-6 3.4 1.4-6.7-5-4.6 6.7-.8z"></path></svg>',
     cards: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.5 10.5 4l3 12.5L7 19zM12.5 5H19a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-4"></path></svg>',
@@ -603,9 +641,6 @@
   function starChip(n, of) {
     return '<span class="chip">' + ICON.star + n + (of ? ' / ' + of : '') + '</span>';
   }
-  function backBtn(label) {
-    return '<button class="iconbtn backbtn" id="back" aria-label="Back">' + ICON.back + label + '</button>';
-  }
   function bar(left, title, right) {
     return '<div class="bar"><div class="side">' + (left || '') + '</div>' +
       '<div class="mid">' + (title ? '<h2>' + title + '</h2>' : '') + '</div>' +
@@ -613,24 +648,21 @@
   }
 
   function shell(inner, withBg) {
-    root.innerHTML = '';
+    var old = root.querySelector('.sheet');
+    if (old) old.parentNode.removeChild(old);
+    root.className = 'on' + (withBg ? '' : ' nobg');
+    var bi = back.querySelector('.bgimg');
+    if (bi && !bi.getAttribute('style')) bi.setAttribute('style', bgStyle('bg_menu_v2'));
     var sheet = document.createElement('div');
     sheet.className = 'sheet';
-    if (withBg) {
-      var bi = document.createElement('div');
-      bi.className = 'bgimg';
-      bi.setAttribute('style', bgStyle('bg_menu_v2'));
-      sheet.appendChild(bi);
-    }
-    var veil = document.createElement('div');
-    veil.className = 'veil';
-    sheet.appendChild(veil);
-    var grain = document.createElement('div');
-    grain.className = 'grain';
-    sheet.appendChild(grain);
-    sheet.insertAdjacentHTML('beforeend', '<div class="glass"></div>' + inner);
+    sheet.insertAdjacentHTML('beforeend', inner);
     root.appendChild(sheet);
     return sheet;
+  }
+  /* Screen classes go on the sheet (layout) and on the root (backdrop). */
+  function mark(sheet, cls) {
+    sheet.classList.add(cls);
+    root.classList.add(cls);
   }
 
   function on(sel, fn, sheet) {
@@ -807,8 +839,10 @@
   function hline(left, right) {
     return '<div class="hline sub">' + (left || '<span></span>') + (right || '') + '</div>';
   }
-  function backLink(label) {
-    return '<button class="txtbtn" id="back" aria-label="Back">' + ICON.back + label + '</button>';
+  /* The blocky way out, placed last in the sheet. */
+  function pxBack(label) {
+    return '<button class="pxbk" id="back" aria-label="Back to ' + label + '">' +
+      ICON.pxback + '<span>Back to ' + label + '</span></button>';
   }
   function starsRd(total) {
     return '<span class="rd" aria-label="' + total + ' of 15 stars">' + ICON.star + '<em>' + total + '</em> / 15 stars</span>';
@@ -830,8 +864,10 @@
   /* Title: the backglass                                                   */
   /* ---------------------------------------------------------------------- */
 
+  var titleShows = 0;
   function screenTitle() {
     var GAME = global.GAME, LEVELS = global.LEVELS, CARDS = global.CARDS;
+    var first = titleShows++ === 0;
     var muted = global.SFX && global.SFX.isMuted && global.SFX.isMuted();
     var logo = global.ART && global.ART.get ? global.ART.get('logo_megaball') : null;
     var total = GAME ? GAME.totalStars() : 0;
@@ -861,7 +897,7 @@
       '</div>',
       '<div class="spacer top"></div>',
       logo
-        ? '<div class="brand"><div class="brand-glow"></div><div class="brand-logo" role="img" aria-label="Megaball" style="background-image:url(' + logo.src + ')"></div></div>'
+        ? '<div class="brand"><div class="brand-glow"></div><div class="brand-logo" role="img" aria-label="MegaBall Defense" style="background-image:url(' + logo.src + ')"></div></div>'
         : '<h1>MEGA<br>BALL</h1>',
       '<div class="spacer mid"></div>',
       '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="plate">Megaball display</span></div>',
@@ -875,8 +911,9 @@
       '</div></div>',
       '<p class="attract">Press play · 1 player · free play</p>'
     ].join(''), true);
-    sheet.classList.add('hero');
-    sheet.classList.add('home');
+    mark(sheet, 'hero');
+    mark(sheet, 'home');
+    if (first) sheet.classList.add('boot');
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
     on('#lvls', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
@@ -909,7 +946,7 @@
       ['STARS ' + total + ' / 15', 'RANK ' + rank.toUpperCase()],
       ['PRESS PLAY']
     ];
-    dmdRun(sheet, 'dmd', msgs);
+    dmdRun(sheet, 'dmd', msgs, !first);
   }
 
   function GAMEsave(k, v) {
@@ -936,15 +973,16 @@
     var cardsMax = CARDS && CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
 
     var sheet = shell([
-      hline(backLink('Home'), starsRd(total)),
+      hline('', starsRd(total)),
       '<h2 class="pxh">Campaign<small>Choose your battlefield.</small></h2>',
       '<p class="copy">Every stage reshapes the table. Clear objectives, earn stars, unlock stronger power cards.</p>',
       '<div class="globe" id="globe"></div>',
       '<p class="attract static">Drag to spin · tap a world</p>',
       cab('w1', 'Enter World 1', 'Five stages'),
-      '<div class="scard">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>'
+      '<div class="scard tight">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>',
+      pxBack('Home')
     ].join(''), true);
-    sheet.classList.add('sub');
+    mark(sheet, 'sub');
 
     on('#w1', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'world' }); }, sheet);
@@ -1027,7 +1065,7 @@
     var objList = cur ? objectiveRows(LEVELS.objectives(cur, null), false) : '';
 
     var sheet = shell([
-      hline(backLink('Map'), starsRd(total)),
+      hline('', starsRd(total)),
       dmdBox('dmdl'),
       '<div class="translite" id="lart" style="background-image:' + artUrl('lvl_' + curId) + '"><div class="tl-shade"></div>' +
         '<div class="tl-cap" id="lcap">' + (cur ? capFor(cur) : '') + '</div></div>',
@@ -1035,11 +1073,12 @@
       '<div class="plate slim" id="objs">' + objList + '</div>',
       '<div class="spacer"></div>',
       cab('launch', 'Play stage ' + curId, cur ? cur.name : ''),
-      '<div class="scard">' + scRow('deck', 'Power cards', '', 'mag') + '</div>'
+      '<div class="scard tight">' + scRow('deck', 'Power cards', '', 'mag') + '</div>',
+      pxBack('Map')
     ].join(''), true);
-    sheet.classList.add('sub');
+    mark(sheet, 'sub');
 
-    var dmd = dmdRun(sheet, 'dmdl', cur ? [['WORLD 1']].concat(msgsFor(cur)) : [['WORLD 1']]);
+    var dmd = dmdRun(sheet, 'dmdl', cur ? [['WORLD 1']].concat(msgsFor(cur)) : [['WORLD 1']], true);
 
     var selectedId = curId;
     onAll('.ins', function (n) {
@@ -1143,7 +1182,7 @@
     var backLabel = nextLvl ? 'Levels' : (ctx && ctx.back === 'title' ? 'Home' : (ctx && ctx.back === 'world' ? 'Map' : (ctx && ctx.back === 'endless' ? 'Endless' : 'Levels')));
 
     var sheet = shell([
-      hline(backLink(backLabel), starsRd(total)),
+      hline('', starsRd(total)),
       dmdBox('dmdc'),
       '<div class="feat' + (selHas ? '' : ' lock') + '" id="feat">' +
         '<div class="feat-art" style="background-image:' + (selArt ? 'url(' + selArt.src + ')' : 'none') + '"></div>' +
@@ -1154,16 +1193,17 @@
       '<div class="slots">' + slots + '</div>',
       '<div class="cardgrid">' + grid + '</div>',
       '<div class="spacer"></div>',
-      nextLvl ? cab('play', 'Play stage ' + nextLvl.id, nextLvl.name) : ''
+      nextLvl ? cab('play', 'Play stage ' + nextLvl.id, nextLvl.name) : '',
+      pxBack(backLabel)
     ].join(''), true);
-    sheet.classList.add('sub');
-    sheet.classList.add('deck-screen');
+    mark(sheet, 'sub');
+    mark(sheet, 'deck-screen');
 
     /* The display carries the rule that matters right now. */
     var msgs = [['POWER CARDS'], [owned.cards.length + ' OF ' + cardsMax + ' OWNED', owned.slots + (owned.slots === 1 ? ' SLOT' : ' SLOTS')]];
     msgs.push(owned.cards.length > owned.slots ? ['SLOTS FULL', 'TAP A CARD TO SWAP'] : ['TAP A CARD', 'TO EQUIP IT']);
     if (nextLvl) msgs.push(['NEXT UP', 'STAGE ' + nextLvl.id + ' ' + nextLvl.name.toUpperCase()]);
-    dmdRun(sheet, 'dmdc', msgs, !!(ctx && ctx.again));
+    dmdRun(sheet, 'dmdc', msgs, true);
 
     onAll('.pc', function (n) {
       var id = n.getAttribute('data-id');
@@ -1233,7 +1273,7 @@
       ? CARDS.PLAYER[LEVELS.ENDLESS.levelCard].name : null;
 
     var sheet = shell([
-      hline(backLink('Home'), starsRd(total)),
+      hline('', starsRd(total)),
       dmdBox('dmdx'),
       '<div class="translite tall" style="background-image:' + artUrl('lvl_5') + '"><div class="tl-shade"></div>' +
         '<div class="tl-cap"><span class="kick" style="color:#ff7ac0">Endless mode</span><b class="nm">Survive the swarm</b>' +
@@ -1246,14 +1286,15 @@
       '</div>',
       '<div class="spacer"></div>',
       cab('go', 'Start run', best ? 'Beat wave ' + best : 'Set a record'),
-      '<div class="scard">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>'
+      '<div class="scard tight">' + scRow('deck', 'Power cards', owned.cards.length + '/' + cardsMax, 'mag') + '</div>',
+      pxBack('Home')
     ].join(''), true);
-    sheet.classList.add('sub');
+    mark(sheet, 'sub');
 
     dmdRun(sheet, 'dmdx', [['ENDLESS'],
       best ? ['BEST RUN', 'WAVE ' + best] : ['NO RECORD', 'SET ONE'],
       ['EVERY 10TH WAVE', 'IS A BOSS'],
-      ['PRESS START']]);
+      ['PRESS START']], true);
 
     on('#go', function () { sfx('ui_tap'); if (hooks.onStartLevel) hooks.onStartLevel('endless'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'endless' }); }, sheet);
@@ -1276,15 +1317,15 @@
         scRow('qt', 'Quit to menu', '', 'mag') + '</div>',
       '<div class="spacer"></div>'
     ].join(''), false);
-    sheet.classList.add('sub');
-    sheet.classList.add('pause');
+    mark(sheet, 'sub');
+    mark(sheet, 'pause');
 
     var msgs = [['PAUSED']];
     if (S && S.level) {
       msgs.push(['WAVE ' + Math.max(1, S.waveIndex + 1) + (S.level.endless ? '' : ' OF ' + S.level.waves.length),
         (S.level.endless ? 'ENDLESS' : S.level.name.toUpperCase())]);
     }
-    dmdRun(sheet, 'dmdp', msgs);
+    dmdRun(sheet, 'dmdp', msgs, true);
 
     on('#res', function () { sfx('ui_back'); global.GAME.resume(); }, sheet);
     on('#rst', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
@@ -1353,12 +1394,12 @@
       scRow('menu', 'Levels', ''),
       '</div>'
     ].join(''), true);
-    sheet.classList.add('sub');
-    sheet.classList.add('results-screen');
+    mark(sheet, 'sub');
+    mark(sheet, 'results-screen');
 
     dmdRun(sheet, 'dmdr', d.win
       ? [['LEVEL CLEAR'], ['STAGE ' + d.level.id, name], [(d.stars || 0) + (d.stars === 1 ? ' STAR' : ' STARS')]]
-      : [['BREACHED'], ['STAGE ' + d.level.id, name], ['WAVE ' + (d.wave || 1) + ' OF ' + (d.waves || '?')]]);
+      : [['BREACHED'], ['STAGE ' + d.level.id, name], ['WAVE ' + (d.wave || 1) + ' OF ' + (d.waves || '?')]], true);
 
     on('#next', function () {
       sfx('ui_tap');
@@ -1387,11 +1428,11 @@
       cab('retry', 'Go again', 'Endless'),
       '<div class="scard">' + scRow('menu', 'Home', '') + '</div>'
     ].join(''), true);
-    sheet.classList.add('sub');
-    sheet.classList.add('results-screen');
+    mark(sheet, 'sub');
+    mark(sheet, 'results-screen');
 
     dmdRun(sheet, 'dmde', [['RUN OVER'], ['WAVE ' + (d.wave || 0)],
-      d.newBest ? ['NEW BEST', 'WAVE ' + d.wave] : ['BEST RUN', 'WAVE ' + (d.best || 0)]]);
+      d.newBest ? ['NEW BEST', 'WAVE ' + d.wave] : ['BEST RUN', 'WAVE ' + (d.best || 0)]], true);
 
     on('#retry', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
     on('#menu', function () { sfx('ui_back'); global.GAME.quitToMenu(); }, sheet);
@@ -1410,7 +1451,8 @@
     while (dmdRuns.length) dmdRuns.pop().stop();
     if (!name) {
       root.classList.remove('on');
-      root.innerHTML = '';
+      var sh = root.querySelector('.sheet');
+      if (sh) sh.parentNode.removeChild(sh);
       return;
     }
     root.classList.add('on');

@@ -314,24 +314,29 @@
     return tex;
   }
 
-  /* Brushed-metal streaks for the cabinet panels. */
-  function brushedTexture() {
-    var w = 256, h = 256, cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
+  /* The cabinet head and apron are backglass: black plates on the same
+   * unlit dot grid every menu sits on, so the machine and its screens read
+   * as one object. One texture pixel is one virtual unit and each plate
+   * gets its own repeat, so the dots stay 28 units apart on both. An
+   * earlier brushed-steel finish rendered as a grey band above and below
+   * the table and broke the black-glass look of everything around it. */
+  function glassPlateTexture(w, h) {
+    var s = 224, cv = document.createElement('canvas');
+    cv.width = s; cv.height = s;
     var ctx = cv.getContext('2d');
-    ctx.fillStyle = '#0d1222';
-    ctx.fillRect(0, 0, w, h);
-    var rng = U.rng(9);
-    for (var i = 0; i < 900; i++) {
-      var y = rng() * h, a = 0.02 + rng() * 0.05;
-      ctx.strokeStyle = 'rgba(' + (rng() < 0.5 ? '160,200,230' : '40,60,90') + ',' + a + ')';
-      ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y + (rng() - 0.5) * 2); ctx.stroke();
+    ctx.fillStyle = '#05070f';
+    ctx.fillRect(0, 0, s, s);
+    ctx.fillStyle = 'rgba(63,224,255,0.17)';
+    for (var y = 14; y < s; y += 28) {
+      for (var x = 14; x < s; x += 28) {
+        ctx.beginPath(); ctx.arc(x, y, 1.7, 0, U.TAU); ctx.fill();
+      }
     }
     var tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(3, 1);
+    tex.repeat.set(w / s, h / s);
+    tex.anisotropy = 4;
     return tex;
   }
 
@@ -405,17 +410,38 @@
       ctx.beginPath(); ctx.arc(360, 600 - top, 168, 0, U.TAU); ctx.stroke();
     }
 
-    /* Lane hairlines from the spawn gates. */
-    ctx.setLineDash([4, 10]);
-    ctx.strokeStyle = 'rgba(63,224,255,0.18)';
-    ctx.lineWidth = 1.5;
+    /* Lane inserts under the gates: a tapered arrow down each lane with a
+     * chevron at its head, the printed "this way in" a real table carries
+     * under its lanes. They end just above the first slot row. */
     for (var l = 0; l < BOARD.LANES.length; l++) {
+      var lx = BOARD.LANES[l], ly0 = BOARD.SPAWN_Y - top + 4, ly1 = 260 - top;
+      var lg = ctx.createLinearGradient(0, ly0, 0, ly1);
+      lg.addColorStop(0, 'rgba(63,224,255,0.20)');
+      lg.addColorStop(1, 'rgba(63,224,255,0.02)');
+      ctx.fillStyle = lg;
       ctx.beginPath();
-      ctx.moveTo(BOARD.LANES[l], BOARD.SPAWN_Y - top);
-      ctx.lineTo(BOARD.LANES[l], 250 - top);
+      ctx.moveTo(lx - 13, ly0); ctx.lineTo(lx + 13, ly0);
+      ctx.lineTo(lx + 4, ly1); ctx.lineTo(lx - 4, ly1);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(63,224,255,0.14)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(63,224,255,0.30)';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(lx - 7, ly0 + 12); ctx.lineTo(lx, ly0 + 19); ctx.lineTo(lx + 7, ly0 + 12);
       ctx.stroke();
     }
-    ctx.setLineDash([]);
+
+    /* The maker's mark above the drain, printed where a real table carries
+     * its name. Quiet enough to sit under a passing ball. */
+    ctx.font = '24px "Ken Pixel","Segoe UI",system-ui,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(143,232,255,0.13)';
+    ctx.fillText('M E G A B A L L', 360, 1180 - top);
 
     /* Drain approach: chevrons and a darker apron so the exit reads as the
      * dangerous end of the table. */
@@ -440,6 +466,11 @@
     vg.addColorStop(1, 'rgba(0,0,0,0.46)');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, w, h);
+
+    /* Nothing past the cabinet frame: the frame is the edge of the machine. */
+    ctx.fillStyle = C.void;
+    ctx.fillRect(0, 0, WL - 14, h);
+    ctx.fillRect(WR + 14, 0, w - (WR + 14), h);
 
     var tex = new THREE.CanvasTexture(cv);
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -504,7 +535,10 @@
     });
     /* The cabinet: gloss black-navy toy plastic with a clear coat. */
     M.frame = new Phys({ color: 0x0f1630, roughness: 0.42, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.12 });
-    M.cab = new Phys({ map: brushedTexture(), color: 0xffffff, roughness: 0.5, metalness: 0.6, clearcoat: 0.6, clearcoatRoughness: 0.25 });
+    /* Head and apron plates: black glass over the dot grid (see
+     * glassPlateTexture); sized in buildStatic, so the maps are made there. */
+    M.cab = new Phys({ color: 0xffffff, roughness: 0.4, metalness: 0.06, clearcoat: 0.9, clearcoatRoughness: 0.3, envMapIntensity: 0.3 });
+    M.cabApron = M.cab.clone();
     /* Chrome for pins, hubs and the inner rail lip. */
     M.chrome = new THREE.MeshStandardMaterial({ color: 0xe8f0fa, roughness: 0.16, metalness: 1.0 });
     M.rail = new THREE.MeshStandardMaterial({ color: 0x7d93c2, roughness: 0.28, metalness: 0.92 });
@@ -515,7 +549,10 @@
      * sit on, so flippers and paddle arms read as cyan-family even unlit. */
     M.poly = new Phys({ color: col(C.cyanDeep), roughness: 0.35, metalness: 0.1, clearcoat: 0.8, clearcoatRoughness: 0.2 });
     M.polyDark = new THREE.MeshStandardMaterial({ color: 0x0b0f1c, roughness: 0.5, metalness: 0.2 });
-    M.slot = new THREE.MeshStandardMaterial({ color: 0x27334f, roughness: 0.35, metalness: 0.85 });
+    /* Mounting sockets are let into the print, dark and quiet: 28 of them
+     * in bright chrome turned the field into a grid of dots and buried the
+     * pegs, which are what the ball actually hits. */
+    M.slot = new THREE.MeshStandardMaterial({ color: 0x0d1428, roughness: 0.55, metalness: 0.45 });
     M.slotHole = new THREE.MeshStandardMaterial({ color: 0x030408, roughness: 1, metalness: 0 });
     /* Bumper dome: frosted polycarbonate over a lit core. */
     M.dome = new Phys({
@@ -563,11 +600,15 @@
      * VIEW_TOP and below VH), so each plate runs well past the board and the
      * wider frustum simply takes in more cabinet. */
     var HEAD_UP = 480, APRON_DOWN = 480;
+    M.cab.map = glassPlateTexture(VW, 96 + HEAD_UP);
+    M.cab.needsUpdate = true;
+    M.cabApron.map = glassPlateTexture(VW, VH + APRON_DOWN - 1254);
+    M.cabApron.needsUpdate = true;
     var head = new THREE.Mesh(new THREE.BoxGeometry(VW, 96 + HEAD_UP, 28), M.cab);
     place(head, VW / 2, (96 - HEAD_UP) / 2, 14);
     head.receiveShadow = true;
     board.add(head);
-    var apron = new THREE.Mesh(new THREE.BoxGeometry(VW, VH + APRON_DOWN - 1254, 28), M.cab);
+    var apron = new THREE.Mesh(new THREE.BoxGeometry(VW, VH + APRON_DOWN - 1254, 28), M.cabApron);
     place(apron, VW / 2, (1254 + VH + APRON_DOWN) / 2, 14);
     apron.receiveShadow = true;
     board.add(apron);
@@ -641,8 +682,13 @@
     bolts.position.z = 32;
     board.add(bolts);
 
-    /* Spawn gates: five chrome chutes let into the top rail, each with a
-     * magenta LED slit so the player always knows where the threat enters. */
+    /* Spawn gates: five dark chutes let into the top rail under one
+     * continuous steel header, each with a magenta LED slit so the player
+     * always knows where the threat enters. (Separate chrome trims per gate
+     * read as a checkerboard along the top of the table.) */
+    var header = new THREE.Mesh(new THREE.BoxGeometry(WR - WL - 8, 6, 36), M.alu);
+    place(header, VW / 2, BOARD.CEIL - 12, 18);
+    board.add(header);
     var slitGlow = [];
     for (i = 0; i < BOARD.LANES.length; i++) {
       var x = BOARD.LANES[i];
@@ -651,9 +697,6 @@
       place(housing, x, BOARD.CEIL + 2, 17);
       housing.castShadow = true;
       board.add(housing);
-      var trim = new THREE.Mesh(new THREE.BoxGeometry(62, 6, 36), M.chrome);
-      place(trim, x, BOARD.CEIL - 12, 18);
-      board.add(trim);
       var mouth = new THREE.Mesh(new THREE.BoxGeometry(42, 12, 20), M.slotHole);
       place(mouth, x, BOARD.CEIL + 12, 10);
       board.add(mouth);
@@ -829,7 +872,7 @@
       var hole = mergeAt(postGeo(5, 2.1), pts, M.slotHole);
       hole.castShadow = false;
       tableGroup.add(hole);
-      var ring = mergeAt(ringGeo(11.5, 0.7), pts, led(C.cyan, 0.7));
+      var ring = mergeAt(ringGeo(11.5, 0.55), pts, led(C.cyan, 0.42));
       ring.position.z = 1.9;
       ring.castShadow = ring.receiveShadow = false;
       tableGroup.add(ring);
@@ -1190,13 +1233,22 @@
       })(defs[i]);
     }
     var k = 0;
+    /* Each step waits for the next animation frame so the splash can paint,
+     * but a page opened in a background tab gets no frames at all, so a
+     * timer stands in and the boot can never stall. */
+    function schedule() {
+      var fired = false;
+      function go() { if (fired) return; fired = true; tick(); }
+      requestAnimationFrame(go);
+      setTimeout(go, 150);
+    }
     function tick() {
       try { steps[k](); } catch (e) { /* see above */ }
       k++;
-      if (k < steps.length) requestAnimationFrame(tick);
+      if (k < steps.length) schedule();
       else if (done) done();
     }
-    requestAnimationFrame(tick);
+    schedule();
   };
 
   /* Renderer statistics for the last frame (draw calls, triangles). Used by

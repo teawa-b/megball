@@ -280,6 +280,137 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
 - Verified in the in-app browser: boot sequence, title after warm-up, level 2, level 4 and
   endless starts timed from script; no console errors; build + verify PASS.
 
+## 4k. No flicker between screens
+
+- The author saw a flicker on every home-screen tap. Two causes: the "lamps on" entry
+  effect ran on every screen change, and `shell()` rebuilt the backdrop (key art, veil, grid,
+  glass) with each screen. Now the backdrop is built once in `UI.init` and stays put; a
+  screen change swaps only the sheet under a plain cross-fade (`screenIn`), the power-on
+  flicker, logo/button reveals and display sparkle play only on the first home screen after
+  boot (`.boot`), and sub-screen displays wipe their first message straight in. Backdrop
+  variants are selected by classes on `#ui` (`hero`, `home`, `sub`, `pause`, `nobg`) via
+  `mark(sheet, cls)`.
+
+## 4l. The in-game view as one machine
+
+- The author liked the menus and asked for the playable view to match them and sit better on
+  a portrait phone. What was wrong, seen against the black-glass menus: the cabinet head and
+  apron were grey brushed steel, the HUD was a pill floating on that plate with margins all
+  round, the field was a grid of 28 bright chrome slot discs, five separate chrome gate trims
+  made a checkerboard along the top, and the card hand sat in a bright-bordered box on a box.
+- Cabinet (`src/scene3d.js`): the head and apron plates are now black backglass on the dot
+  grid (`glassPlateTexture`, one texel per unit, 28-unit dot pitch, own repeat per plate) with
+  a soft clear coat; the print stops at the frame (void outside it), so the frame is the edge
+  of the machine and the lit strip of print past the right wall no longer reads as a border.
+  The gate trims are one continuous steel header; the mounting slots are dark sockets with a
+  dim ring, so the pegs and towers, the things the ball hits, carry the light. The print gets
+  tapered lane-arrow inserts under the gates and a quiet maker's mark above the drain.
+- Backglass HUD (`drawHud` in `src/render.js`): one display plate the width of the cabinet,
+  dot grid, scanlines, bezel screws, docked to the frame's pinstripe. The readout row (lamps,
+  wave and energy in dots, cabinet pause button) sits nearest the table. A tall phone's extra
+  head becomes a second row: MEGABALL / STAGE n bezel captions and a live dot-matrix ticker
+  (`hudTicker`): active card effects with their timers, else during the build the next wave's
+  roster and the star challenge take turns, and during a wave the balls still to deal with.
+  Short viewports keep the one-row glass and the modifier chips under it.
+- Tray: the hand is a well let into the apron (dark, top edge in shadow, cyan breath on the
+  lip, POWER CARDS caption plate breaking the edge) rather than a bordered plate; the pile
+  prices are a bolt lamp and amber dot digits, the energy counter's own language. The tower
+  upgrade panel is refit to the 130-unit band (it ran to 1408 in a band ending at 1370, so
+  the price line fell off the bottom of a short phone): name row with lamp and CLOSE, then
+  74-unit cards with two-line blurbs, ending inside the band.
+- Verified in the in-app browser at 375x812 and 375x667: build phase (banner, ticker
+  alternating NEXT / STAR), wave (balls-left ticker), tower selected (upgrade panel), no
+  console errors; draw calls unchanged (59 on stage 1); `node tools/build.js` +
+  `node tools/verify.js` PASS.
+
+## 4m. New wordmark; the way out is a cabinet button
+
+- Wordmark: `assets/raw/logo_megaball.png` is the MegaBall Defense banner (2172x724, alpha),
+  packed at 900x300 (`logo_` size rule in `tools/pack_assets.py`, 49 KB WebP). The plate is a
+  3:1 banner rather than the old 640x430 square, so `.brand-logo` takes `aspect-ratio:3/1`,
+  the home brand runs the full sheet width, and the top spacer is weighted down (.28) so the
+  wordmark rides high on the backglass instead of floating in the middle of the art.
+- Back navigation: the `MAP` / `HOME` text link above the star readout is gone. Every
+  sub-screen (campaign, stage select, power cards, endless) now ends with `.pxbk` -- a
+  full-width pixel back button under the last option, stair-cut corners (`pxc()`, whole-cell
+  steps rather than a machined bevel) and an 8x8 block arrow. It keeps `id="back"`, so
+  Escape and Backspace still route through it. The readout row it vacated shrinks to 26px
+  and the scorecard above the button stops stretching (`.scard.tight`), which is what keeps
+  the button under POWER CARDS instead of drifting to the floor of the sheet.
+- Verified in the in-app browser at 375x812 and 375x667: all four sub-screens plus the title,
+  no console errors.
+## 4n. Tower upgrades as a level-up pick
+
+- Tapping a tower during a wave is now a decision beat: the table ramps into 12% speed over
+  a quarter second (`selT` factor in the time scaling in `src/game.js`), the mix drops under
+  the slow-motion lowpass and `slowmo_in` plays; closing lifts the filter unless a Slow Time
+  card still owns it. `S.selFor` / `S.selT` track which tower the pick is open for and how
+  long, ahead of the mode gate so quitting with a pick open still restores the mix.
+- The pick itself left the apron. `drawUpgradeModal` (`src/render.js`) dims the field and
+  lays the options out as big cards across the middle of the board (206x330 for a bumper's
+  three, 236 wide for a paddle's two): a colour-banded header with the name, the tower's
+  silhouette as art, the blurb, and an amber price plate (or NEED n MORE in magenta). SELL
+  and CLOSE share a row underneath; a tier-2 tower with nothing left to become gets just
+  that row, mid-screen. Every card rises from below the screen edge in turn, left to right,
+  90 ms apart, overshooting and settling (`popIn`, `U.ease.outBack`).
+- Taps: `DRAW.hitUpgrade` tests the same board-space rects the painter used, ahead of the
+  tray in `pointerDown`; a tap on the HUD or tray closes the pick, a field tap falls through
+  so it can re-target another tower or close-and-flip. `DRAW.upgradeRects` now returns
+  board-space rects, so the tutorial's spotlights follow; its upgrade lessons read from the
+  low slot under the cards instead of mid-screen.
+- Verified in the in-app browser at 375x812: cards arrive one, two, three; tapping SHOCK
+  upgrades (460 -> 385 E) and the re-opened pick shows the tier-2 SELL / CLOSE row; the ball
+  crawls while the pick is up; no console errors.
+## 4o. Cooldowns on the upgrade pick; Blast Bumper re-arms slower
+
+- Every option card in the upgrade pick now carries a cooldown chip under its blurb:
+  `0.58S SWING CD` for paddles, `2.6S BLAST CD` / `0.95S CHAIN CD` for the specialised
+  bumpers, `NO COOLDOWN` for the plain and launch bumpers (`towerCdLabel` in render.js).
+  The heading shows the tapped tower's own cooldown and its live state: `READY`, or
+  `READY IN 0.4S` in amber while it recharges. `chip` learned a `center` side for this.
+- The Blast Bumper detonated every 1.4 s, which made it a near-permanent area denial
+  once two balls were in play. Its `blastCd` is now 2.6 s; the arc around the bumper
+  reads the new value, so the re-arm is visible on the table too.
+- Verified in the in-app browser at 375x812 on stage 2: a fresh paddle with 0.45 s of
+  swing left shows `0.62S SWING CD / READY IN 0.1S` in the heading; both paddle and
+  bumper picks show the chips inside the cards; no console errors.
+
+## 4p. Paddles that hit but did not hurt
+
+- Report: a paddle would visibly connect with a ball (kick, sparks, sound) and the ball
+  took no damage. Cause: `towerPaddleHit` only dealt damage while the arm's angular
+  speed was above 4 rad/s. The paddle leads the ball by ~0.07 s, so the ball usually
+  arrives at full extension or on the slow reset, where that speed is near zero. In a
+  scripted 60 s run with six paddles, 27% of arm contacts during a swing fell in that
+  slow phase.
+- Now the whole 0.34 s swing cycle is live. The outward stroke and the extension carry
+  the arm's velocity and the full launch force; the reset gives a softer 55% kick and no
+  arm velocity (it would drag the ball inward). Paddles got the bumpers' per-ball
+  `hitCds` map so a ball resting against a resetting arm takes one hit per swing, not
+  one per frame.
+- Verified in the in-app browser on stage 2: 147 contact frames during swings produced
+  120 damage events (the rest are the same ball within 0.3 s), 57 of 72 drones killed.
+
+## 4q. Tutorial: look cues no longer read as tap cues
+
+- Report: several lessons point at a control and the player taps it, but the tap just
+  advances the card. The DEFENSES arrow sat over the tray, PADDLE pointed at the PADDLE
+  button, and each upgrade card (BLAST, SHOCK, LAUNCH, SELL) was cut out of the dim
+  mask with the same pulsing cyan rim the lesson uses for "tap one of the GLOWING
+  slots". Same picture, two meanings.
+- Now the picture says which it is. A card that continues on any tap prints TAP
+  ANYWHERE TO CONTINUE whenever a pointer or spotlight is up, its spotlight rim is a
+  steady thin amber line (cyan pulse is reserved for something to tap), and every
+  show-only arrow carries a caption (ENEMY, BUMPER, ENERGY, PADDLE, BLAST BUMPER,
+  SELL) so it reads as a label rather than an instruction. PADDLE says you build one
+  later.
+- Where the arrow points at a real button the tap counts: a step's `allow` now wins
+  over tap-to-continue, so tapping BUMPER during DEFENSES picks it and skips straight
+  to PLACE IT.
+- Verified in the in-app browser at 375x812 by stepping the loop from JS: welcome,
+  defend (early BUMPER tap lands on placeBumper), paddle, all four upgrade cards, and
+  the card step render as described; the interactive steps are unchanged.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

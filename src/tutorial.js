@@ -319,8 +319,8 @@
       } else if (T.flag) {
         T.wait -= T.dt;
         if (T.wait <= 0 && !T.msg) {
-          say('THE ENEMY', 'This is an enemy ball. It only wants one thing: to reach the drain. Tap to let it go.', { pos: 'low' });
-          point('arrow', 0, 0, { dir: 'down', ball: T.ball, board: true });
+          say('THE ENEMY', 'This is an enemy ball. It only wants one thing: to reach the drain. Tap anywhere to let it go.', { pos: 'low' });
+          point('arrow', 0, 0, { dir: 'down', ball: T.ball, board: true, label: 'ENEMY' });
         }
       }
     },
@@ -383,9 +383,17 @@
   STEPS.defend = {
     enter: function () {
       zoom(1);
+      if (S.energy < ENT.TOWERS.bumper.cost) S.energy = ENT.TOWERS.bumper.cost;
       say('DEFENSES', 'To destroy balls you build DEFENSES. BUMPERS and PADDLES sit in the slots on the table and fight on their own.', { pos: 'top' });
-      point('arrow', 0, 0, { dir: 'down', tray: 'builds' });
+      point('arrow', 0, 0, { dir: 'down', tray: 'bumper', label: 'BUMPER' });
     },
+    /* The arrow points at real buttons, so an eager tap on BUMPER counts:
+     * it picks the bumper and skips straight to placing it. */
+    allow: function (x, y) {
+      var r = buildCell('bumper');
+      return !!(r && inRect(x, y, r));
+    },
+    update: function () { if (S.buildPick === 'bumper') return 'placeBumper'; },
     next: 'pickBumper'
   };
 
@@ -487,7 +495,7 @@
         slow(1, 0.25);
         zoom(1);
         say('DESTROYED', 'Bumpers damage and kick anything that touches them. Every kill pays out ENERGY. Spend it on more defenses.', { pos: 'mid' });
-        point('arrow', VW - 110, 100, { dir: 'up' });
+        point('arrow', VW - 110, 100, { dir: 'up', label: 'ENERGY' });
       }
     },
     next: 'paddle'
@@ -495,8 +503,8 @@
 
   STEPS.paddle = {
     enter: function () {
-      say('PADDLES', 'The other defense: a robot flipper that swings at anything in reach. Mix bumpers and paddles.', { pos: 'top' });
-      point('arrow', 0, 0, { dir: 'down', tray: 'paddle' });
+      say('PADDLES', 'The other defense: a robot flipper that swings at anything in reach. Mix bumpers and paddles. You will build one later.', { pos: 'top' });
+      point('arrow', 0, 0, { dir: 'down', tray: 'paddle', label: 'PADDLE' });
     },
     next: 'upgradeOpen'
   };
@@ -522,8 +530,12 @@
   function upgStep(to, title, body, next) {
     return {
       enter: function () {
-        say(title, body, { pos: 'mid' });
+        /* The pick's cards fill mid-screen; the lesson reads from under them.
+         * This is a tour, not a purchase: the card is dimmed-around and
+         * labelled, never offered with a tap cue. */
+        say(title, body, { pos: 'low' });
         T.spotTray = to;
+        point('arrow', 0, 0, { dir: 'down', tray: to === 'sell' ? 'sell' : 'up:' + to, label: title });
       },
       exit: function () { T.spotTray = null; },
       next: next
@@ -666,10 +678,10 @@
     if (!T) return false;
     if (inRect(x, y, skipBtn)) { sfx('ui_back'); finish(false); return true; }
     if (y < U.BAND.hud) return false;                 // pause still works
-    if (T.msg && T.msg.tap) { advance(); return true; }
     var st = T.step;
+    if (st && st.allow && st.allow(x, y)) return false;   // let it through to the game
+    if (T.msg && T.msg.tap) { advance(); return true; }
     if (st && st.allow) {
-      if (st.allow(x, y)) return false;      // let it through to the game
       if (st.deny) st.deny(x, y);
       return true;                           // swallowed: not part of this step
     }
@@ -728,6 +740,8 @@
       if (p.tray === 'bumper') r = buildCell('bumper');
       else if (p.tray === 'paddle') r = buildCell('paddle');
       else if (p.tray === 'card0') r = cardCell(0);
+      else if (p.tray === 'sell') r = sellRect();
+      else if (p.tray.indexOf('up:') === 0) r = upgradeRect(p.tray.slice(3));
       else if (p.tray === 'builds') {
         var a = buildCell('paddle'), b = buildCell('bumper');
         if (a && b) r = { x: a.x, y: a.y, w: b.x + b.w - a.x, h: a.h };
@@ -770,8 +784,9 @@
     ctx.fillStyle = 'rgba(3,4,10,0.58)';
     ctx.fill('evenodd');
     /* Glowing rim on each hole so the cut-out reads as "look here". */
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = U.rgba(C.cyan, 0.55 + 0.25 * Math.sin(T.time * 5));
+    var live = !(T.msg && T.msg.tap);
+    ctx.lineWidth = live ? 3 : 2;
+    ctx.strokeStyle = live ? U.rgba(C.cyan, 0.55 + 0.25 * Math.sin(T.time * 5)) : U.rgba(C.amber, 0.6);
     for (var k = 0; k < holes.length; k++) {
       var g = holes[k];
       if (g.kind === 'circle') { ctx.beginPath(); ctx.arc(g.x, g.y, g.r, 0, TAU); ctx.stroke(); }
@@ -932,7 +947,7 @@
     if (m.tap) {
       var pulse = 0.5 + 0.5 * Math.sin(T.time * 4);
       lamp(ctx, x + w - pad - 4, y + h - 22, 4, C.amber, 0.35 + 0.65 * pulse);
-      txt(ctx, 'TAP TO CONTINUE', x + w - pad - 17, y + h - 22, 12,
+      txt(ctx, (T.pointer || T.spot || T.spotTray) ? 'TAP ANYWHERE TO CONTINUE' : 'TAP TO CONTINUE', x + w - pad - 17, y + h - 22, 12,
         U.rgba(C.white, 0.4 + 0.4 * pulse), 'right', '800', 2);
     }
     ctx.restore();

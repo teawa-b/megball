@@ -31,7 +31,7 @@ Q_STEP = 5
 # Draw sizes, keyed by name prefix. Order matters: first match wins.
 SIZE_RULES = [
     ("bg_", (720, 1440)),
-    ("logo_", (640, 430)),
+    ("logo_", (900, 300)),
     ("card_", (320, 320)),
     ("lvl_", (480, 270)),
 ]

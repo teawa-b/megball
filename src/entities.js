@@ -210,7 +210,7 @@
       blurb: 'Detonates on hit. Hurts everything in the blast.',
       color: C.magenta,
       r: 31, dmg: 1.4, kick: 520, restitution: 1.2, hitCd: 0.2,
-      blastR: 122, blastDmg: 3.4, blastCd: 1.4,
+      blastR: 122, blastDmg: 3.4, blastCd: 2.6,
       upgrades: []
     },
     shock: {
@@ -262,6 +262,7 @@
       t.restAngle = t.dir > 0 ? 0.62 : Math.PI - 0.62;
       t.activeAngle = t.dir > 0 ? -0.78 : Math.PI + 0.78;
       t.angle = t.restAngle;
+      t.hitCds = {};
     } else {
       t.r = d.r;
       t.hitCds = {};

@@ -67,6 +67,8 @@
     placedThisPhase: false,
     inspect: null,       // card detail popout (freezes the sim while open)
     selectedTower: null,
+    selFor: null,        // the tower the upgrade panel is open for
+    selT: 0,             // real seconds since it opened (drives the pop-in)
     hoverSlot: null,
 
     /* flippers */
@@ -881,12 +883,27 @@
     if (!PHYS.ballVsCapsule(b.x, b.y, b.r, t.x, t.y, tip[0], tip[1], t.armRad)) return;
 
     var d = t.def;
-    var swinging = t.swingT > 0 && Math.abs(t.omega) > 4;
-    var pv = PHYS.pointVelocity(hit.px, hit.py, t.x, t.y, t.omega);
-    var force = swinging ? d.force * (S.overchargeT > 0 ? 1.5 : 1) : 0;
+    /* A swing is live for its whole cycle, not only while the arm is moving
+     * fast. The paddle leads the ball by ~0.07s, so the ball usually arrives
+     * at full extension or on the slow reset, where the arm's angular speed
+     * is near zero; gating damage on that speed meant the ball got kicked,
+     * sparked and made the sound, and took no damage. The outward stroke and
+     * the extension carry the full launch, the reset a softer one. */
+    var swinging = t.swingT > 0;
+    var early = t.swingT > 0.34 * 0.5;
+    /* The arm's own velocity only helps on the outward stroke; on the reset
+     * it would drag the ball inward, so the reset relies on the minimum kick. */
+    var pv = PHYS.pointVelocity(hit.px, hit.py, t.x, t.y, early ? t.omega : 0);
+    var force = swinging ? d.force * (early ? 1 : 0.55) * (S.overchargeT > 0 ? 1.5 : 1) : 0;
     var imp = PHYS.resolve(b, 0.6, 0.05, pv[0], pv[1], force);
 
     if (!swinging && imp < 80) return;
+    /* One damage instance per ball per swing: the reset is slow enough that a
+     * ball can sit against the arm for several frames. */
+    if (swinging) {
+      if (S.time - (t.hitCds[b.id] || 0) < 0.3) return;
+      t.hitCds[b.id] = S.time;
+    }
 
     t.hitFlash = 0.18;
     var fx = global.FX;
@@ -1435,6 +1452,19 @@
     if (S.toastT > 0) S.toastT -= dtReal;
     if (S.banner) S.banner.t += dtReal;
 
+    /* Upgrade panel clock. Opening one drops the table into bullet time
+     * (see the time scaling below) and muffles the mix; the render side
+     * reads selT to pop the options in. Tracked ahead of the mode gate so
+     * quitting with a panel open still lifts the filter. */
+    if (S.selectedTower !== S.selFor) {
+      S.selFor = S.selectedTower;
+      S.selT = 0;
+      var lp = global.SFX;
+      if (S.selFor) { sfx('slowmo_in', { vol: 0.6 }); if (lp && lp.lowpass) lp.lowpass(0.75); }
+      else if (lp && lp.lowpass && S.slowT <= 0) lp.lowpass(0);
+    }
+    if (S.selFor) S.selT += dtReal;
+
     if (S.mode === 'menu' || S.mode === 'boot' || S.mode === 'paused' ||
       S.mode === 'won' || S.mode === 'lost') {
       return;
@@ -1465,6 +1495,10 @@
     /* Build mode heavily slows rather than hard-pausing: the table stays
      * alive so the player can see what they are building against. */
     if (S.mode === 'wave' && S.buildPick) ts *= 0.22;
+    /* An open upgrade panel is a decision, so the table nearly stops: a
+     * quarter-second ramp into 12% speed, so the ball smears to a crawl
+     * rather than snapping. */
+    if (S.selectedTower) ts *= 1 - 0.88 * Math.min(1, S.selT / 0.25);
     /* Tutorial owns the clock: bullet time on the lesson ball, a full freeze
      * while a card is on screen. Its own step timer runs on real time. */
     if (S.mode === 'tutorial' && global.TUT) {
@@ -1645,6 +1679,19 @@
     if (S.mode === 'tutorial' && global.TUT && global.TUT.pointerDown(p.x, p.y)) {
       pointers[id].role = 'ui';
       return;
+    }
+
+    /* 0b. An open upgrade pick owns its buttons. A tap on the HUD or tray
+     * just closes it; a tap on the field falls through, so it can re-target
+     * another tower or close-and-flip (see 4). */
+    if (S.selectedTower && global.DRAW && global.DRAW.hitUpgrade) {
+      if (global.DRAW.hitUpgrade(p.x, p.y)) { pointers[id].role = 'ui'; return; }
+      if (p.y >= U.BAND.trayTop || p.y < U.BAND.hud) {
+        pointers[id].role = 'ui';
+        S.selectedTower = null;
+        sfx('ui_back');
+        return;
+      }
     }
 
     /* 1. Tray (cards + build bar) owns everything below the drain. */
