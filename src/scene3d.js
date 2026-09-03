@@ -35,6 +35,8 @@
   var U = global.U, BOARD = global.BOARD;
   var C = U.C;
   var VW = U.VW, VH = U.VH;
+  /* The packed art atlases are 720x1440 regardless of the live VH. */
+  var ART_H = 1440;
   var WL = U.WALL_L, WR = U.WALL_R;
   var TRAY_TOP = U.BAND.trayTop;
 
@@ -46,9 +48,12 @@
   var keyLight = null;
   var vp = { scale: 1, ox: 0, oy: 0, w: VW, h: VH, dpr: 1 };
 
-  /* Camera: a perspective camera whose z = 0 footprint is exactly VW x VH. */
+  /* Camera: a perspective camera whose z = 0 footprint is exactly the
+   * visible band, VW x (VH - VIEW_TOP), matching DRAW.resize. */
+  var VIEW_TOP = U.VIEW_TOP || 0;
+  var VIEW_H = VH - VIEW_TOP;
   var FOV = 44;
-  var CAM_Z = (VH / 2) / Math.tan(FOV * Math.PI / 360);
+  var CAM_Z = (VIEW_H / 2) / Math.tan(FOV * Math.PI / 360);
 
   /* Materials are shared, created once. */
   var M = {};
@@ -352,7 +357,7 @@
       /* The art is packed at 720x1440 (whole virtual screen); take the slice
        * that lies under the table and keep it quiet under a navy wash. */
       var aw = art.naturalWidth || art.width, ah = art.naturalHeight || art.height;
-      var sy = top / VH * ah, sh = h / VH * ah;
+      var sy = top / ART_H * ah, sh = h / ART_H * ah;
       ctx.drawImage(art, 0, sy, aw, sh, 0, 0, w, h);
       ctx.fillStyle = 'rgba(8,11,22,0.16)';
       ctx.fillRect(0, 0, w, h);
@@ -554,8 +559,8 @@
     /* Cabinet panels above and below the table: brushed gloss plates the HUD
      * and card tray sit on, each with a cyan pinstripe where it meets the
      * frame. They turn the screen from "a rectangle" into "a machine". */
-    var head = new THREE.Mesh(new THREE.BoxGeometry(VW, 70, 28), M.cab);
-    place(head, VW / 2, 33, 14);
+    var head = new THREE.Mesh(new THREE.BoxGeometry(VW, 96, 28), M.cab);
+    place(head, VW / 2, 48, 14);
     head.receiveShadow = true;
     board.add(head);
     var apron = new THREE.Mesh(new THREE.BoxGeometry(VW, VH - 1254, 28), M.cab);
@@ -563,9 +568,9 @@
     apron.receiveShadow = true;
     board.add(apron);
     var pinTop = new THREE.Mesh(new THREE.BoxGeometry(VW - 60, 2.2, 1.5), led(C.cyan, 1.0));
-    place(pinTop, VW / 2, 66, 28.8);
+    place(pinTop, VW / 2, 95, 28.8);
     board.add(pinTop);
-    board.add(glowMesh(C.cyan, 0.32, VW / 2, 66, 30, VW - 40, 26));
+    board.add(glowMesh(C.cyan, 0.32, VW / 2, 95, 30, VW - 40, 26));
     var pinBot = new THREE.Mesh(new THREE.BoxGeometry(VW - 60, 2.2, 1.5), led(C.cyan, 1.0));
     place(pinBot, VW / 2, 1256, 28.8);
     board.add(pinBot);
@@ -577,7 +582,7 @@
      * see is what the ball hits. The ring hugs the playfield walls — a wide
      * plastic band down each side made the table look boxed in, so the sides
      * are a slim 12-unit bead and the head and apron panels carry the rest. */
-    var outer = roundedRectShape(WL - 16, -(TRAY_TOP + 20), WR - WL + 32, TRAY_TOP + 20 - 66, 28);
+    var outer = roundedRectShape(WL - 16, -(TRAY_TOP + 20), WR - WL + 32, TRAY_TOP + 20 - 96, 28);
     var lipOuter = roundedRectShape(WL - 4, -(TRAY_TOP + 12), WR - WL + 8, TRAY_TOP + 12 - (BOARD.CEIL - 4), 50);
     outer.holes.push(lipOuter);
     g = new THREE.ExtrudeGeometry(outer, {
@@ -628,7 +633,7 @@
     board.add(rimGlow);
 
     /* Corner bolts on the cabinet frame. */
-    var bolts = mergeAt(G.bolt, [[22, 82], [VW - 22, 82], [22, TRAY_TOP + 4], [VW - 22, TRAY_TOP + 4]], M.chrome);
+    var bolts = mergeAt(G.bolt, [[22, 106], [VW - 22, 106], [22, TRAY_TOP + 4], [VW - 22, TRAY_TOP + 4]], M.chrome);
     bolts.position.z = 32;
     board.add(bolts);
 
@@ -637,12 +642,13 @@
     var slitGlow = [];
     for (i = 0; i < BOARD.LANES.length; i++) {
       var x = BOARD.LANES[i];
-      var housing = new THREE.Mesh(new THREE.BoxGeometry(58, 36, 34), M.aluDark);
-      place(housing, x, BOARD.CEIL - 2, 17);
+      /* Housings stay below the HUD's label line (y ~ 96). */
+      var housing = new THREE.Mesh(new THREE.BoxGeometry(58, 28, 34), M.aluDark);
+      place(housing, x, BOARD.CEIL + 2, 17);
       housing.castShadow = true;
       board.add(housing);
       var trim = new THREE.Mesh(new THREE.BoxGeometry(62, 6, 36), M.chrome);
-      place(trim, x, BOARD.CEIL - 18, 18);
+      place(trim, x, BOARD.CEIL - 12, 18);
       board.add(trim);
       var mouth = new THREE.Mesh(new THREE.BoxGeometry(42, 12, 20), M.slotHole);
       place(mouth, x, BOARD.CEIL + 12, 10);
@@ -1003,9 +1009,9 @@
     scene.environment = studioEnvironment();
     if ('environmentIntensity' in scene) scene.environmentIntensity = 0.82;
 
-    camera = new THREE.PerspectiveCamera(FOV, VW / VH, 200, CAM_Z + 400);
-    camera.position.set(VW / 2, -VH / 2, CAM_Z);
-    camera.lookAt(VW / 2, -VH / 2, 0);
+    camera = new THREE.PerspectiveCamera(FOV, VW / VIEW_H, 200, CAM_Z + 400);
+    camera.position.set(VW / 2, -(VIEW_TOP + VH) / 2, CAM_Z);
+    camera.lookAt(VW / 2, -(VIEW_TOP + VH) / 2, 0);
     scene.add(camera);
 
     /* Lighting: one cool-white key from the upper left with soft shadows,
@@ -1102,8 +1108,9 @@
 
     /* Clear the whole canvas, then draw into the same fitted rectangle the
      * 2D layer uses so both layers share one pixel grid. */
-    var w = VW * (vp.scaleX || vp.scale), h = VH * (vp.scaleY || vp.scale);
-    var x = vp.ox, y = vp.h - (vp.oy + h);
+    var sy = vp.scaleY || vp.scale;
+    var w = VW * (vp.scaleX || vp.scale), h = VIEW_H * sy;
+    var x = vp.ox, y = vp.h - (vp.oy + VIEW_TOP * sy + h);
     renderer.setScissorTest(false);
     renderer.setViewport(0, 0, vp.w, vp.h);
     renderer.clear(true, true, false);

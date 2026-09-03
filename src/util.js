@@ -11,11 +11,17 @@
   /* Every gameplay number in this project is expressed in these units.
    * Phones fill their viewport; wider desktop windows use a contained board. */
   U.VW = 720;
-  U.VH = 1440;
+  U.VH = 1370;
+  /* The first VIEW_TOP units of virtual y are never shown: they sit behind
+   * the HUD on the cabinet head panel, so the display maps y = VIEW_TOP..VH
+   * onto the screen. Gameplay coordinates are untouched by this — it is what
+   * lets the board present at ~0.54 rather than 0.5 and so fill more of a
+   * phone screen without stretching. */
+  U.VIEW_TOP = 32;
 
   /* Vertical bands (see docs/CONTRACT.md §2). */
   U.BAND = {
-    hud: 104,
+    hud: 108,
     spawn: 190,
     fieldTop: 190,
     fieldBottom: 1030,

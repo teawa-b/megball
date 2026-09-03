@@ -658,8 +658,8 @@
     }
   };
 
-  /* Skip pill, drawn in the HUD band's lower edge. */
-  var skipBtn = { x: VW / 2 - 90, y: 78, w: 180, h: 34 };
+  /* Skip pill, just under the HUD's label line, over the spawn gates. */
+  var skipBtn = { x: VW / 2 - 90, y: 102, w: 180, h: 32 };
 
   /* Returns true when the tap was consumed by the tutorial. */
   TUT.pointerDown = function (x, y) {

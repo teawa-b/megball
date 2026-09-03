@@ -49,7 +49,8 @@
      * Both layers honour this: input divides by scaleX/scaleY (game.js
      * toVirtual) and the WebGL layer renders into the same fitted rectangle
      * (scene3d.js), so the 3D machine and the 2D balls stay registered. */
-    var fitX = cw / VW, fitY = ch / VH;
+    var viewH = VH - U.VIEW_TOP;
+    var fitX = cw / VW, fitY = ch / viewH;
     var scale = Math.min(fitX, fitY);
     var sx = scale, sy = scale;
     if (cw <= ch) {
@@ -61,7 +62,9 @@
     vp.scaleX = sx;
     vp.scaleY = sy;
     vp.ox = (cw - VW * sx) / 2;
-    vp.oy = (ch - VH * sy) / 2;
+    /* oy is where virtual y = 0 lands; the visible band starts VIEW_TOP
+     * units below that, centred in the canvas. */
+    vp.oy = (ch - viewH * sy) / 2 - U.VIEW_TOP * sy;
     vp.w = cw; vp.h = ch; vp.dpr = dpr;
 
     if (global.GAME) global.GAME.setViewport(vp);
@@ -842,15 +845,16 @@
     var rightEdge = VW - croppedX;
 
     ctx.save();
-    var g = ctx.createLinearGradient(0, 0, 0, U.BAND.hud);
+    var g = ctx.createLinearGradient(0, U.VIEW_TOP, 0, U.BAND.hud);
     g.addColorStop(0, 'rgba(5,6,13,0.97)');
+    g.addColorStop(0.6, 'rgba(5,6,13,0.8)');
     g.addColorStop(1, 'rgba(5,6,13,0)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, VW, U.BAND.hud + 10);
 
     /* Lives as shield pips — position matters more than the icon: they sit
      * top-left, where the eye lands first. */
-    var lx = croppedX + 24, ly = 43;
+    var lx = croppedX + 24, ly = 60;
     for (var i = 0; i < S.livesMax; i++) {
       var alive = i < S.lives;
       var x = lx + i * 30;
@@ -868,31 +872,31 @@
       ctx.strokeStyle = alive ? C.ink : 'rgba(255,255,255,0.16)';
       ctx.stroke();
     }
-    text(ctx, 'LIVES', lx - 11, 72, 14, U.rgba(C.white, 0.58), 'left', '800', 2);
+    text(ctx, 'LIVES', lx - 11, 87, 12, U.rgba(C.white, 0.58), 'left', '800', 2);
 
     /* Wave counter, centred. */
     if (S.level) {
       var wn = Math.max(1, S.waveIndex + 1);
-      text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 32, 23, C.white, 'center', '900', 1.3);
-      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 60, 14,
+      text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 56, 22, C.white, 'center', '900', 1.3);
+      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 82, 12,
         U.rgba(C.cyan, 0.9), 'center', '800', 2.6);
     }
 
     /* Energy, right-aligned, with the amber currency colour. */
     var ex = rightEdge - 96;
     ctx.beginPath();
-    ctx.moveTo(ex - 46, 40); ctx.lineTo(ex - 34, 28);
-    ctx.lineTo(ex - 38, 40); ctx.lineTo(ex - 28, 40);
-    ctx.lineTo(ex - 44, 58); ctx.lineTo(ex - 40, 44);
-    ctx.lineTo(ex - 50, 44);
+    ctx.moveTo(ex - 46, 58); ctx.lineTo(ex - 34, 46);
+    ctx.lineTo(ex - 38, 58); ctx.lineTo(ex - 28, 58);
+    ctx.lineTo(ex - 44, 76); ctx.lineTo(ex - 40, 62);
+    ctx.lineTo(ex - 50, 62);
     ctx.closePath();
     ctx.fillStyle = C.amber;
     ctx.fill();
-    text(ctx, String(S.energy | 0), ex - 20, 42, 26, C.amber, 'left', '800');
-    text(ctx, 'ENERGY', ex - 50, 68, 14, U.rgba(C.white, 0.58), 'left', '800', 1.8);
+    text(ctx, String(S.energy | 0), ex - 20, 60, 25, C.amber, 'left', '800');
+    text(ctx, 'ENERGY', ex - 50, 87, 12, U.rgba(C.white, 0.58), 'left', '800', 1.8);
 
     /* Pause. */
-    var pb = { x: rightEdge - 54, y: 18, w: 42, h: 42, id: 'pause' };
+    var pb = { x: rightEdge - 54, y: 40, w: 42, h: 42, id: 'pause' };
     rr(ctx, pb.x, pb.y, pb.w, pb.h, 10);
     ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fill();
@@ -911,7 +915,7 @@
     if (S.magnetT > 0) chips.push(['MAGNET', C.violet, S.magnetT]);
     if (S.superheatT > 0) chips.push(['SUPERHEAT', C.powerHot, S.superheatT]);
     for (var ci = 0; ci < chips.length; ci++) {
-      var cy = 92 + ci * 26;
+      var cy = 118 + ci * 26;
       ctx.font = '800 12px ' + U.FONT;
       var tw = ctx.measureText(chips[ci][0]).width + 22;
       rr(ctx, VW / 2 - tw / 2, cy - 9, tw, 20, 10);
@@ -932,9 +936,9 @@
    * the way a deck and a discard pile flank a hand. Cards overlap a little
    * and tilt away from the centre, so four in hand still read as a fan and
    * not a toolbar. */
-  var CARD_W = 116, CARD_H = 152, HAND_Y = 1268;
-  var PILE_W = 104, PILE_H = 160, PILE_Y = 1264;
-  var PANEL = { x: 124, y: 1252, w: VW - 248, h: VH - 1252 - 8, cut: 22 };
+  var CARD_W = 88, CARD_H = 108, HAND_Y = 1254;
+  var PILE_W = 86, PILE_H = 118, PILE_Y = 1250;
+  var PANEL = { x: 108, y: 1246, w: VW - 216, h: VH - 1246 - 6, cut: 16 };
 
   function trayCells(S) {
     var items = [];
@@ -944,8 +948,8 @@
     var n = Math.min(S.cards.length, 4);
     if (n > 0) {
       /* Spread the hand across the panel; overlap once it will not fit flat. */
-      var inner = PANEL.w - 28;
-      var step = n > 1 ? Math.min(CARD_W + 8, (inner - CARD_W) / (n - 1)) : 0;
+      var inner = PANEL.w - 24;
+      var step = n > 1 ? Math.min(CARD_W + 6, (inner - CARD_W) / (n - 1)) : 0;
       var total = CARD_W + step * (n - 1);
       var x0 = PANEL.x + (PANEL.w - total) / 2;
       var mid = (n - 1) / 2;
@@ -955,7 +959,7 @@
           kind: 'card', index: i,
           x: x0 + i * step,
           /* A shallow arc: outer cards sit a touch lower, like a held fan. */
-          y: HAND_Y + Math.abs(k) * Math.abs(k) * 3,
+          y: HAND_Y + Math.abs(k) * Math.abs(k) * 2,
           w: CARD_W, h: CARD_H,
           rot: k * 0.055
         });
@@ -998,13 +1002,13 @@
     ctx.strokeStyle = U.rgba(C.cyan, 0.42);
     ctx.stroke();
     /* Inner hairline: gives the plate a bevelled, moulded edge. */
-    oct(ctx, P.x + 5, P.y + 5, P.w - 10, P.h - 10, P.cut - 3);
+    oct(ctx, P.x + 4, P.y + 4, P.w - 8, P.h - 8, P.cut - 3);
     ctx.lineWidth = 1;
     ctx.strokeStyle = 'rgba(255,255,255,0.06)';
     ctx.stroke();
 
     if (!S.cards.length) {
-      micro(ctx, 'NO CARDS IN HAND', P.x + P.w / 2, P.y + P.h / 2, CTX3, 'center', 11);
+      micro(ctx, 'NO CARDS IN HAND', P.x + P.w / 2, P.y + P.h / 2, CTX3, 'center', 10);
     }
     ctx.restore();
   }
@@ -1057,13 +1061,13 @@
     var active = S.buildPick === it.type;
     var col = C.cyan;
 
-    var cw = it.w - 20, ch = 112;
-    var cx0 = it.x + 10, cy0 = it.y + 6;
+    var cw = it.w - 16, ch = 80;
+    var cx0 = it.x + 8, cy0 = it.y + 6;
 
     ctx.save();
     /* Two cards peeking out underneath. */
     for (var s = 2; s >= 1; s--) {
-      rr(ctx, cx0 + s * 3, cy0 - s * 4, cw, ch, 12);
+      rr(ctx, cx0 + s * 3, cy0 - s * 3, cw, ch, 10);
       ctx.fillStyle = s === 2 ? '#0a1020' : '#0e1730';
       ctx.fill();
       ctx.lineWidth = 1.5;
@@ -1075,7 +1079,7 @@
       ctx.shadowColor = U.rgba(col, 0.7);
       ctx.shadowBlur = 18;
     }
-    rr(ctx, cx0, cy0, cw, ch, 12);
+    rr(ctx, cx0, cy0, cw, ch, 10);
     var g = ctx.createLinearGradient(0, cy0, 0, cy0 + ch);
     g.addColorStop(0, active ? '#12314a' : '#111c33');
     g.addColorStop(1, active ? '#0a1a2c' : '#080c18');
@@ -1087,51 +1091,51 @@
     ctx.stroke();
 
     /* Art. */
-    var cx = cx0 + cw / 2, cy = cy0 + 44;
+    var cx = cx0 + cw / 2, cy = cy0 + 30;
     ctx.save();
     ctx.globalAlpha = afford ? 1 : 0.35;
     if (it.type === 'paddle') {
       ctx.strokeStyle = C.ink;
-      capsule(ctx, cx - 22, cy + 11, cx + 20, cy - 8, 11);
+      capsule(ctx, cx - 17, cy + 8, cx + 15, cy - 6, 9);
       ctx.strokeStyle = col;
-      capsule(ctx, cx - 22, cy + 11, cx + 20, cy - 8, 8);
-      ctx.beginPath(); ctx.arc(cx - 22, cy + 11, 8, 0, TAU);
+      capsule(ctx, cx - 17, cy + 8, cx + 15, cy - 6, 6.5);
+      ctx.beginPath(); ctx.arc(cx - 17, cy + 8, 6.5, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
-      ctx.lineWidth = 2.5; ctx.strokeStyle = C.ink; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
     } else {
-      ctx.beginPath(); ctx.arc(cx, cy + 2, 23, 0, TAU);
+      ctx.beginPath(); ctx.arc(cx, cy + 1, 17, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
-      ctx.lineWidth = 4.5; ctx.strokeStyle = C.ink; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy + 2, 18, 0, TAU);
-      ctx.lineWidth = 3.5; ctx.strokeStyle = col; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy + 2, 8, 0, TAU);
+      ctx.lineWidth = 3.5; ctx.strokeStyle = C.ink; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + 1, 13, 0, TAU);
+      ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + 1, 6, 0, TAU);
       ctx.fillStyle = U.rgba(col, 0.5); ctx.fill();
     }
     ctx.restore();
 
     /* Name band across the bottom of the top card. */
-    rr(ctx, cx0 + 6, cy0 + ch - 30, cw - 12, 22, 7);
+    rr(ctx, cx0 + 5, cy0 + ch - 24, cw - 10, 18, 6);
     ctx.fillStyle = active ? U.rgba(col, 0.95) : (afford ? U.rgba(col, 0.22) : 'rgba(255,255,255,0.06)');
     ctx.fill();
-    micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 18.5,
-      active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 10);
+    micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 14.5,
+      active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 8.5);
 
     /* Price plate under the pile. */
-    var py = cy0 + ch + 10, ph = 26, pw = 64;
-    oct(ctx, cx - pw / 2, py, pw, ph, 7);
+    var py = cy0 + ch + 6, ph = 22, pw = 56;
+    oct(ctx, cx - pw / 2, py, pw, ph, 6);
     ctx.fillStyle = 'rgba(7,10,19,0.92)';
     ctx.fill();
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = afford ? U.rgba(C.amber, 0.7) : 'rgba(255,255,255,0.1)';
     ctx.stroke();
-    var bx = cx - 14, by = py + ph / 2;
+    var bx = cx - 12, by = py + ph / 2;
     ctx.beginPath();
-    ctx.moveTo(bx - 3, by - 7); ctx.lineTo(bx + 2, by - 1); ctx.lineTo(bx, by - 1);
-    ctx.lineTo(bx + 3, by + 7); ctx.lineTo(bx - 2, by + 1); ctx.lineTo(bx, by + 1);
+    ctx.moveTo(bx - 3, by - 6); ctx.lineTo(bx + 2, by - 1); ctx.lineTo(bx, by - 1);
+    ctx.lineTo(bx + 3, by + 6); ctx.lineTo(bx - 2, by + 1); ctx.lineTo(bx, by + 1);
     ctx.closePath();
     ctx.fillStyle = afford ? C.amber : 'rgba(255,176,32,0.35)';
     ctx.fill();
-    text(ctx, String(d.cost), cx + 6, by + 0.5, 15,
+    text(ctx, String(d.cost), cx + 5, by + 0.5, 13,
       afford ? C.amber : 'rgba(255,176,32,0.35)', 'center', '800');
     ctx.restore();
   }
