@@ -25,7 +25,7 @@ node tools/verify.js
 | 3 | Fully offline — zero network requests at runtime | verify.js checks 1 and 2 (no `http(s)://`, no `fetch`/`XHR`/`WebSocket`/`EventSource`/`importScripts`/`sendBeacon`/service worker/Worker). Confirmed dynamically: a real Chrome loading `dist/index.html` from `file://` issued **1 `file:` request (the document itself) and 9 `data:` requests, and zero `http`/`https`/`ws` requests** | MET — statically and dynamically |
 | 4 | No CDNs, remote fonts or remote images | verify.js checks 1, 4 and 5. Typography is the system stack only (`'Segoe UI', system-ui, …`); no `@font-face`, no `fonts.googleapis.com`. The 9 images are base64 WebP data URIs inside the document | MET |
 | 5 | Ships as a `.zip` under 35 MB | `dist/megaball.zip` is **271,544 bytes (0.26 MB)** — 34.74 MB of headroom. Printed by build.js on every run | MET |
-| 6 | Readable root-level `index.html` inside the zip | The zip has exactly one entry, `index.html`, at the archive root. build.js proves this two ways: it reads its own archive back through the central directory (CRC + byte compare) and the archive was additionally opened with Windows `Expand-Archive`, whose extracted file matches `dist/index.html` by SHA-256. **The build does not minify** — modules are spliced in verbatim with their comment banners and a `<!-- src/… -->` marker each | MET |
+| 6 | Readable root-level `index.html` inside the zip; libraries in `vendor/` | The zip has two entries: `index.html` at the archive root and `vendor/three.min.js` (three.js r185, referenced by relative path, never embedded — the rules ask for exactly this). build.js proves this two ways: it reads its own archive back through the central directory (CRC + byte compare) and the archive was additionally opened with Windows `Expand-Archive`, whose extracted file matches `dist/index.html` by SHA-256. **The build does not minify** — modules are spliced in verbatim with their comment banners and a `<!-- src/… -->` marker each | MET |
 | 7 | Runs from `file://` as well as `http://` | Booted from `file:///…/dist/index.html` in Chrome: title screen rendered, all 12 globals defined, `ART.ready === true`, boot splash dismissed, `GAME.state.mode === 'menu'`, ~60 fps (122 rAF frames in 2 s), **zero console errors, zero warnings, zero uncaught exceptions**. A full click-through then reached gameplay: level select → build phase (5 lives, 135 Energy) → `Space` → `mode === 'wave'` with balls in play, still with zero errors and zero remote requests. `http://` was already the day-to-day playtest path via `tools/serve.js` on port 5173 | MET — executed, see below |
 | 8 | No ES modules / no `import` | verify.js check 3 (no `import`/`export` statements, no dynamic `import(`, no `type="module"`). This is exactly what makes constraint 7 possible | MET |
 | 9 | Playable as a complete session | 5 levels with scripted waves ending in a boss, an Energy economy, star ratings and a star-gated unlock track. Reached live gameplay in the `file://` run above; the full 5-level playthrough is the author's own playtesting, not something these tools measure | MET (tool-verified up to first wave; full run is manual) |
@@ -80,15 +80,15 @@ Stated plainly so nobody reads more into this document than it earns:
 
 ## Package contents
 
-`dist/megaball.zip` contains exactly one file:
+`dist/megaball.zip` contains two entries (sizes from the current build; `node tools/build.js` reprints them):
 
 ```
 index.html      535,361 bytes   (0.51 MB uncompressed)
 ```
 
-12 source modules inlined in load order — `util`, `assets`, `audio`, `fx`, `physics`,
-`board`, `entities`, `cards`, `levels`, `render`, `ui`, `game` — plus the page's own boot
-and input script.
+13 source modules inlined in load order — `util`, `assets`, `audio`, `fx`, `physics`,
+`board`, `entities`, `cards`, `levels`, `scene3d`, `render`, `ui`, `game` — plus the page's own
+boot and input script, and `vendor/three.min.js` beside it.
 
-`assets/raw/` (16 MB of source PNGs) is **not** in the package and is git-ignored. The
-shipped art is the 9 compressed WebP data URIs already embedded in `src/assets.js`.
+`assets/raw/` (source PNGs) is **not** in the package and is git-ignored. The shipped art is
+the 13 compressed WebP data URIs already embedded in `src/assets.js`.

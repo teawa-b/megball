@@ -2,6 +2,9 @@
    The shipped game does not need it — index.html runs straight from file://. */
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.resolve(__dirname, '..');
+/* Port comes from the environment so several playtest sessions can run side
+   by side; 5173 is only the fallback when nothing assigns one. */
+const PORT = Number(process.env.PORT) || 5173;
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css',
   '.png':'image/png', '.webp':'image/webp', '.json':'application/json', '.md':'text/markdown' };
 http.createServer((req, res) => {
@@ -15,4 +18,4 @@ http.createServer((req, res) => {
                          'Cache-Control': 'no-store' });
     res.end(data);
   });
-}).listen(5173, () => console.log('megaball dev server on http://localhost:5173'));
+}).listen(PORT, () => console.log('megaball dev server on http://localhost:' + PORT));

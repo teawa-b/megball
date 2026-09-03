@@ -30,9 +30,9 @@ Q_STEP = 5
 
 # Draw sizes, keyed by name prefix. Order matters: first match wins.
 SIZE_RULES = [
-    ("bezel", (1024, 256)),
     ("bg_", (720, 1440)),
     ("card_", (320, 320)),
+    ("lvl_", (480, 270)),
 ]
 DEFAULT_SIZE = (512, 512)
 
@@ -41,7 +41,11 @@ DEFAULT_SIZE = (512, 512)
 KEY_ORDER = [
     "bg_table",
     "bg_menu",
-    "bezel",
+    "lvl_1",
+    "lvl_2",
+    "lvl_3",
+    "lvl_4",
+    "lvl_5",
     "card_slowtime",
     "card_overcharge",
     "card_megaball",

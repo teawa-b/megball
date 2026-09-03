@@ -160,6 +160,7 @@
       color: C.green,
       cd: 14,
       blurb: 'Punts every ball in the lower third straight back up.',
+      long: 'Your panic button. When a clump gets past the paddles and is closing on the drain, this buys the whole board back at once.',
       activate: function (w) {
         var n = 0;
         for (var i = 0; i < w.balls.length; i++) {
@@ -183,6 +184,7 @@
       color: C.frost,
       cd: 16,
       blurb: 'Frost every enemy on the board.',
+      long: 'A board-wide reset on speed. Nothing is destroyed, but everything is suddenly slow enough to line up and hit.',
       activate: function (w) {
         for (var i = 0; i < w.balls.length; i++) {
           var b = w.balls[i];
@@ -202,6 +204,7 @@
       color: C.cyan,
       cd: 18,
       blurb: 'Every paddle fires on a hair trigger for 5s.',
+      long: 'Paddles stop waiting for a clean angle and swing at anything in reach. Best held until a wave is already stacked up against them.',
       activate: function (w) {
         w.setOvercharge(5.0);
         w.fx.flash({ color: C.cyan, alpha: 0.22, life: 0.3 });
@@ -216,6 +219,7 @@
       color: C.powerHot,
       cd: 20,
       blurb: 'Bumpers detonate on every hit for 6s.',
+      long: 'Turns each bumper into a small bomb. Dense waves are worth far more than single stragglers, so save it for the crowd.',
       activate: function (w) {
         w.setSuperheat(6.0);
         for (var i = 0; i < w.towers.length; i++) {
@@ -235,6 +239,7 @@
       color: C.magenta,
       cd: 24,
       blurb: 'Seals the drain AND freezes the board for 4s.',
+      long: 'The last resort, and the strongest card in the game. Four seconds where absolutely nothing can be lost — use them to rebuild.',
       activate: function (w) {
         w.setBarrier(4.0);
         w.setGlobalSlow(0.4, 4.0);

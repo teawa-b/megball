@@ -47,8 +47,13 @@ function escapeClosingTag(js) {
   return js.replace(/<\/(script)/gi, '<\\/$1');
 }
 
+/* Third-party libraries are NOT inlined. The competition rules ask for them
+ * in a folder named `vendor` next to index.html, referenced by relative path,
+ * and explicitly not embedded in the page. So src/vendor/x.js is copied to
+ * dist/vendor/x.js and the tag is rewritten to point there. */
 function inlineScripts(html) {
   const inlined = [];
+  const vendored = [];
   const TAG = /[ \t]*<script\s+src\s*=\s*["']([^"']+)["']\s*>\s*<\/script>[ \t]*\r?\n?/gi;
 
   const out = html.replace(TAG, (match, src) => {
@@ -59,6 +64,13 @@ function inlineScripts(html) {
     const abs = path.join(ROOT, src.split('/').join(path.sep));
     if (!fs.existsSync(abs)) fail('script not found on disk: ' + src);
 
+    if (src.startsWith('src/vendor/')) {
+      const rel = src.slice('src/'.length);          // vendor/three.min.js
+      const data = fs.readFileSync(abs);
+      vendored.push({ src, rel, bytes: data.length, data });
+      return '<script src="' + rel + '"></script>\n';
+    }
+
     const code = escapeClosingTag(fs.readFileSync(abs, 'utf8')).replace(/\s*$/, '');
     inlined.push({ src, bytes: Buffer.byteLength(code, 'utf8') });
 
@@ -67,7 +79,7 @@ function inlineScripts(html) {
     return '<!-- ' + src + ' -->\n<script>\n' + code + '\n</script>\n';
   });
 
-  return { html: out, inlined };
+  return { html: out, inlined, vendored };
 }
 
 /* ---------------------------------------------------------- 2. ZIP writer */
@@ -219,16 +231,27 @@ function main() {
   if (!fs.existsSync(SRC_HTML)) fail('index.html not found at ' + SRC_HTML);
 
   const srcHtml = fs.readFileSync(SRC_HTML, 'utf8');
-  const { html, inlined } = inlineScripts(srcHtml);
+  const { html, inlined, vendored } = inlineScripts(srcHtml);
 
   if (!inlined.length) fail('no <script src="..."> tags found — nothing to inline.');
-  if (/<script\s+src\s*=/i.test(html)) fail('a <script src=> survived inlining.');
+  /* The only <script src=> allowed to survive points into vendor/. */
+  const survivors = html.match(/<script\s+src\s*=\s*["']([^"']+)["']/gi) || [];
+  for (const s of survivors) {
+    if (!/src\s*=\s*["']vendor\//i.test(s)) fail('a non-vendor <script src=> survived inlining: ' + s);
+  }
 
   fs.mkdirSync(DIST, { recursive: true });
   fs.writeFileSync(OUT_HTML, html, 'utf8');
+  for (const v of vendored) {
+    const dest = path.join(DIST, v.rel.split('/').join(path.sep));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.writeFileSync(dest, v.data);
+  }
 
   const htmlBuf = fs.readFileSync(OUT_HTML);
-  const zipBuf = makeZip([{ name: ZIP_ENTRY_NAME, data: htmlBuf }]);
+  const entries = [{ name: ZIP_ENTRY_NAME, data: htmlBuf }]
+    .concat(vendored.map(v => ({ name: v.rel, data: v.data })));
+  const zipBuf = makeZip(entries);
   fs.writeFileSync(OUT_ZIP, zipBuf);
 
   /* Read the archive we just wrote back and byte-compare. A zip that does not
@@ -236,15 +259,19 @@ function main() {
   let roundTrip = 'FAIL';
   try {
     const back = readZip(fs.readFileSync(OUT_ZIP));
-    if (back.length !== 1) throw new Error('expected 1 entry, got ' + back.length);
+    if (back.length !== entries.length) throw new Error('expected ' + entries.length + ' entries, got ' + back.length);
     if (back[0].name !== ZIP_ENTRY_NAME) throw new Error('entry is "' + back[0].name + '", not at zip root');
-    if (!back[0].data.equals(htmlBuf)) throw new Error('extracted bytes differ from dist/index.html');
+    for (let i = 0; i < entries.length; i++) {
+      if (back[i].name !== entries[i].name) throw new Error('entry ' + i + ' is "' + back[i].name + '"');
+      if (!back[i].data.equals(entries[i].data)) throw new Error('extracted bytes differ for ' + back[i].name);
+    }
     roundTrip = 'OK';
   } catch (e) {
     fail('zip did not round-trip: ' + e.message);
   }
 
   const under = zipBuf.length < SIZE_CAP;
+  const totalBytes = entries.reduce((n, e) => n + e.data.length, 0);
 
   console.log('');
   console.log('MEGABALL build');
@@ -253,11 +280,16 @@ function main() {
   for (const f of inlined) {
     console.log('  ' + f.src.padEnd(20) + kb(f.bytes).padStart(12));
   }
+  console.log('vendor files (copied): ' + vendored.length);
+  for (const v of vendored) {
+    console.log('  ' + v.rel.padEnd(20) + kb(v.bytes).padStart(12));
+  }
   console.log('--------------------------------------------------');
   console.log('dist/index.html      : ' + htmlBuf.length + ' bytes  (' + mb(htmlBuf.length) + ')');
   console.log('dist/megaball.zip    : ' + zipBuf.length + ' bytes  (' + mb(zipBuf.length) + ')');
-  console.log('compression          : ' + (100 - (zipBuf.length / htmlBuf.length) * 100).toFixed(1) + '%');
-  console.log('zip round-trip       : ' + roundTrip + ' (1 entry, "' + ZIP_ENTRY_NAME + '" at archive root)');
+  console.log('compression          : ' + (100 - (zipBuf.length / totalBytes) * 100).toFixed(1) + '%');
+  console.log('zip round-trip       : ' + roundTrip + ' (' + entries.length + ' entries, "' +
+              ZIP_ENTRY_NAME + '" at archive root' + (vendored.length ? ', libraries under vendor/' : '') + ')');
   console.log('35 MB cap            : ' + (under ? 'PASS' : 'FAIL') +
               '  — ' + mb(SIZE_CAP - zipBuf.length) + ' headroom');
   console.log('--------------------------------------------------');

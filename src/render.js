@@ -843,7 +843,8 @@
     if (S.level) {
       var wn = Math.max(1, S.waveIndex + 1);
       text(ctx, 'WAVE ' + wn + ' / ' + S.level.waves.length, VW / 2, 34, 20, C.white, 'center', '800', 1.5);
-      text(ctx, S.level.name.toUpperCase(), VW / 2, 58, 12, U.rgba(C.cyan, 0.7), 'center', '700', 3);
+      text(ctx, S.mode === 'tutorial' ? 'TUTORIAL' : S.level.name.toUpperCase(), VW / 2, 58, 12,
+        U.rgba(C.cyan, 0.7), 'center', '700', 3);
     }
 
     /* Energy, right-aligned, with the amber currency colour. */
@@ -990,103 +991,353 @@
       afford ? C.amber : 'rgba(255,176,32,0.35)', 'center', '800');
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Card faces                                                              */
+  /*                                                                         */
+  /* One routine draws every card in the game at any size: the small tray    */
+  /* cell and the big hold-to-read popout are the same face scaled, so the   */
+  /* popout reads as the tray card growing rather than as a separate panel.  */
+  /* ---------------------------------------------------------------------- */
+
+  /* Local neutrals. Kept here rather than in a shared table so this block
+   * stays self-contained — it is the only part of the tray that needs them. */
+  var CTX2 = 'rgba(255,255,255,0.60)';
+  var CTX3 = 'rgba(255,255,255,0.36)';
+  var CHAIR = 'rgba(255,255,255,0.10)';
+
+  /* Short uppercase caption, matching the tracking used elsewhere in the HUD. */
+  function micro(ctx, str, x, y, color, align, size) {
+    var sz = size || 10;
+    text(ctx, str, x, y, sz, color, align || 'center', '800', sz * 0.14);
+  }
+
+  function wrapLines(ctx, str, maxW, size, weight) {
+    ctx.font = (weight || '600') + ' ' + size + 'px ' + U.FONT;
+    var words = String(str).split(' '), lines = [], line = '';
+    for (var i = 0; i < words.length; i++) {
+      var test = line ? line + ' ' + words[i] : words[i];
+      if (ctx.measureText(test).width > maxW && line) { lines.push(line); line = words[i]; }
+      else line = test;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  /* Shrink a label until it fits rather than clipping it — a card name the
+   * player cannot read is worse than one drawn a point smaller. */
+  function fitText(ctx, str, maxW, size, weight, spacing) {
+    var s = size;
+    while (s > 7) {
+      ctx.font = (weight || '800') + ' ' + s + 'px ' + U.FONT;
+      if (ctx.measureText(str).width + (spacing || 0) * (str.length - 1) <= maxW) break;
+      s -= 0.5;
+    }
+    return s;
+  }
+
+  function cardLayout(R, big) {
+    var pad = R.w * 0.055;
+    var artW = R.w - pad * 2;
+    return {
+      pad: pad,
+      rad: R.w * 0.115,
+      artX: R.x + pad,
+      artY: R.y + pad,
+      artW: artW,
+      /* The tray cell is nearly all picture; the popout gives that height back
+       * to the description, which is the whole reason it opened. */
+      artH: Math.min(artW * 0.82, R.h * (big ? 0.42 : 0.58)),
+      plateH: Math.max(18, Math.min(R.w * 0.20, 44))
+    };
+  }
+
+  /* A small pill anchored to one end of a centred inner width. */
+  function chip(ctx, cx, y, label, color, side, innerW) {
+    ctx.font = '800 9.5px ' + U.FONT;
+    var w = ctx.measureText(label).width + label.length * 1.33 + 20;
+    var x = side === 'right' ? cx + innerW / 2 - w : cx - innerW / 2;
+    rr(ctx, x, y - 10, w, 20, 10);
+    ctx.fillStyle = U.rgba(color, 0.14);
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(color, 0.5);
+    ctx.stroke();
+    micro(ctx, label, x + w / 2, y + 0.5, U.rgba(color, 0.95), 'center', 9.5);
+  }
+
+  /* R = {x,y,w,h}. `o` carries runtime state: readiness, cooldown, the hotkey
+   * digit, and whether there is room for the long description. */
+  function cardFace(ctx, R, def, o) {
+    o = o || {};
+    var big = !!o.detail;
+    var L = cardLayout(R, big);
+    var col = def.color;
+    var ready = o.ready !== false;
+
+    ctx.save();
+
+    /* Body. */
+    var g = ctx.createLinearGradient(0, R.y, 0, R.y + R.h);
+    g.addColorStop(0, '#101a2e');
+    g.addColorStop(1, '#070a13');
+    rr(ctx, R.x, R.y, R.w, R.h, L.rad);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    /* --- art window ----------------------------------------------------- */
+    ctx.save();
+    rr(ctx, L.artX, L.artY, L.artW, L.artH, L.rad * 0.6);
+    ctx.clip();
+    ctx.fillStyle = C.panel;
+    ctx.fillRect(L.artX, L.artY, L.artW, L.artH);
+
+    var art = global.ART && def.art ? global.ART.get(def.art) : null;
+    if (art && art.width) {
+      /* Cover-fit: the source is square, the window is not. */
+      var s = Math.max(L.artW / art.width, L.artH / art.height);
+      var dw = art.width * s, dh = art.height * s;
+      ctx.globalAlpha = ready ? 1 : (big ? 0.82 : 0.4);
+      ctx.drawImage(art, L.artX + (L.artW - dw) / 2, L.artY + (L.artH - dh) / 2, dw, dh);
+      ctx.globalAlpha = 1;
+    } else {
+      var rg = ctx.createRadialGradient(
+        L.artX + L.artW / 2, L.artY + L.artH / 2, 4,
+        L.artX + L.artW / 2, L.artY + L.artH / 2, L.artW * 0.62);
+      rg.addColorStop(0, U.rgba(col, ready ? 0.55 : 0.18));
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = rg;
+      ctx.fillRect(L.artX, L.artY, L.artW, L.artH);
+    }
+
+    /* A breath of the card's own colour along the bottom of the window ties
+     * the art to the palette without tinting the whole image. */
+    var wash = ctx.createLinearGradient(0, L.artY + L.artH * 0.45, 0, L.artY + L.artH);
+    wash.addColorStop(0, 'rgba(0,0,0,0)');
+    wash.addColorStop(1, U.rgba(col, ready ? 0.32 : (big ? 0.24 : 0.10)));
+    ctx.fillStyle = wash;
+    ctx.fillRect(L.artX, L.artY, L.artW, L.artH);
+    ctx.restore();
+
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = CHAIR;
+    rr(ctx, L.artX + 0.75, L.artY + 0.75, L.artW - 1.5, L.artH - 1.5, L.rad * 0.6);
+    ctx.stroke();
+
+    /* --- name plate ------------------------------------------------------ */
+    var py = L.artY + L.artH + L.pad * 0.6;
+    rr(ctx, L.artX, py, L.artW, L.plateH, L.rad * 0.42);
+    ctx.fillStyle = U.rgba(col, ready ? 0.95 : (big ? 0.8 : 0.32));
+    ctx.fill();
+
+    var nm = def.name.toUpperCase();
+    var track = big ? 1.6 : 0.7;
+    var ns = fitText(ctx, nm, L.artW - (big ? 22 : 12), big ? 19 : 11.5, '800', track);
+    /* Ink on the accent band: every accent in this palette is bright enough
+     * that black out-contrasts white on it. */
+    text(ctx, nm, L.artX + L.artW / 2, py + L.plateH / 2, ns,
+      ready || big ? 'rgba(0,0,0,0.88)' : 'rgba(0,0,0,0.5)', 'center', '800', track);
+
+    /* --- body ------------------------------------------------------------ */
+    var by = py + L.plateH;
+    if (big) {
+      var innerW = L.artW - 10;
+      var cy = by + 22;
+
+      /* The two facts the player is deciding on: what it costs in time, and
+       * whether the card is theirs or on loan from the level. */
+      chip(ctx, R.x + R.w / 2, cy, def.cd + 'S COOLDOWN', col, 'left', innerW);
+      chip(ctx, R.x + R.w / 2, cy, o.levelCard ? 'LEVEL CARD' : 'SLOT ' + (o.hotkey || 1),
+        o.levelCard ? C.green : C.cyan, 'right', innerW);
+
+      var ty = cy + 32;
+      var bl = wrapLines(ctx, def.blurb, innerW, 14.5, '700');
+      for (var i = 0; i < bl.length; i++) {
+        text(ctx, bl[i], R.x + R.w / 2, ty, 14.5, U.rgba(col, 0.95), 'center', '700');
+        ty += 19;
+      }
+      if (def.long) {
+        ty += 6;
+        var ll = wrapLines(ctx, def.long, innerW, 13, '500');
+        for (var j = 0; j < ll.length && j < 4; j++) {
+          text(ctx, ll[j], R.x + R.w / 2, ty, 13, CTX2, 'center', '500');
+          ty += 17;
+        }
+      }
+
+      /* Pinned to the bottom, but never allowed to land on the description. */
+      micro(ctx, ready ? 'RELEASE TO CLOSE' : 'READY IN ' + Math.ceil(o.cd || 0) + 'S',
+        R.x + R.w / 2, Math.max(ty + 4, R.y + R.h - L.pad - 6),
+        ready ? CTX3 : U.rgba(col, 0.8), 'center', 10);
+    } else {
+      var midY = by + (R.y + R.h - by) / 2;
+      if (!ready) {
+        text(ctx, Math.ceil(o.cd || 0) + 's', R.x + R.w / 2, midY, 15,
+          U.rgba(col, 0.9), 'center', '800');
+      } else if (o.levelCard) {
+        micro(ctx, 'LEVEL', R.x + R.w / 2, midY, U.rgba(C.green, 0.9), 'center', 8.5);
+      } else {
+        micro(ctx, 'READY', R.x + R.w / 2, midY, U.rgba(col, 0.9), 'center', 8.5);
+      }
+    }
+
+    /* --- cooldown wipe ---------------------------------------------------- */
+    if (!ready && o.frac !== undefined) {
+      ctx.save();
+      rr(ctx, R.x, R.y, R.w, R.h, L.rad);
+      ctx.clip();
+      var cut = R.y + R.h * (1 - o.frac);
+      ctx.fillStyle = 'rgba(5,6,13,0.6)';
+      ctx.fillRect(R.x, R.y, R.w, R.h * (1 - o.frac));
+      ctx.strokeStyle = U.rgba(col, 0.9);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(R.x, cut); ctx.lineTo(R.x + R.w, cut);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    /* --- hotkey badge ----------------------------------------------------- */
+    if (o.hotkey) {
+      var bs = Math.max(18, R.w * 0.185);
+      var bx = L.artX + (big ? 8 : 5), byy = L.artY + (big ? 8 : 5);
+      rr(ctx, bx, byy, bs, bs, bs * 0.32);
+      ctx.fillStyle = 'rgba(5,6,13,0.82)';
+      ctx.fill();
+      ctx.lineWidth = 1.75;
+      ctx.strokeStyle = U.rgba(col, ready ? 0.85 : 0.3);
+      ctx.stroke();
+      text(ctx, String(o.hotkey), bx + bs / 2, byy + bs / 2 + 0.5, bs * 0.56,
+        ready ? U.rgba(col, 0.95) : CTX3, 'center', '800');
+    }
+
+    /* --- frame ------------------------------------------------------------ */
+    rr(ctx, R.x, R.y, R.w, R.h, L.rad);
+    ctx.lineWidth = ready ? 2 : 1.5;
+    ctx.strokeStyle = ready ? U.rgba(col, 0.75) : CHAIR;
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   function drawCardCell(ctx, S, it) {
     var inst = S.cards[it.index];
     var d = inst.def;
     var ready = inst.cd <= 0;
-    var frac = ready ? 1 : 1 - inst.cd / inst.cdMax;
     var pulse = inst.readyPulse > 0 ? inst.readyPulse / 0.6 : 0;
+    var lift = inst.lift || 0;
+
+    /* A held card rises out of the tray and grows slightly, so the popout
+     * that follows reads as this card lifting rather than a new panel. */
+    var gw = it.w * (1 + 0.06 * lift);
+    var gh = it.h * (1 + 0.06 * lift);
+    var R = {
+      x: it.x - (gw - it.w) / 2,
+      y: it.y - (gh - it.h) / 2 - 14 * lift,
+      w: gw,
+      h: gh
+    };
 
     ctx.save();
+
     if (pulse > 0) {
-      ctx.globalCompositeOperation = 'lighter';
-      rr(ctx, it.x - 4 * pulse, it.y - 4 * pulse, it.w + 8 * pulse, it.h + 8 * pulse, 16);
-      ctx.fillStyle = U.rgba(d.color, 0.25 * pulse);
+      rr(ctx, R.x - 4 * pulse, R.y - 4 * pulse, R.w + 8 * pulse, R.h + 8 * pulse, 16);
+      ctx.fillStyle = U.rgba(d.color, 0.18 * pulse);
       ctx.fill();
-      ctx.globalCompositeOperation = 'source-over';
     }
 
-    rr(ctx, it.x, it.y, it.w, it.h, 14);
-    ctx.fillStyle = 'rgba(255,255,255,0.05)';
-    ctx.fill();
-
-    /* Card art, clipped into the cell. */
-    var art = global.ART && d.art ? global.ART.get(d.art) : null;
-    if (art) {
-      ctx.save();
-      rr(ctx, it.x + 2, it.y + 2, it.w - 4, it.h - 4, 12);
-      ctx.clip();
-      ctx.globalAlpha = ready ? 0.92 : 0.32;
-      ctx.drawImage(art, it.x + 2, it.y + 2, it.w - 4, it.w - 4);
-      ctx.globalAlpha = 1;
-      /* Fade the bottom so the name always reads. */
-      var lg = ctx.createLinearGradient(0, it.y + it.h - 60, 0, it.y + it.h);
-      lg.addColorStop(0, 'rgba(7,10,19,0)');
-      lg.addColorStop(1, 'rgba(7,10,19,0.96)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(it.x, it.y + it.h - 62, it.w, 62);
-      ctx.restore();
-    } else {
-      ctx.save();
-      rr(ctx, it.x + 2, it.y + 2, it.w - 4, it.w - 4, 12);
-      ctx.clip();
-      var rg = ctx.createRadialGradient(it.x + it.w / 2, it.y + it.w / 2, 4,
-        it.x + it.w / 2, it.y + it.w / 2, it.w * 0.6);
-      rg.addColorStop(0, U.rgba(d.color, ready ? 0.6 : 0.2));
-      rg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = rg;
-      ctx.fillRect(it.x, it.y, it.w, it.w);
-      ctx.restore();
+    if (lift > 0.01) {
+      ctx.shadowColor = 'rgba(0,0,0,0.6)';
+      ctx.shadowBlur = 22 * lift;
+      ctx.shadowOffsetY = 8 * lift;
     }
 
-    /* Cooldown sweep: a vertical wipe reads faster than a radial arc at this
-     * size, and leaves the art legible. */
-    if (!ready) {
-      ctx.save();
-      rr(ctx, it.x + 2, it.y + 2, it.w - 4, it.h - 4, 12);
-      ctx.clip();
-      ctx.fillStyle = 'rgba(5,6,13,0.68)';
-      ctx.fillRect(it.x, it.y, it.w, it.h * (1 - frac));
-      ctx.strokeStyle = U.rgba(d.color, 0.9);
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(it.x, it.y + it.h * (1 - frac));
-      ctx.lineTo(it.x + it.w, it.y + it.h * (1 - frac));
-      ctx.stroke();
-      ctx.restore();
-      text(ctx, Math.ceil(inst.cd) + 's', it.x + it.w / 2, it.y + it.w / 2, 26,
-        U.rgba(C.white, 0.85), 'center', '800');
-    }
+    cardFace(ctx, R, d, {
+      ready: ready,
+      cd: inst.cd,
+      frac: ready ? 1 : 1 - inst.cd / inst.cdMax,
+      levelCard: inst.levelCard,
+      hotkey: it.index + 1
+    });
 
-    ctx.lineWidth = ready ? 3 : 2;
-    ctx.strokeStyle = ready ? U.rgba(d.color, 0.95) : 'rgba(255,255,255,0.12)';
-    rr(ctx, it.x, it.y, it.w, it.h, 14);
-    ctx.stroke();
+    ctx.restore();
+  }
 
-    text(ctx, d.name.toUpperCase(), it.x + it.w / 2, it.y + it.h - 30, 12,
-      ready ? C.white : 'rgba(255,255,255,0.4)', 'center', '800', 0.6);
+  /* Where a held card grows to. Exposed so game.js can hand the animation its
+   * source and destination rects without duplicating this layout. */
+  DRAW.inspectRect = function () {
+    return { x: (VW - 330) / 2, y: 626, w: 330, h: 520 };
+  };
 
-    if (inst.levelCard) {
-      rr(ctx, it.x + it.w / 2 - 26, it.y + it.h - 18, 52, 14, 7);
-      ctx.fillStyle = U.rgba(d.color, 0.22); ctx.fill();
-      text(ctx, 'LEVEL', it.x + it.w / 2, it.y + it.h - 11, 9, d.color, 'center', '800', 1.5);
-    } else {
-      text(ctx, 'TAP TO USE', it.x + it.w / 2, it.y + it.h - 12, 9,
-        ready ? U.rgba(d.color, 0.85) : 'rgba(255,255,255,0.22)', 'center', '700', 1);
-    }
+  /* The hold-to-read popout. The card grows out of its own tray cell, the
+   * board behind it dims, and the simulation is frozen while it is open —
+   * reading a card should never cost the player a ball. */
+  function drawInspect(ctx, S) {
+    var ins = S.inspect;
+    if (!ins) return;
+
+    var e = U.ease.outCubic(U.clamp(ins.t / 0.17, 0, 1));
+
+    ctx.save();
+    ctx.fillStyle = U.rgba(C.void, 0.8 * e);
+    ctx.fillRect(0, 0, VW, VH);
+
+    var src = ins.from, dst = ins.to;
+    var R = {
+      x: U.lerp(src.x, dst.x, e),
+      y: U.lerp(src.y, dst.y, e),
+      w: U.lerp(src.w, dst.w, e),
+      h: U.lerp(src.h, dst.h, e)
+    };
+
+    ctx.shadowColor = 'rgba(0,0,0,0.65)';
+    ctx.shadowBlur = 40 * e;
+    ctx.shadowOffsetY = 14 * e;
+
+    /* The detail copy only exists on the big face, and 11px text scaled up is
+     * unreadable mush — so it appears once the card is most of the way there. */
+    cardFace(ctx, R, ins.def, {
+      ready: ins.ready,
+      cd: ins.cd,
+      frac: e > 0.55 ? undefined : ins.frac,
+      levelCard: ins.levelCard,
+      hotkey: ins.hotkey,
+      detail: e > 0.55
+    });
+
     ctx.restore();
   }
 
   /* Upgrade panel replaces the tray while a tower is selected — on a phone
    * that beats a floating popover, which would cover the board. */
+  /* Geometry of the upgrade panel, shared by the painter and by the tutorial
+   * (which spotlights individual buttons). */
+  function upgradeLayout(t) {
+    var d = t.def;
+    var ups = d.upgrades || [];
+    var n = ups.length + 1;
+    var w = Math.min(150, (VW - 60 - (n - 1) * 10) / n);
+    var x0 = 30, y = TRAY_TOP + 76, h = 92;
+    var out = { back: { x: VW - 92, y: TRAY_TOP + 14, w: 66, h: 34, id: 'closeTower' }, ups: [] };
+    for (var i = 0; i < ups.length; i++) {
+      out.ups.push({ x: x0 + i * (w + 10), y: y, w: w, h: h, id: 'upgrade', to: ups[i] });
+    }
+    out.sell = { x: x0 + ups.length * (w + 10), y: y, w: w, h: h, id: 'sell' };
+    return out;
+  }
+  DRAW.upgradeRects = function (S) {
+    S = S || global.GAME.state;
+    return S && S.selectedTower ? upgradeLayout(S.selectedTower) : null;
+  };
+
   function drawUpgradePanel(ctx, S) {
     var t = S.selectedTower;
     var d = t.def;
+    var L = upgradeLayout(t);
 
     text(ctx, d.name.toUpperCase(), 30, TRAY_TOP + 30, 18, d.color, 'left', '800', 1.5);
     text(ctx, d.blurb, 30, TRAY_TOP + 54, 13, 'rgba(255,255,255,0.55)', 'left', '600');
 
-    var back = { x: VW - 92, y: TRAY_TOP + 14, w: 66, h: 34, id: 'closeTower' };
+    var back = L.back;
     rr(ctx, back.x, back.y, back.w, back.h, 9);
     ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 2; ctx.stroke();
@@ -1094,16 +1345,12 @@
     trayHits.push(back);
 
     var ups = d.upgrades || [];
-    var n = ups.length + 1;
-    var w = Math.min(150, (VW - 60 - (n - 1) * 10) / n);
-    var x0 = 30;
-    var y = TRAY_TOP + 76;
-    var h = 92;
+    var w = L.sell.w, x0 = 30, y = L.sell.y, h = L.sell.h;
 
     for (var i = 0; i < ups.length; i++) {
       var ud = ENT.TOWERS[ups[i]];
       var afford = S.energy >= ud.cost;
-      var b = { x: x0 + i * (w + 10), y: y, w: w, h: h, id: 'upgrade', to: ups[i] };
+      var b = L.ups[i];
       rr(ctx, b.x, b.y, b.w, b.h, 12);
       ctx.fillStyle = afford ? U.rgba(ud.color, 0.14) : 'rgba(255,255,255,0.04)';
       ctx.fill();
@@ -1119,7 +1366,7 @@
       trayHits.push(b);
     }
 
-    var sb = { x: x0 + ups.length * (w + 10), y: y, w: w, h: h, id: 'sell' };
+    var sb = L.sell;
     rr(ctx, sb.x, sb.y, sb.w, sb.h, 12);
     ctx.fillStyle = 'rgba(255,46,136,0.1)'; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.magenta, 0.5); ctx.stroke();
@@ -1218,9 +1465,80 @@
     text(ctx, 'START', readyBtn.x + readyBtn.w / 2, readyBtn.y + 26, 20, accent, 'center', '800', 2);
     text(ctx, Math.max(0, Math.ceil(S.buildT)) + 's', readyBtn.x + readyBtn.w / 2,
       readyBtn.y + 48, 13, U.rgba(C.white, 0.55), 'center', '800', 1);
-    text(ctx, 'BUILD YOUR DEFENSES', readyBtn.x + readyBtn.w / 2, BANNER_Y0 + 116, 9,
-      U.rgba(C.white, 0.4), 'center', '700', 2);
+    drawChallengeChip(ctx, S, readyBtn.x, BANNER_Y0 + 104, readyBtn.w);
 
+    ctx.restore();
+  }
+
+  /* The third star, tracked live. Slotted under the START button — the one
+   * pocket of the banner that is neither preview balls nor placeable slots,
+   * so nothing that matters gets covered while the player is building.
+   *
+   * Only the CHALLENGE is drawn here. The other two objectives are already
+   * on screen: the wave counter is the clear, and the lives pips are the
+   * leak budget. A third readout of what you can already see is noise, but
+   * "you are on your seventh of eight defenses" is not visible anywhere
+   * else, and finding that out on the results screen is too late to act. */
+  function drawChallengeChip(ctx, S, x, y, w) {
+    var lv = S.level;
+    if (!lv || !lv.challenge || !global.LEVELS || !global.GAME) return;
+    var run = global.GAME.runSummary ? global.GAME.runSummary(false, false) : null;
+    if (!run) return;
+
+    var L = global.LEVELS;
+    var failed = L.challengeFailed(lv, run);
+    var met = !failed && L.challengeMet(lv, run);
+    var label = L.challengeProgress(lv, run);
+    var col = failed ? C.magenta : (met ? C.amber : C.white);
+    var a = failed ? 0.5 : (met ? 1 : 0.55);
+
+    rr(ctx, x, y, w, 26, 8);
+    ctx.fillStyle = U.rgba(col, failed ? 0.08 : (met ? 0.16 : 0.05));
+    ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(col, failed ? 0.45 : (met ? 0.8 : 0.22));
+    ctx.stroke();
+
+    text(ctx, (met ? '★ ' : (failed ? '✕ ' : '☆ ')) + label,
+      x + w / 2, y + 14, 11, U.rgba(col, a), 'center', '800', 1.2);
+
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Build-phase nudge                                                      */
+  /* ---------------------------------------------------------------------- */
+
+  /* A pulsing amber rim and a bobbing chevron over the build buttons while
+   * the player is sitting on spendable Energy and has placed nothing this
+   * phase. Drawn here, from the public tray geometry, rather than inside the
+   * tray painter — that keeps the tray cells under a single owner. */
+  function drawBuildHint(ctx, S) {
+    if (S.mode !== 'build' || !S.buildHint || S.selectedTower) return;
+    var cells = DRAW.trayRects(S).cells;
+    var pulse = 0.5 + 0.5 * Math.sin(S.time * 5);
+    var bob = Math.sin(S.time * 5) * 5;
+
+    ctx.save();
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      if (c.kind !== 'build' || S.energy < ENT.TOWERS[c.type].cost) continue;
+
+      rr(ctx, c.x - 5, c.y - 5, c.w + 10, c.h + 10, 18);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = U.rgba(C.amber, 0.3 + 0.55 * pulse);
+      ctx.stroke();
+
+      var cx = c.x + c.w / 2, cy = c.y - 20 + bob;
+      ctx.beginPath();
+      ctx.moveTo(cx - 13, cy - 7);
+      ctx.lineTo(cx, cy + 7);
+      ctx.lineTo(cx + 13, cy - 7);
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = U.rgba(C.amber, 0.55 + 0.45 * pulse);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -1247,13 +1565,23 @@
   /* Frame                                                                  */
   /* ---------------------------------------------------------------------- */
 
+  /* When the WebGL layer (src/scene3d.js) is running, the physical machine —
+   * table, rails, pegs, towers, flippers — is rendered there and this canvas
+   * only paints what must stay crisp on top: balls, FX, highlights and UI.
+   * index.html sets this after SCENE3D.init(); false means the 2D fallback
+   * paints the whole table itself, exactly as before. */
+  DRAW.use3D = false;
+
   DRAW.frame = function (ctx, S) {
     var FX = global.FX;
+    var three = DRAW.use3D ? global.SCENE3D : null;
 
     ctx.setTransform(vp.dpr, 0, 0, vp.dpr, 0, 0);
     ctx.clearRect(0, 0, vp.w, vp.h);
-    ctx.fillStyle = C.void;
-    ctx.fillRect(0, 0, vp.w, vp.h);
+    if (!three) {
+      ctx.fillStyle = C.void;
+      ctx.fillRect(0, 0, vp.w, vp.h);
+    }
 
     ctx.save();
     ctx.translate(vp.ox, vp.oy);
@@ -1262,48 +1590,127 @@
     /* Screen shake applies to the board only — a shaking HUD is unreadable. */
     var cam = FX && FX.camera ? FX.camera() : null;
 
-    if (!S.table) { ctx.restore(); return; }
-
-    ctx.save();
-    if (cam) {
-      ctx.translate(VW / 2 + cam.x, 700 + cam.y);
-      if (cam.rot) ctx.rotate(cam.rot);
-      ctx.translate(-VW / 2, -700);
+    if (!S.table) {
+      if (three) three.render(S, null);
+      ctx.restore();
+      return;
     }
 
-    drawBackground(ctx, S);
-    drawDecor(ctx, S);
+    /* Tutorial camera: a zoom about a focal point (fx,fy) that lands on the
+     * screen anchor (ax,ay). With no tutorial it is the identity. */
+    var zm = (S.mode === 'tutorial' && global.TUT && global.TUT.cam) ? global.TUT.cam() : null;
+
+    /* The 3D layer draws first; it applies the same shake offset and zoom so
+     * the two layers never drift apart. */
+    if (three) three.render(S, cam, zm);
+
+    ctx.save();
+    if (cam || zm) {
+      var zfx = zm ? zm.fx : VW / 2, zfy = zm ? zm.fy : 700;
+      var zax = zm ? zm.ax : VW / 2, zay = zm ? zm.ay : 700;
+      ctx.translate(zax + (cam ? cam.x : 0), zay + (cam ? cam.y : 0));
+      if (cam && cam.rot) ctx.rotate(cam.rot);
+      if (zm && zm.zoom !== 1) ctx.scale(zm.zoom, zm.zoom);
+      ctx.translate(-zfx, -zfy);
+    }
+
+    if (!three) {
+      drawBackground(ctx, S);
+      drawDecor(ctx, S);
+    }
     if (FX && FX.drawBelow) FX.drawBelow(ctx);
-    drawRails(ctx, S);
-    drawSpawnGates(ctx, S);
+    if (!three) {
+      drawRails(ctx, S);
+      drawSpawnGates(ctx, S);
+    }
     drawSlots(ctx, S);
 
-    for (var i = 0; i < S.towers.length; i++) drawTower(ctx, S.towers[i], S);
+    if (!three) {
+      for (var i = 0; i < S.towers.length; i++) drawTower(ctx, S.towers[i], S);
+      drawFlipper(ctx, S.flipL, BOARD.FLIP.lx, BOARD.FLIP.y, BOARD.FLIP.len, BOARD.FLIP.rad, 1);
+      drawFlipper(ctx, S.flipR, BOARD.FLIP.rx, BOARD.FLIP.y, BOARD.FLIP.len, BOARD.FLIP.rad, -1);
+    } else {
+      drawTowerOverlays(ctx, S);
+    }
 
-    drawFlipper(ctx, S.flipL, BOARD.FLIP.lx, BOARD.FLIP.y, BOARD.FLIP.len, BOARD.FLIP.rad, 1);
-    drawFlipper(ctx, S.flipR, BOARD.FLIP.rx, BOARD.FLIP.y, BOARD.FLIP.len, BOARD.FLIP.rad, -1);
-
+    /* Balls are clipped to the playfield so one that strays into the bezel
+     * never draws over the 3D rails (the 2D fallback masks with paint below). */
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(U.WALL_L - 8, 0, U.WALL_R - U.WALL_L + 16, TRAY_TOP);
+    ctx.clip();
     for (var b = 0; b < S.balls.length; b++) {
       if (!S.balls[b].dead) drawBall(ctx, S.balls[b], S);
     }
+    ctx.restore();
 
     drawDrain(ctx, S);
     if (FX && FX.drawAbove) FX.drawAbove(ctx);
     ctx.restore();
 
-    /* Mask anything that strays outside the table into the tray band. */
-    ctx.fillStyle = C.void;
-    ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
-    ctx.fillRect(0, 0, U.WALL_L - 8, TRAY_TOP);
-    ctx.fillRect(U.WALL_R + 8, 0, VW - U.WALL_R - 8, TRAY_TOP);
+    if (!three) {
+      /* Mask anything that strays outside the table into the tray band. */
+      ctx.fillStyle = C.void;
+      ctx.fillRect(0, TRAY_TOP, VW, VH - TRAY_TOP);
+      ctx.fillRect(0, 0, U.WALL_L - 8, TRAY_TOP);
+      ctx.fillRect(U.WALL_R + 8, 0, VW - U.WALL_R - 8, TRAY_TOP);
+    }
 
     drawBanner(ctx, S);
     drawToast(ctx, S);
     drawHud(ctx, S);
     drawTray(ctx, S);
+    drawBuildHint(ctx, S);
+    /* Tutorial overlay sits above the HUD and tray (it points at them) but
+     * below an open card popout, which must always win the screen. */
+    if (S.mode === 'tutorial' && global.TUT && global.TUT.draw) global.TUT.draw(ctx, S);
+    drawInspect(ctx, S);
 
     ctx.restore();
   };
+
+  /* In 3D mode the tower bodies live in WebGL; the 2D layer adds only the
+   * readouts that need to stay pin-sharp: range rings while placing or
+   * selected, a selection halo, and ability cooldown arcs. */
+  function drawTowerOverlays(ctx, S) {
+    for (var i = 0; i < S.towers.length; i++) {
+      var t = S.towers[i], d = t.def;
+      var sel = S.selectedTower === t;
+      if (t.family === 'paddle' && (sel || S.buildPick)) {
+        ctx.strokeStyle = U.rgba(d.color, 0.28);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, d.range, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (sel && d.blastR) {
+        ctx.strokeStyle = U.rgba(d.color, 0.25);
+        ctx.lineWidth = 2;
+        ctx.setLineDash([8, 8]);
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, d.blastR, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      if (sel) {
+        ctx.strokeStyle = U.rgba(C.white, 0.9);
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, (t.family === 'bumper' ? t.r : 22) + 10, 0, TAU);
+        ctx.stroke();
+      }
+      var max = d.blastCd || d.chainCd;
+      if (max && t.abilityCd > 0) {
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.r + 8, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - t.abilityCd / max));
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = U.rgba(d.color, 0.85);
+        ctx.stroke();
+      }
+    }
+  }
 
   /* ---------------------------------------------------------------------- */
   /* Hit testing                                                            */
@@ -1323,18 +1730,41 @@
     return false;
   };
 
-  DRAW.hitTray = function (x, y) {
-    var S = global.GAME.state;
+  /* Split into pick and apply so game.js can sit on a press for a moment
+   * before committing to it — see the hold-to-inspect flow in pointerDown. */
+  /* The tray's current cell rects, for anything that needs to point at one —
+   * the onboarding tutorial highlights individual cells. Recomputed from the
+   * same layout the renderer uses, so it is correct even before the first
+   * frame is painted (unlike the internal hit list, which drawTray rebuilds).
+   * `band` is the whole tray strip. */
+  DRAW.trayRects = function (S) {
+    S = S || global.GAME.state;
+    return {
+      band: { x: 0, y: TRAY_TOP, w: VW, h: VH - TRAY_TOP },
+      cells: S && S.cards ? trayCells(S) : []
+    };
+  };
+
+  DRAW.pickTray = function (x, y) {
     for (var i = 0; i < trayHits.length; i++) {
-      var h = trayHits[i];
-      if (!inRect(x, y, h)) continue;
-      if (h.id === 'closeTower') { S.selectedTower = null; return true; }
-      if (h.id === 'upgrade') { global.GAME.upgradeTower(S.selectedTower, h.to); return true; }
-      if (h.id === 'sell') { global.GAME.sellTower(S.selectedTower); return true; }
-      if (h.kind === 'build') { global.GAME.pickBuild(h.type); return true; }
-      if (h.kind === 'card') { global.GAME.useCard(h.index); return true; }
+      if (inRect(x, y, trayHits[i])) return trayHits[i];
     }
+    return null;
+  };
+
+  DRAW.applyTray = function (h) {
+    if (!h) return false;
+    var S = global.GAME.state;
+    if (h.id === 'closeTower') { S.selectedTower = null; return true; }
+    if (h.id === 'upgrade') { global.GAME.upgradeTower(S.selectedTower, h.to); return true; }
+    if (h.id === 'sell') { global.GAME.sellTower(S.selectedTower); return true; }
+    if (h.kind === 'build') { global.GAME.pickBuild(h.type); return true; }
+    if (h.kind === 'card') { global.GAME.useCard(h.index); return true; }
     return false;
+  };
+
+  DRAW.hitTray = function (x, y) {
+    return DRAW.applyTray(DRAW.pickTray(x, y));
   };
 
   DRAW.hitBanner = function (x, y) {

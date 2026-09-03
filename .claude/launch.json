@@ -4,8 +4,11 @@
     {
       "name": "megaball",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["tools/serve.js"],
-      "port": 5173
+      "runtimeArgs": [
+        "tools/serve.js"
+      ],
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

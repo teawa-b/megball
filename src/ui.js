@@ -1,5 +1,5 @@
 /* MEGABALL — ui.js
- * DOM overlay screens: title, level select, deck builder, pause, results.
+ * DOM overlay screens: title, world picker, level select, deck, pause, results.
  *
  * The canvas owns everything that happens on the table; the DOM owns
  * everything that happens between rounds. Splitting it this way means menus
@@ -31,10 +31,16 @@
     '#ui .sheet{position:relative;width:100%;max-width:560px;height:100%;display:flex;',
     '  flex-direction:column;padding:26px 22px calc(26px + env(safe-area-inset-bottom));',
     '  box-sizing:border-box;overflow-y:auto;overscroll-behavior:contain;}',
-    '#ui .veil{position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 0%,',
+    /* Pinned to the viewport rather than to the sheet's padding box: the sheet
+     * is the scroll container, so an absolutely positioned backdrop stops at
+     * the first screenful and lets the canvas show through underneath once a
+     * long list scrolls. Width is matched to the sheet so nothing else moves. */
+    '#ui .veil,#ui .bgimg{position:fixed;top:0;bottom:0;left:50%;width:100%;max-width:560px;',
+    '  transform:translateX(-50%);pointer-events:none;}',
+    '#ui .veil{background:radial-gradient(120% 80% at 50% 0%,',
     '  rgba(63,224,255,.10),transparent 60%),linear-gradient(180deg,rgba(5,6,13,.86),rgba(5,6,13,.97));',
     '  z-index:-1;}',
-    '#ui .bgimg{position:absolute;inset:0;background-size:cover;background-position:center;',
+    '#ui .bgimg{background-size:cover;background-position:center;',
     '  opacity:.5;z-index:-2;filter:saturate(.85);}',
 
     '#ui h1{font-size:15vw;max-font-size:74px;line-height:.92;margin:0;letter-spacing:-.03em;',
@@ -63,23 +69,40 @@
     '#ui .starcount{font-size:15px;font-weight:800;color:#ffb020;letter-spacing:.06em;}',
     '#ui .back{width:auto;padding:11px 18px;margin:0;font-size:12px;}',
 
-    /* <button> does not inherit colour or font from its ancestors, so both
-     * have to be stated here or the label falls back to the UA's near-black. */
-    '#ui .lvl{display:flex;align-items:center;gap:14px;width:100%;box-sizing:border-box;',
-    '  padding:15px 16px;margin:8px 0;border-radius:14px;text-align:left;cursor:pointer;',
-    '  color:#fff;font-family:inherit;',
-    '  border:2px solid rgba(255,255,255,.10);background:rgba(255,255,255,.035);',
-    '  transition:transform .08s,border-color .15s,background .15s;}',
-    '#ui .lvl:active{transform:scale(.985);}',
-    '#ui .lvl.open{border-color:rgba(63,224,255,.5);background:rgba(63,224,255,.07);}',
-    '#ui .lvl.locked{opacity:.42;cursor:not-allowed;}',
-    '#ui .lvl .num{width:42px;height:42px;flex:0 0 42px;border-radius:11px;display:flex;',
-    '  align-items:center;justify-content:center;font-weight:900;font-size:18px;',
-    '  background:rgba(63,224,255,.14);color:#3fe0ff;border:1px solid rgba(63,224,255,.3);}',
-    '#ui .lvl .nm{display:block;font-weight:800;font-size:16px;letter-spacing:.02em;color:#fff;}',
-    '#ui .lvl .ds{display:block;font-size:12px;color:rgba(255,255,255,.45);margin-top:3px;font-weight:600;}',
-    '#ui .lvl .st{margin-left:auto;font-size:15px;letter-spacing:2px;white-space:nowrap;}',
-    '#ui .grow{flex:1;min-width:0;}',
+    /* World picker. The globe lives in a plain box that eats the leftover
+     * height of the sheet; GLOBE.mount() puts its canvas and its labels in. */
+    '#ui .globe{position:relative;flex:1 1 auto;min-height:280px;margin:2px 0 6px;overflow:hidden;}',
+    '#ui .gpin{position:absolute;top:0;left:0;padding:7px 12px;border-radius:11px;',
+    '  background:rgba(5,6,13,.80);border:2px solid rgba(63,224,255,.55);',
+    '  font-family:' + U.FONT + ';white-space:nowrap;text-align:center;cursor:pointer;',
+    '  box-shadow:0 0 20px rgba(63,224,255,.22);transition:opacity .12s;}',
+    '#ui .gpin b{display:block;font:900 13px/1.1 ' + U.FONT + ';letter-spacing:.14em;',
+    '  text-transform:uppercase;color:#3fe0ff;}',
+    '#ui .gpin i{display:block;font:800 9px/1.1 ' + U.FONT + ';letter-spacing:.16em;',
+    '  text-transform:uppercase;color:rgba(255,255,255,.45);margin-top:4px;font-style:normal;}',
+    '#ui .gpin.lockd{border-color:rgba(255,46,136,.45);box-shadow:none;}',
+    '#ui .gpin.lockd b{color:rgba(255,255,255,.55);}',
+    '#ui .gpin:active{transform:translate(-50%,-100%) scale(.97);}',
+    '#ui .hint{text-align:center;font:800 10px/1 ' + U.FONT + ';letter-spacing:.18em;',
+    '  text-transform:uppercase;color:rgba(255,255,255,.32);margin:0 0 14px;}',
+
+    /* Level grid: three across, square tiles, big numerals. */
+    '#ui .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;',
+    '  margin:2px 0 14px;flex:0 0 auto;}',
+    '#ui .tile{position:relative;aspect-ratio:1;box-sizing:border-box;padding:0;margin:0;',
+    '  border-radius:16px;cursor:pointer;font-family:inherit;color:#fff;',
+    '  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;',
+    '  border:2px solid rgba(63,224,255,.30);background:#0a0e1a;',
+    '  transition:transform .08s,border-color .15s,box-shadow .2s;}',
+    '#ui .tile:active{transform:scale(.96);}',
+    '#ui .tile .n{font:900 34px/1 ' + U.FONT + ';letter-spacing:-.03em;',
+    '  text-shadow:0 0 18px rgba(63,224,255,.45);}',
+    '#ui .tile .st{font-size:12px;letter-spacing:2px;color:#ffb020;line-height:1;}',
+    '#ui .tile.cur{border-color:#3fe0ff;box-shadow:0 0 0 1px rgba(63,224,255,.18),',
+    '  0 8px 28px rgba(63,224,255,.22);}',
+    '#ui .tile.locked{cursor:not-allowed;border-color:rgba(255,46,136,.16);',
+    '  background:#0b0f1c;color:rgba(255,255,255,.30);}',
+    '#ui .tile.locked .lk{color:rgba(255,46,136,.34);}',
 
     '#ui .cardgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 18px;}',
     '#ui .pc{position:relative;border-radius:13px;overflow:hidden;cursor:pointer;',
@@ -109,6 +132,20 @@
     '#ui .stars span{display:inline-block;opacity:0;transform:scale(.3);',
     '  animation:pop .45s cubic-bezier(.2,1.6,.4,1) forwards;}',
     '@keyframes pop{to{opacity:1;transform:scale(1);}}',
+    /* Objective rows. The same markup serves the level-select preview (all
+       rows pending) and the results verdict (each row resolved), so what the
+       level promised and what it awarded can never drift apart. */
+    '#ui .objs{display:flex;flex-direction:column;gap:7px;margin:14px 0 4px;}',
+    '#ui .obj{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;',
+    '  background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);',
+    '  font-size:12px;font-weight:700;line-height:1.35;color:rgba(255,255,255,.62);}',
+    '#ui .obj .mk{flex:0 0 20px;width:20px;height:20px;border-radius:50%;text-align:center;',
+    '  font:900 12px/20px ' + U.FONT + ';border:2px solid rgba(255,255,255,.18);',
+    '  color:rgba(255,255,255,.3);}',
+    '#ui .obj.met{border-color:rgba(255,176,32,.45);background:rgba(255,176,32,.09);color:#fff;}',
+    '#ui .obj.met .mk{border-color:#ffb020;background:#ffb020;color:#05060d;}',
+    '#ui .obj.failed{opacity:.45;}',
+    '#ui .obj.failed .mk{border-color:rgba(255,46,136,.55);color:#ff2e88;}',
     '#ui .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0;}',
     '#ui .stat{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);',
     '  border-radius:11px;padding:11px 13px;}',
@@ -141,6 +178,11 @@
     root = document.createElement('div');
     root.id = 'ui';
     document.body.appendChild(root);
+
+    /* The globe sizes itself to its box, which changes with the viewport. */
+    global.addEventListener('resize', function () {
+      if (global.GLOBE && global.GLOBE.mounted) global.GLOBE.resize();
+    });
   };
 
   function bgStyle(key) {
@@ -213,11 +255,18 @@
       '</div>',
       '<div class="spacer"></div>',
       '<button class="btn primary" id="play">Play</button>',
-      '<button class="btn ghost" id="deck">Deck</button>'
+      '<button class="btn ghost" id="deck">Deck</button>',
+      '<button class="btn ghost" id="howto">How to play</button>'
     ].join(''), true);
 
-    on('#play', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
+    on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
+    /* Replays the Level 1 tutorial on demand. */
+    on('#howto', function () {
+      sfx('ui_tap');
+      if (global.TUT) global.TUT.force = true;
+      if (hooks.onStartLevel) hooks.onStartLevel(1);
+    }, sheet);
     on('#mute', function (e) {
       var s = global.SFX;
       if (!s) return;
@@ -233,50 +282,151 @@
     if (global.GAME) { global.GAME.progress[k] = v; global.GAME.saveProgress(); }
   }
 
-  function screenLevelSelect() {
-    var GAME = global.GAME, LEVELS = global.LEVELS;
-    var total = GAME.totalStars();
-    var next = LEVELS.nextUnlock(total);
+  /* ---------------------------------------------------------------------- */
+  /* World picker                                                           */
+  /* ---------------------------------------------------------------------- */
 
-    var rows = '';
-    for (var i = 0; i < LEVELS.list.length; i++) {
-      var L = LEVELS.list[i];
-      var open = GAME.levelUnlocked(L.id);
-      var st = GAME.progress.stars[L.id] || 0;
-      rows += '<button class="lvl ' + (open ? 'open' : 'locked') + '" data-id="' + L.id + '">' +
-        '<span class="num">' + (open ? L.id : '🔒') + '</span>' +
-        '<span class="grow"><span class="nm">' + L.name + '</span>' +
-        '<span class="ds">' + L.subtitle + '</span></span>' +
-        '<span class="st" style="color:' + (st ? '#ffb020' : 'rgba(255,255,255,.2)') + '">' +
-        starStr(st) + '</span></button>';
-    }
+  /* Where each world sits on the planet. Only World 1 exists; the other two
+   * are pinned far enough apart that a single drag never reveals all three,
+   * which is the whole point of putting them on a globe. */
+  var WORLDS = [
+    { id: 1, lat: 14, lon: -62, label: 'World 1', locked: false },
+    { id: 2, lat: 44, lon: 78, label: 'World 2', locked: true },
+    { id: 3, lat: -32, lon: 168, label: 'World 3', locked: true }
+  ];
+
+  function screenWorld() {
+    var GAME = global.GAME;
+    var total = GAME.totalStars();
 
     var sheet = shell([
-      '<div class="hdr"><h2>Select Level</h2>',
-      '<span class="starcount">★ ' + total + ' / 15</span></div>',
-      rows,
-      next ? '<p class="note">Next unlock at ★' + next.stars + ' — ' + next.label + '</p>' : '',
-      '<div class="spacer"></div>',
+      '<div class="hdr"><h2>Select World</h2>',
+      '<span class="starcount">\u2605 ' + total + ' / 15</span></div>',
+      '<div class="globe" id="globe"></div>',
+      '<p class="hint">Drag to spin \u00b7 tap a world</p>',
       '<div class="row"><button class="btn ghost" id="deck">Deck</button>',
       '<button class="btn ghost" id="back">Title</button></div>'
     ].join(''), true);
 
-    onAll('.lvl', function (n) {
-      if (n.classList.contains('locked')) { sfx('ui_error'); return; }
-      sfx('ui_tap');
-      if (hooks.onStartLevel) hooks.onStartLevel(parseInt(n.getAttribute('data-id'), 10));
-    }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
     on('#back', function () { sfx('ui_back'); UI.showScreen('title'); }, sheet);
+
+    var box = sheet.querySelector('#globe');
+    var G = global.GLOBE;
+    if (G && G.mount) {
+      G.mount(box, {
+        pins: WORLDS,
+        onPick: function () { sfx('ui_tap'); UI.showScreen('levelSelect'); },
+        onLockedPick: function () { sfx('ui_error'); }
+      });
+    } else {
+      /* No WebGL: the grid is still one tap away. */
+      box.innerHTML = '<button class="btn primary" id="w1">World 1</button>';
+      on('#w1', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Level grid                                                             */
+  /* ---------------------------------------------------------------------- */
+
+  /* A padlock drawn inline rather than typed as an emoji: the emoji font
+   * renders in full colour on every desktop platform, and colour outside the
+   * palette is the one thing the art direction does not allow. */
+  var LOCK_SVG = '<svg class="lk" viewBox="0 0 24 24" width="27" height="27" ' +
+    'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+    '<rect x="4" y="10.5" width="16" height="10.5" rx="2.5"></rect>' +
+    '<path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9"></path></svg>';
+
+  function lockedTile(i) {
+    return '<button class="tile locked" data-id="' + i + '">' + LOCK_SVG + '</button>';
+  }
+
+  /* Nine square tiles. Five are the real levels; the rest are placeholders so
+   * the shape of the world is visible from the first visit. */
+  function screenLevelSelect() {
+    var GAME = global.GAME, LEVELS = global.LEVELS;
+    var total = GAME.totalStars();
+
+    /* "Current" = the first unlocked level the player has not mastered. */
+    var curId = 0;
+    for (var c = 0; c < LEVELS.list.length; c++) {
+      var lc = LEVELS.list[c];
+      if (GAME.levelUnlocked(lc.id) && (GAME.progress.stars[lc.id] || 0) < 3) { curId = lc.id; break; }
+    }
+    if (!curId) curId = LEVELS.list.length ? LEVELS.list[0].id : 0;
+
+    var tiles = '';
+    for (var i = 1; i <= 9; i++) {
+      var L = LEVELS.byId(i);
+      if (!L) {
+        tiles += lockedTile(i);
+        continue;
+      }
+      var open = GAME.levelUnlocked(L.id);
+      var st = GAME.progress.stars[L.id] || 0;
+      if (!open) {
+        tiles += lockedTile(i);
+        continue;
+      }
+      tiles += '<button class="tile' + (L.id === curId ? ' cur' : '') + '" data-id="' + L.id + '">' +
+        '<span class="n">' + L.id + '</span>' +
+        '<span class="st" style="color:' + (st ? '#ffb020' : 'rgba(255,255,255,.22)') + '">' +
+        starStr(st) + '</span></button>';
+    }
+
+    var cur = LEVELS.byId(curId);
+    var blurb = cur
+      ? '<b style="color:#3fe0ff">' + cur.id + '. ' + cur.name + '</b> \u2014 ' + cur.subtitle
+      : '';
+
+    /* The three objectives of the current level, stated up front. A "use no
+       more than N defenses" ask is unplayable as a surprise at the results
+       screen — the player has to know the constraint before they spend. */
+    var objList = cur ? objectiveRows(LEVELS.objectives(cur, null), false) : '';
+
+    var sheet = shell([
+      '<div class="hdr"><h2>World 1</h2>',
+      '<span class="starcount">\u2605 ' + total + ' / 15</span></div>',
+      '<div class="grid">' + tiles + '</div>',
+      '<p class="note" id="blurb">' + blurb + '</p>',
+      '<div id="objs">' + objList + '</div>',
+      '<div class="spacer"></div>',
+      '<div class="row"><button class="btn ghost" id="deck">Deck</button>',
+      '<button class="btn ghost" id="back">Back</button></div>'
+    ].join(''), true);
+
+    var note = sheet.querySelector('#blurb');
+    onAll('.tile', function (n) {
+      var id = parseInt(n.getAttribute('data-id'), 10);
+      if (n.classList.contains('locked')) { sfx('ui_error'); return; }
+      var L = LEVELS.byId(id);
+      if (note && L) {
+        note.innerHTML = '<b style="color:#3fe0ff">' + L.id + '. ' + L.name +
+          '</b> \u2014 ' + L.subtitle;
+        var ob = sheet.querySelector('#objs');
+        if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
+      }
+      sfx('ui_tap');
+      if (hooks.onStartLevel) hooks.onStartLevel(id);
+    }, sheet);
+    on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout'); }, sheet);
+    on('#back', function () { sfx('ui_back'); UI.showScreen('world'); }, sheet);
   }
 
   /* The deck builder. Slots unlock with stars, so the loadout decision gets
-   * meaningfully harder as the collection grows. */
-  function screenLoadout() {
+   * meaningfully harder as the collection grows.
+   *
+   * `ctx` (optional) = { next: levelId, unlocks: [] }. The results screen
+   * routes through here after a level that unlocked something, because a new
+   * card arrives with no free slot to put it in — the player has to swap, and
+   * they will never guess that from a menu they were never sent to. */
+  function screenLoadout(ctx) {
     var GAME = global.GAME, LEVELS = global.LEVELS, CARDS = global.CARDS;
     var total = GAME.totalStars();
     var owned = LEVELS.ownedAt(total);
     var loadout = GAME.progress.loadout;
+    var nextLvl = ctx && ctx.next ? LEVELS.byId(ctx.next) : null;
 
     /* Trim any cards that are no longer slottable. */
     while (loadout.length > owned.slots) loadout.pop();
@@ -309,14 +459,30 @@
 
     var sel = loadout.length ? CARDS.PLAYER[loadout[loadout.length - 1]] : CARDS.PLAYER.slowtime;
 
+    /* Banner for anything just unlocked, then the swap rule — spelled out only
+     * when it actually bites, i.e. more cards owned than slots to hold them. */
+    var unl = '';
+    if (ctx && ctx.unlocks) {
+      for (var u = 0; u < ctx.unlocks.length; u++) {
+        unl += '<div class="unlock">UNLOCKED — ' + ctx.unlocks[u].label + '</div>';
+      }
+    }
+    var lead = owned.cards.length > owned.slots
+      ? 'You own more cards than you have slots. Tap a card to swap it into your loadout — the one it replaces stays in your collection.'
+      : 'Cards are active powers you trigger mid-run. Each level also lends you its own card for free.';
+
     var sheet = shell([
       '<div class="hdr"><h2>Deck</h2><span class="starcount">★ ' + total + '</span></div>',
-      '<p class="note">Cards are active powers you trigger mid-run. Each level also lends you its own card for free.</p>',
+      unl,
+      '<p class="note">' + lead + '</p>',
       '<div class="slots">' + slots + '</div>',
       '<div class="cardgrid">' + grid + '</div>',
       '<p class="note" id="blurb"><b style="color:' + sel.color + '">' + sel.name + '</b> — ' + sel.long + '</p>',
       '<div class="spacer"></div>',
-      '<button class="btn" id="back">Done</button>'
+      nextLvl
+        ? '<button class="btn primary" id="play">Play ' + nextLvl.id + '. ' + nextLvl.name + '</button>' +
+          '<button class="btn ghost" id="back">Level Select</button>'
+        : '<button class="btn" id="back">Done</button>'
     ].join(''), true);
 
     onAll('.pc', function (n) {
@@ -328,9 +494,13 @@
       else { loadout.pop(); loadout.push(id); }
       sfx('ui_tap');
       GAME.saveProgress();
-      screenLoadout();
+      screenLoadout(ctx);          // keep the "play next" context across a re-render
     }, sheet);
 
+    on('#play', function () {
+      sfx('ui_tap');
+      if (hooks.onStartLevel) hooks.onStartLevel(nextLvl.id);
+    }, sheet);
     on('#back', function () { sfx('ui_back'); UI.showScreen('levelSelect'); }, sheet);
   }
 
@@ -368,6 +538,24 @@
     on('#qt', function () { sfx('ui_back'); global.GAME.quitToMenu(); }, sheet);
   }
 
+  /* Render a set of LEVELS.objectives rows. `resolved` false renders every
+     row as a plain promise (level select), true renders the verdict. */
+  function objectiveRows(objs, resolved) {
+    var out = '';
+    for (var i = 0; i < objs.length; i++) {
+      var o = objs[i];
+      var cls = 'obj';
+      var mark = '★';
+      if (resolved) {
+        if (o.met) cls += ' met';
+        else if (o.failed) { cls += ' failed'; mark = '✕'; }
+      }
+      out += '<div class="' + cls + '"><span class="mk">' + mark + '</span>' +
+        '<span>' + o.text + '</span></div>';
+    }
+    return '<div class="objs">' + out + '</div>';
+  }
+
   function screenResults(d) {
     var stars = '';
     for (var i = 0; i < 3; i++) {
@@ -379,6 +567,13 @@
       unl += '<div class="unlock">UNLOCKED — ' + d.unlocks[u].label + '</div>';
     }
 
+    /* Go on through the Deck rather than straight into the next level when
+     * there is something new to slot, and always after Level 1 — that is the
+     * one moment we can be sure the player has never opened the Deck, and a
+     * card they cannot find is a card they will never use. */
+    var viaDeck = d.win && d.hasNext && (d.unlocks.length > 0 || d.level.id === 1);
+    var nextId = d.level.id + 1;
+
     var sheet = shell([
       '<div class="spacer"></div>',
       '<p class="tag" style="text-align:center;color:' + (d.win ? '#4ade80' : '#ff2e88') + '">',
@@ -386,6 +581,7 @@
       '<p class="title-big">' + d.level.name + '</p>',
       d.win ? '<div class="stars">' + stars + '</div>' :
         '<p class="note" style="text-align:center">Reached wave ' + (d.wave || 1) + ' of ' + (d.waves || '?') + '</p>',
+      d.objectives ? objectiveRows(d.objectives, true) : '',
       '<div class="stats">',
       '  <div class="stat"><b style="color:#ff2e88">' + d.lives + '/' + d.livesMax + '</b><i>Lives left</i></div>',
       '  <div class="stat"><b style="color:#fff">' + d.kills + '</b><i>Destroyed</i></div>',
@@ -394,13 +590,23 @@
       '</div>',
       unl,
       '<div class="spacer"></div>',
-      d.win && d.hasNext ? '<button class="btn primary" id="next">Next Level</button>' : '',
+      d.win && d.hasNext
+        ? '<button class="btn primary" id="next">' +
+            (viaDeck ? 'Deck &amp; Next Level' : 'Next Level') + '</button>'
+        : '',
+      viaDeck && d.unlocks.length
+        ? '<p class="note" style="text-align:center;margin:2px 0 0">Pick which cards you take in.</p>'
+        : '',
       d.win && !d.hasNext ? '<div class="unlock" style="border-color:rgba(74,222,128,.5);background:rgba(74,222,128,.1);color:#4ade80">ALL LEVELS CLEARED — ★' + d.totalStars + ' total</div>' : '',
       '<button class="btn' + (d.win ? ' ghost' : ' primary') + '" id="retry">' + (d.win ? 'Replay' : 'Try Again') + '</button>',
       '<button class="btn ghost" id="menu">Level Select</button>'
     ].join(''), true);
 
-    on('#next', function () { sfx('ui_tap'); global.GAME.nextLevel(); }, sheet);
+    on('#next', function () {
+      sfx('ui_tap');
+      if (viaDeck) UI.showScreen('loadout', { next: nextId, unlocks: d.unlocks });
+      else global.GAME.nextLevel();
+    }, sheet);
     on('#retry', function () { sfx('ui_tap'); global.GAME.restartLevel(); }, sheet);
     on('#menu', function () { sfx('ui_back'); global.GAME.quitToMenu(); }, sheet);
   }
@@ -408,6 +614,12 @@
   /* ---------------------------------------------------------------------- */
 
   UI.showScreen = function (name, data) {
+    /* The globe owns a WebGL context of its own. Release it the instant we
+     * leave the world screen, before anything else touches the DOM, so the
+     * game's table never has to compete for one. */
+    if (current === 'world' && name !== 'world') {
+      if (global.GLOBE && global.GLOBE.unmount) global.GLOBE.unmount();
+    }
     current = name;
     if (!name) {
       root.classList.remove('on');
@@ -416,8 +628,9 @@
     }
     root.classList.add('on');
     if (name === 'title') screenTitle();
+    else if (name === 'world') screenWorld();
     else if (name === 'levelSelect') screenLevelSelect();
-    else if (name === 'loadout') screenLoadout();
+    else if (name === 'loadout') screenLoadout(data);
     else if (name === 'paused') screenPaused();
     else if (name === 'results') screenResults(data);
     root.scrollTop = 0;

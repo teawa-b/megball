@@ -20,7 +20,8 @@
     font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
   }
   #stage { position: fixed; inset: 0; display: block; }
-  #game  { display: block; width: 100%; height: 100%; touch-action: none; }
+  #gl, #game { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+  #gl { z-index: 0; } #game { z-index: 1; }
 
   /* Boot splash — also the gesture that unlocks Web Audio on mobile. */
   #boot {
@@ -63,7 +64,11 @@
 </head>
 <body>
 
-<div id="stage"><canvas id="game"></canvas></div>
+<!-- Two stacked canvases. #gl is the WebGL layer (the physical machine: table,
+     rails, towers, flippers — see src/scene3d.js). #game is the transparent 2D
+     layer on top (balls, FX, HUD, tray). They share one virtual coordinate
+     space, so the 2D layer lands exactly on the 3D table surface. -->
+<div id="stage"><canvas id="gl"></canvas><canvas id="game"></canvas></div>
 
 <div id="boot">
   <div class="mark"></div>
@@ -87,8 +92,13 @@
 <script src="src/entities.js"></script>
 <script src="src/cards.js"></script>
 <script src="src/levels.js"></script>
+<!-- three.js (vendor, MIT) as a plain-script global, then the 3D table layer. -->
+<script src="src/vendor/three.min.js"></script>
+<script src="src/scene3d.js"></script>
+<script src="src/globe.js"></script>
 <script src="src/render.js"></script>
 <script src="src/ui.js"></script>
+<script src="src/tutorial.js"></script>
 <script src="src/game.js"></script>
 
 <script>
@@ -96,7 +106,13 @@
   'use strict';
 
   var canvas = document.getElementById('game');
-  var ctx = canvas.getContext('2d', { alpha: false });
+  var glCanvas = document.getElementById('gl');
+  /* The 2D layer is transparent so the WebGL machine underneath shows through.
+   * If WebGL is unavailable, SCENE3D.init returns false and DRAW falls back to
+   * painting the whole table in 2D on this same canvas. */
+  var use3D = !!(window.SCENE3D && SCENE3D.init(glCanvas));
+  var ctx = canvas.getContext('2d', { alpha: true });
+  if (window.DRAW) DRAW.use3D = use3D;
   var boot = document.getElementById('boot');
   var bootmsg = document.getElementById('bootmsg');
 
@@ -143,7 +159,10 @@
     window.addEventListener('orientationchange', function () { setTimeout(resize, 220); });
   }
 
-  function resize() { DRAW.resize(canvas); }
+  function resize() {
+    DRAW.resize(canvas);
+    if (use3D) SCENE3D.resize(DRAW.vp);
+  }
 
   /* ---- loop ------------------------------------------------------------ */
 

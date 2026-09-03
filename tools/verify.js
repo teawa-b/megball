@@ -89,10 +89,26 @@ const remoteFonts = scan(/@font-face[\s\S]{0,400}?url\s*\(\s*["']?(?!data:)[^)]*
 check('No @font-face with a URL, no Google Fonts', remoteFonts,
       'Typography is the system font stack only.');
 
-/* --- 5. self-contained single document ----------------------------------- */
+/* --- 5. self-contained document ------------------------------------------
+ * Third-party libraries are the one allowed subresource: the competition asks
+ * for them in a `vendor/` folder next to index.html, referenced by relative
+ * path and NOT embedded. Any other <script src=> is a failure. */
 const external = scan(
-  /<script[^>]*\bsrc\s*=|<link[^>]*\brel\s*=\s*["']?stylesheet|<link[^>]*\bhref\s*=\s*["'](?!data:)|<img[^>]*\bsrc\s*=\s*["'](?!data:)|<(?:audio|video|source|iframe|embed|object)[^>]*\b(?:src|data)\s*=\s*["'](?!data:)|@import\s/gi);
-check('Single self-contained document (no external subresources)', external);
+  /<script[^>]*\bsrc\s*=\s*["'](?!vendor\/)|<link[^>]*\brel\s*=\s*["']?stylesheet|<link[^>]*\bhref\s*=\s*["'](?!data:)|<img[^>]*\bsrc\s*=\s*["'](?!data:)|<(?:audio|video|source|iframe|embed|object)[^>]*\b(?:src|data)\s*=\s*["'](?!data:)|@import\s/gi);
+check('Self-contained document (only vendor/ scripts as subresources)', external);
+
+/* --- 5b. every vendor script exists next to the document ----------------- */
+const vendorRefs = [];
+{
+  const rx = /<script[^>]*\bsrc\s*=\s*["'](vendor\/[^"']+)["']/gi;
+  let m;
+  while ((m = rx.exec(text)) !== null) vendorRefs.push(m[1]);
+}
+const missingVendor = vendorRefs
+  .filter((rel) => !fs.existsSync(path.join(path.dirname(target), rel.split('/').join(path.sep))))
+  .map((rel) => ({ line: 0, text: 'missing file: ' + rel }));
+check('Vendor libraries present beside index.html (' + vendorRefs.length + ' referenced)', missingVendor,
+      vendorRefs.length ? vendorRefs.join(', ') : 'none referenced');
 
 /* --- 6. size cap --------------------------------------------------------- */
 const overCap = buf.length > SIZE_CAP

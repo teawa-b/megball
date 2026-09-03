@@ -24,6 +24,8 @@ Submission target: Meta Horizon Creator Competition — **Tower Defense & Strate
 - Ships as a `.zip` under **35 MB** with a readable root-level `index.html`.
 - Must run from `file://` as well as `http://`. **No ES modules / no `import`** —
   `file://` blocks module loading. Use plain `<script>` tags and globals.
+- Third-party libraries (three.js) live in a `vendor/` folder next to `index.html`,
+  referenced by relative path, and are never embedded in the page (competition rule).
 - Targets mobile web. Must hold **60 fps on a mid-range phone**.
 
 ---
@@ -149,7 +151,10 @@ src/board.js     → global  BOARD    table geometry per level
 src/entities.js  → global  ENT      balls, towers, bumpers
 src/cards.js     → global  CARDS    card definitions + runtime
 src/levels.js    → global  LEVELS   wave + level data
-src/render.js    → global  DRAW     all canvas drawing
+src/vendor/three.min.js → THREE     three.js (vendor; ships in vendor/, not inlined)
+src/scene3d.js   → global  SCENE3D  WebGL machine: table, rails, towers, flippers
+src/globe.js     → global  GLOBE    world-picker globe (own renderer, mounted by UI)
+src/render.js    → global  DRAW     2D layer: balls, FX, HUD, tray (+ 2D fallback table)
 src/ui.js        → global  UI       DOM overlay screens
 src/game.js      → global  GAME     state machine, loop, economy
 ```
@@ -245,7 +250,7 @@ The canvas owns gameplay. The DOM owns menus, results and modals.
 
 ```js
 UI.init(hooks)   // hooks: { onStartLevel(id) }
-UI.showScreen(name, data)   // 'title' | 'levelSelect' | 'loadout' | 'results' | 'paused' | null
+UI.showScreen(name, data)   // 'title' | 'world' | 'levelSelect' | 'loadout' | 'results' | 'paused' | null
 UI.current()                // → the open screen name, or null
 UI.isOpen()                 // → boolean
 ```

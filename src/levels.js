@@ -42,6 +42,8 @@
       startEnergy: 135,
       lives: 5,
       seed: 1011,
+      leakBudget: 2,
+      challenge: { kind: 'noLeak', text: 'Clear without a single leak', short: 'NO LEAKS' },
       teach: [
         { at: 'start', text: 'Hold the LEFT or RIGHT side of the table to flip' },
         { at: 'wave2', text: 'Tap BUILD to spend Energy on a defense' }
@@ -61,6 +63,9 @@
       startEnergy: 155,
       lives: 5,
       seed: 2022,
+      leakBudget: 2,
+      challenge: { kind: 'has', any: ['blast', 'shock', 'launch'],
+        text: 'Build an upgraded Bumper', short: 'UPGRADED BUMPER' },
       teach: [
         { at: 'start', text: 'Bumpers are always on — build them where balls fall' },
         { at: 'wave3', text: 'Runners are small and fast. Slow them or they slip past' }
@@ -81,6 +86,9 @@
       startEnergy: 170,
       lives: 5,
       seed: 3033,
+      leakBudget: 1,
+      challenge: { kind: 'has', any: ['frost'],
+        text: 'Build a Frost Paddle', short: 'FROST PADDLE' },
       teach: [
         { at: 'start', text: 'Upgrade a paddle to FROST — the slow spreads on contact' },
         { at: 'wave3', text: 'Haulers cost 2 lives if they get out' }
@@ -102,6 +110,9 @@
       startEnergy: 185,
       lives: 5,
       seed: 4044,
+      leakBudget: 1,
+      challenge: { kind: 'stat', stat: 'bestChain', min: 4,
+        text: 'Land a 4-ball chain', short: '4-CHAIN' },
       teach: [
         { at: 'start', text: 'POWER PADDLE ignites a ball — it then destroys the others' },
         { at: 'wave2', text: 'Aim an ignited ball into a cluster for a CHAIN' }
@@ -125,6 +136,9 @@
       startEnergy: 200,
       lives: 5,
       seed: 5055,
+      leakBudget: 0,
+      challenge: { kind: 'maxTowers', n: 8,
+        text: 'Never have more than 8 defenses on the board', short: 'MAX 8 DEFENSES' },
       teach: [
         { at: 'start', text: 'Everything you have learned. Hold the line.' },
         { at: 'wave6', text: 'COLOSSUS incoming — it costs 3 lives' }
@@ -199,23 +213,133 @@
   /* Stars & unlocks                                                        */
   /* ---------------------------------------------------------------------- */
 
-  /* Star criteria are deliberately about LEAKS, not score. The thing being
-   * defended is the drain, so that is what mastery should measure. */
-  LEVELS.stars = function (livesLeft, livesMax) {
-    if (livesLeft <= 0) return 0;
-    if (livesLeft >= livesMax) return 3;
-    if (livesLeft >= Math.ceil(livesMax * 0.5)) return 2;
-    return 1;
+  /* Three stars are three SEPARATE objectives, not one sliding scale:
+   *
+   *   1. Clear it        — survive every wave
+   *   2. Hold the line   — stay inside the level's leak budget
+   *   3. Challenge       — a bespoke, level-specific ask
+   *
+   * The clear is always the first star, so failing a challenge never gates
+   * the next level (LEVELS unlock on >= 1 star). That is the whole reason
+   * the challenge sits in the third slot rather than the second: it can be
+   * as demanding as the level deserves without ever walling anybody.
+   *
+   * Star criteria stay about LEAKS rather than score — the thing being
+   * defended is the drain, so that is what mastery should measure.
+   */
+
+  /* A run summary, built by GAME. Every field is a high-water mark rather
+   * than a live count, so selling a tower at the last second cannot buy back
+   * a constraint the player already broke.
+   *
+   *   { won, leaks, peakTowers, peakFamily:{paddle,bumper}, built:{type:true},
+   *     bestChain }
+   */
+
+  /* Has this run met the level's challenge? */
+  LEVELS.challengeMet = function (level, run) {
+    var c = level && level.challenge;
+    if (!c || !run) return false;
+    switch (c.kind) {
+      case 'noLeak':
+        return run.leaks === 0;
+      case 'has':
+        for (var i = 0; i < c.any.length; i++) {
+          if (run.built && run.built[c.any[i]]) return true;
+        }
+        return false;
+      case 'maxTowers':
+        return run.peakTowers <= c.n;
+      case 'maxFamily':
+        return (run.peakFamily[c.family] || 0) <= c.n;
+      case 'stat':
+        return (run[c.stat] || 0) >= c.min;
+    }
+    return false;
   };
 
+  /* Is the challenge already unwinnable? Constraint challenges blow the
+   * moment the limit is crossed; build/stat challenges stay reachable right
+   * up to the final ball, so they never report failed early. The HUD needs
+   * this to grey a tracker out honestly instead of dangling a star the
+   * player can no longer reach. */
+  LEVELS.challengeFailed = function (level, run) {
+    var c = level && level.challenge;
+    if (!c || !run) return false;
+    switch (c.kind) {
+      case 'noLeak': return run.leaks > 0;
+      case 'maxTowers': return run.peakTowers > c.n;
+      case 'maxFamily': return (run.peakFamily[c.family] || 0) > c.n;
+    }
+    return false;
+  };
+
+  /* The three objectives as display rows, each with its own met/failed state.
+   * Both the pre-level card and the results screen render from this, so the
+   * promise and the verdict can never drift apart. */
+  LEVELS.objectives = function (level, run) {
+    var budget = level.leakBudget === undefined ? 0 : level.leakBudget;
+    var ch = level.challenge;
+    return [
+      {
+        text: 'Clear every wave',
+        short: 'CLEAR',
+        met: !!(run && run.won),
+        failed: !!(run && run.lost)
+      },
+      {
+        text: budget === 0 ? 'Do not leak a single ball'
+          : 'Leak no more than ' + budget + (budget === 1 ? ' ball' : ' balls'),
+        short: budget === 0 ? 'NO LEAKS' : 'LEAKS ≤ ' + budget,
+        met: !!(run && run.won && run.leaks <= budget),
+        failed: !!(run && run.leaks > budget)
+      },
+      {
+        text: ch ? ch.text : 'Clear every wave',
+        short: ch ? ch.short : 'CLEAR',
+        met: !!(run && run.won && LEVELS.challengeMet(level, run)),
+        failed: !!(run && LEVELS.challengeFailed(level, run))
+      }
+    ];
+  };
+
+  /* A compact live label for the in-game tracker. Constraint challenges show
+   * the running count against the limit, because "MAX 8 DEFENSES" is only
+   * actionable if you can also see that you are on seven. */
+  LEVELS.challengeProgress = function (level, run) {
+    var c = level && level.challenge;
+    if (!c) return '';
+    if (c.kind === 'maxTowers' && run) return 'DEFENSES ' + run.peakTowers + ' / ' + c.n;
+    if (c.kind === 'maxFamily' && run) {
+      return c.family.toUpperCase() + 'S ' + (run.peakFamily[c.family] || 0) + ' / ' + c.n;
+    }
+    if (c.kind === 'stat' && run) return c.short + '  ' + (run[c.stat] || 0) + ' / ' + c.min;
+    return c.short;
+  };
+
+  LEVELS.stars = function (level, run) {
+    if (!run || !run.won) return 0;
+    var objs = LEVELS.objectives(level, run);
+    var n = 0;
+    for (var i = 0; i < objs.length; i++) if (objs[i].met) n++;
+    return n;
+  };
+
+  /* Thresholds are tuned against the star curve of a competent-but-not
+   * perfect player, not against the 15-star ceiling. Under the old
+   * lives-only rule two stars a level came almost automatically; with three
+   * independent objectives the same player banks closer to two-thirds of
+   * what is on the table, so a top unlock at 14 would have been unreachable
+   * for nearly everyone. Every unlock now lands inside a clear-plus-one
+   * pace. */
   LEVELS.UNLOCKS = [
     { stars: 2, kind: 'card', id: 'barrier', label: 'BARRIER card' },
-    { stars: 4, kind: 'slot', id: 2, label: '2nd card slot' },
-    { stars: 6, kind: 'card', id: 'overcharge', label: 'OVERCHARGE card' },
-    { stars: 8, kind: 'card', id: 'megaball', label: 'MEGABALL card' },
-    { stars: 10, kind: 'slot', id: 3, label: '3rd card slot' },
-    { stars: 12, kind: 'card', id: 'magnet', label: 'MAGNETISE card' },
-    { stars: 14, kind: 'card', id: 'shockwave', label: 'SHOCKWAVE card' }
+    { stars: 3, kind: 'slot', id: 2, label: '2nd card slot' },
+    { stars: 5, kind: 'card', id: 'overcharge', label: 'OVERCHARGE card' },
+    { stars: 7, kind: 'card', id: 'megaball', label: 'MEGABALL card' },
+    { stars: 9, kind: 'slot', id: 3, label: '3rd card slot' },
+    { stars: 11, kind: 'card', id: 'magnet', label: 'MAGNETISE card' },
+    { stars: 12, kind: 'card', id: 'shockwave', label: 'SHOCKWAVE card' }
   ];
 
   /* What the player owns at a given star total. Slot 1 and Slow Time are

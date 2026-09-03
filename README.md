@@ -31,6 +31,7 @@ at its root.
 | Upgrade / sell | Tap a placed tower to open its panel; tap away to close |
 | Fire a card | Tap the card in the tray |
 | Start the next wave early | Tap the **START** banner during the build phase |
+| Pick a level | Play → spin the globe, tap the **World 1** pin → tap a numbered tile in the 3 × 3 grid |
 
 The entire field from the spawn zone down to the drain is the flipper surface — there
 are no small flipper buttons. Only the card tray at the bottom consumes taps as UI.
@@ -60,7 +61,7 @@ are no small flipper buttons. Only the card tray at the bottom consumes taps as 
 | Spend-vs-upgrade tension | Energy is tight, so every wave is a choice between a new tower, a tier-2 upgrade, and banking |
 | Active abilities | A card loadout plus one always-available level card on cooldown |
 | Win / lose states | 5 lives; a leak costs 1 (Hauler 2, Colossus 3). Clear every wave to win, hit 0 lives to lose |
-| Session progression | 5 levels, a star rating per level based on lives kept, and a star-gated unlock track for new cards and extra card slots |
+| Session progression | 5 levels; each awards three independent stars — clear the level, stay inside its leak budget, and complete a level-specific challenge (build a Frost Paddle, land a 4-chain, hold the board to eight defenses) — feeding a star-gated unlock track for new cards and extra card slots |
 
 The physics is what makes it a strategy game rather than a lane-defense game: a bumper
 does not just deal damage, it *redirects*, so tower placement is about shaping where balls
@@ -70,13 +71,26 @@ travel, not only where they die.
 
 ## Architecture
 
-Vanilla JavaScript, zero dependencies, no build step and no modules — plain `<script>`
-tags and one global per file, in load order, so the game runs from `file://` where ES
-module loading is blocked. Everything renders into one `<canvas>` at a fixed **720 × 1440**
-virtual resolution that is uniformly scaled and letterboxed onto whatever the device has,
-so all gameplay math is resolution-independent. **All audio is synthesised at runtime with
+Vanilla JavaScript, no build step and no modules — plain `<script>` tags and one global per
+file, in load order, so the game runs from `file://` where ES module loading is blocked. The
+one library is **three.js** (r185, MIT), shipped as a plain-script global in `vendor/` and
+never embedded in the page, exactly as the competition rules ask.
+
+Rendering is two stacked canvases sharing one fixed **720 × 1440** virtual resolution that is
+uniformly scaled and letterboxed onto whatever the device has, so all gameplay math is
+resolution-independent:
+
+- **WebGL layer (`src/scene3d.js`)** — the physical machine. Table slab and frame, rails,
+  pegs, slingshots, spawn gates, drain LED, mounting slots, every tower and both flippers are
+  real lit 3D geometry (all procedural: extruded capsules, cylinders, generated canvas
+  textures; no model files). The camera looks straight down the table axis, so a point on the
+  table surface lands on exactly the same pixel the 2D layer draws it at.
+- **2D layer (`src/render.js`)** — transparent, on top. Enemy balls (deliberately flat: a white
+  disc with a thick black outline is the most readable thing on a phone), particles, build
+  highlights, HUD and card tray. If WebGL is unavailable the 2D layer paints the whole table
+  itself, exactly as it did before the 3D layer existed. **All audio is synthesised at runtime with
 the Web Audio API** — oscillators, noise buffers, filters and envelopes. There are no
-audio files. The only binary assets are 9 WebP images (backgrounds, bezel, card art),
+audio files. The only binary assets are 13 WebP images (backgrounds, level thumbnails, card art),
 embedded as base64 data URIs.
 
 | File | Global | Responsibility |
@@ -89,7 +103,10 @@ embedded as base64 data URIs.
 | `src/board.js` | `BOARD` | Per-level table geometry: walls, lanes, posts, build slots, flipper mounts, drain |
 | `src/entities.js` | `ENT` | Enemy ball and tower definitions, factories, costs, upgrade trees and per-entity behaviour |
 | `src/cards.js` | `CARDS` | Player and level card definitions plus their runtime effects and cooldowns |
-| `src/levels.js` | `LEVELS` | Level data, wave scripts and formations, star thresholds, the unlock table |
+| `src/levels.js` | `LEVELS` | Level data, wave scripts and formations, per-level objectives and star scoring, the unlock table |
+| `src/vendor/three.min.js` | `THREE` | three.js r185, unmodified vendor bundle (ships as `vendor/three.min.js`) |
+| `src/scene3d.js` | `SCENE3D` | The WebGL machine: procedural table, rails, towers and flippers, lighting, shake pivot |
+| `src/globe.js` | `GLOBE` | The world picker: a drag-to-rotate neon globe with world pins, mounted inside the menu overlay |
 | `src/render.js` | `DRAW` | All canvas drawing, letterbox scaling, and hit-testing for the on-canvas HUD and card tray |
 | `src/ui.js` | `UI` | DOM overlay screens: title, level select, deck builder, pause, results |
 | `src/game.js` | `GAME` | State machine, economy, wave director, collision resolution, input routing, the update loop |
@@ -102,13 +119,16 @@ canvas owns everything that happens on the table; the DOM owns everything betwee
 ## Build
 
 ```
-node tools/build.js     # inlines src/*.js into dist/index.html, then writes dist/megaball.zip
+node tools/build.js     # inlines src/*.js into dist/index.html, copies vendor/, writes dist/megaball.zip
 node tools/verify.js    # offline-compliance checks against dist/index.html
 ```
 
 `build.js` deliberately does not minify — the submission is meant to be read. It splices
-each module into the page verbatim, in load order, keeping the original comment banners
-and a marker showing which source file each block came from. Both scripts are Node
+each game module into the page verbatim, in load order, keeping the original comment
+banners and a marker showing which source file each block came from. Third-party code is
+handled the way the rules require: `src/vendor/three.min.js` is copied to
+`dist/vendor/three.min.js` and referenced by relative path, never inlined. The zip
+therefore holds `index.html` at its root plus `vendor/three.min.js`. Both scripts are Node
 stdlib only (the zip writer included).
 
 `tools/serve.js` starts a local static server on port 5173 for playtesting. The shipped

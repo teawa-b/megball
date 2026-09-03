@@ -63,12 +63,21 @@
     /* build UI */
     buildOpen: false,
     buildPick: null,     // tower type string being placed
+    buildHint: false,    // pulse the tray build buttons (nothing built this phase)
+    placedThisPhase: false,
+    inspect: null,       // card detail popout (freezes the sim while open)
     selectedTower: null,
     hoverSlot: null,
 
     /* flippers */
     flipL: { on: false, angle: 0, omega: 0, prev: 0 },
     flipR: { on: false, angle: 0, omega: 0, prev: 0 },
+
+    /* objective tracking — high-water marks, see noteBoard() */
+    peakTowers: 0,
+    peakFamily: null,
+    builtTypes: null,
+    bestChain: 0,
 
     /* misc */
     toastText: '', toastT: 0,
@@ -131,6 +140,7 @@
   /* ====================================================================== */
 
   GAME.startLevel = function (id, loadout) {
+    S.inspect = null;
     var def = LEVELS.byId(id);
     if (!def) return;
 
@@ -147,6 +157,10 @@
     S.energy = def.startEnergy;
     S.waveIndex = -1;
     S.leaks = 0; S.totalKills = 0; S.earned = 0;
+    S.peakTowers = 0;
+    S.peakFamily = { paddle: 0, bumper: 0 };
+    S.builtTypes = {};
+    S.bestChain = 0;
     S.slowT = 0; S.slowMul = 1;
     S.overchargeT = S.barrierT = S.magnetT = S.superheatT = 0;
     S.buildOpen = false; S.buildPick = null; S.selectedTower = null;
@@ -175,9 +189,57 @@
     S.flipL.angle = S.flipL.prev = restAngleL();
     S.flipR.angle = S.flipR.prev = restAngleR();
 
-    teach('start');
+    /* First visit to Level 1 runs the interactive tutorial instead of the
+     * build countdown; it hands control back through GAME.endTutorial. */
+    var tut = global.TUT && global.TUT.shouldRun(def, PROG);
+    S.pendingTutorial = !!tut;
+    if (!tut) teach('start');
     beginBuildPhase(true);
     S.mode = 'build';
+    if (tut) global.TUT.start(S);
+  };
+
+  /* Called by the tutorial when it finishes or is skipped. Restores the normal
+   * pre-wave build phase from a clean slate. */
+  GAME.endTutorial = function (completed) {
+    if (S.mode !== 'tutorial') return;
+    for (var i = 0; i < S.balls.length; i++) {
+      if (global.FX) global.FX.dropTrail('b' + S.balls[i].id);
+    }
+    S.balls.length = 0;
+    S.selectedTower = null;
+    S.buildPick = null;
+    S.hoverSlot = null;
+    S.waveIndex = -1;
+    /* The card fired during the lesson comes back charged, and any slow it
+     * left behind is cleared, so Wave 1 starts from a clean board. */
+    for (var c = 0; c < S.cards.length; c++) { S.cards[c].cd = 0; S.cards[c].uses = 0; }
+    S.slowT = 0; S.slowMul = 1;
+    var sfxm = global.SFX; if (sfxm && sfxm.lowpass) sfxm.lowpass(0);
+    PROG.tutorialDone = true;
+    PROG.tutorialV = global.TUT ? global.TUT.VERSION : 2;
+    saveProgress();
+    if (completed) {
+      /* The bumper built during the lesson is a gift, not a purchase. */
+      addEnergy(ENT.TOWERS.bumper.cost, 360, 560, 'ON THE HOUSE  +' + ENT.TOWERS.bumper.cost);
+      sfx('wave_clear');
+    }
+    S.pendingTutorial = false;
+    S.mode = 'build';
+    S.toastT = 0;
+    beginBuildPhase(true);
+  };
+
+  /* Drop a single ball anywhere — used by the tutorial for its demo balls. */
+  GAME.spawnBallAt = function (type, x, y, o) {
+    var b = ENT.makeBall(type, x, y, o || {});
+    S.balls.push(b);
+    var f = global.FX;
+    if (f) {
+      f.ring(x, y, { r0: b.r + 4, r1: b.r + 40, color: C.magenta, life: 0.4, width: 3 });
+      f.spark(x, y, { count: 6, color: C.magenta, speed: 120, life: 0.3, size: 2.5 });
+    }
+    return b;
   };
 
   GAME.quitToMenu = function () {
@@ -205,6 +267,16 @@
     if (!next) { winLevel(); return; }
     S.mode = 'build';
     S.buildT = first ? next.build : next.build;
+    /* Build-phase nudge. A new player will happily bank Energy and send the
+     * next wave into an empty board, so if they can afford a defense and have
+     * not placed one this phase, the tray buttons pulse and we say so once. */
+    S.placedThisPhase = false;
+    S.buildHint = false;
+    /* Never nag over the tutorial — it is already telling them what to do. */
+    if (!S.pendingTutorial && S.mode !== 'tutorial' &&
+      S.energy >= ENT.TOWERS.bumper.cost && S.towers.length < 4) {
+      GAME.toast('Spend your Energy — tap PADDLE or BUMPER to build', 4.2);
+    }
     S.banner = {
       title: 'WAVE ' + (S.waveIndex + 2) + ' OF ' + S.level.waves.length,
       preview: LEVELS.wavePreview(next),
@@ -290,7 +362,9 @@
 
   function winLevel() {
     S.mode = 'won';
-    var stars = LEVELS.stars(S.lives, S.livesMax);
+    var run = runSummary(true, false);
+    var objectives = LEVELS.objectives(S.level, run);
+    var stars = LEVELS.stars(S.level, run);
     var prev = PROG.stars[S.level.id] || 0;
     var improved = stars > prev;
     if (improved) PROG.stars[S.level.id] = stars;
@@ -319,6 +393,7 @@
     if (global.UI) {
       global.UI.showScreen('results', {
         win: true, level: S.level, stars: stars, prevStars: prev,
+        objectives: objectives,
         lives: S.lives, livesMax: S.livesMax, kills: S.totalKills,
         earned: S.earned, leaks: S.leaks, unlocks: newUnlocks,
         totalStars: after, hasNext: !!LEVELS.byId(S.level.id + 1)
@@ -333,6 +408,7 @@
     if (global.UI) {
       global.UI.showScreen('results', {
         win: false, level: S.level, stars: 0,
+        objectives: LEVELS.objectives(S.level, runSummary(false, true)),
         lives: 0, livesMax: S.livesMax, kills: S.totalKills,
         earned: S.earned, leaks: S.leaks, unlocks: [],
         totalStars: GAME.totalStars(), hasNext: false,
@@ -362,6 +438,48 @@
   }
 
   /* ====================================================================== */
+  /* Objective tracking                                                     */
+  /* ====================================================================== */
+
+  /* Objectives are scored off high-water marks rather than the live board.
+   * A "never more than 8 defenses" challenge read from S.towers.length could
+   * be beaten by parking twelve towers through the hard wave and selling
+   * four before the last ball drained, which is the opposite of the mastery
+   * the challenge is asking for. Peaks cannot be un-rung. */
+  function noteBoard() {
+    if (S.towers.length > S.peakTowers) S.peakTowers = S.towers.length;
+    var byFam = { paddle: 0, bumper: 0 };
+    for (var i = 0; i < S.towers.length; i++) {
+      var f = S.towers[i].family;
+      byFam[f] = (byFam[f] || 0) + 1;
+    }
+    for (var k in byFam) {
+      if (byFam[k] > (S.peakFamily[k] || 0)) S.peakFamily[k] = byFam[k];
+    }
+  }
+
+  /* The shape LEVELS.objectives / LEVELS.stars read. `won` and `lost` are
+   * passed in because a summary is also built mid-level for the HUD tracker,
+   * where neither is decided yet. */
+  function runSummary(won, lost) {
+    return {
+      won: !!won, lost: !!lost,
+      leaks: S.leaks,
+      peakTowers: S.peakTowers,
+      peakFamily: S.peakFamily || { paddle: 0, bumper: 0 },
+      built: S.builtTypes || {},
+      bestChain: S.bestChain
+    };
+  }
+  GAME.runSummary = runSummary;
+
+  /* Live objective rows for the build-phase tracker. */
+  GAME.liveObjectives = function () {
+    if (!S.level) return null;
+    return LEVELS.objectives(S.level, runSummary(false, false));
+  };
+
+  /* ====================================================================== */
   /* Building                                                               */
   /* ====================================================================== */
 
@@ -388,7 +506,11 @@
     var t = ENT.makeTower(type, slot);
     slot.occupant = t;
     S.towers.push(t);
+    S.builtTypes[type] = true;
+    noteBoard();
     S.buildPick = null;
+    S.placedThisPhase = true;
+    S.buildHint = false;
 
     sfx('place');
     var f = global.FX;
@@ -397,6 +519,7 @@
       f.spark(slot.x, slot.y, { count: 14, color: ENT.TOWERS[type].color, speed: 220, life: 0.4 });
       f.shake(3, 0.12);
     }
+    if (S.mode === 'tutorial' && global.TUT) global.TUT.event('place', t);
     return true;
   };
 
@@ -405,6 +528,8 @@
     if (!t || !t.slot || !d) return false;
     if (!spend(d.cost)) return false;
 
+    S.placedThisPhase = true;
+    S.buildHint = false;
     var slot = t.slot;
     var nt = ENT.makeTower(toType, slot);
     slot.occupant = nt;
@@ -412,6 +537,8 @@
       if (S.towers[i] === t) { S.towers[i] = nt; break; }
     }
     S.selectedTower = nt;
+    S.builtTypes[toType] = true;
+    noteBoard();
 
     sfx('upgrade');
     var f = global.FX;
@@ -603,6 +730,12 @@
     var minOut = (f.on && Math.abs(f.omega) > 6) ? 620 : 0;
     var imp = PHYS.resolve(b, 0.62, 0.06, pv[0], pv[1], minOut);
 
+    /* Tutorial: any flipper contact that sends the ball back up counts as
+     * "you flipped it" — a held-up flipper is a legitimate first save too. */
+    if (S.mode === 'tutorial' && global.TUT && (minOut || imp > 90) && b.vy < -150) {
+      global.TUT.event('flipHit', b);
+    }
+
     if (imp > 90 || minOut) {
       var fx = global.FX;
       if (fx) {
@@ -709,6 +842,7 @@
     var superheated = S.superheatT > 0;
 
     dealDamage(b, d.dmg, 'bumper', hit.px, hit.py);
+    if (S.mode === 'tutorial' && global.TUT) global.TUT.event('bumperHit', b, t);
 
     if (fx) {
       fx.ring(t.x, t.y, { r0: t.r, r1: t.r + 30, color: d.color, life: 0.26, width: 4 });
@@ -858,6 +992,7 @@
       atk.chain++;
       atk.empowerT = Math.max(atk.empowerT, 1.1);  // reward keeps it alive
       S.comboT = 1.2;
+      if (atk.chain > S.bestChain) S.bestChain = atk.chain;
 
       var n = atk.chain;
       var label = n >= 5 ? 'MEGA HIT' : 'CHAIN x' + n;
@@ -911,6 +1046,7 @@
   function killBall(b, src) {
     S.totalKills++;
     S.killsThisWave++;
+    if (S.mode === 'tutorial' && global.TUT) global.TUT.event('kill', b);
 
     var bonus = S.comboT > 0 ? 1.35 : 1;
     var gain = Math.round(b.bounty * bonus);
@@ -1131,6 +1267,14 @@
 
       /* Leak / barrier check. */
       if (b.y - b.r > BOARD.DRAIN_Y) {
+        if (S.mode === 'tutorial') {
+          /* A lesson never costs a life: the tutorial decides what happens. */
+          b.dead = true;
+          if (global.FX) global.FX.dropTrail('b' + b.id);
+          U.swapRemove(S.balls, i);
+          if (global.TUT) global.TUT.event('drain', b);
+          continue;
+        }
         if (S.barrierT > 0) {
           b.y = BOARD.DRAIN_Y - b.r;
           b.vy = -Math.abs(b.vy) * 0.85 - 380;
@@ -1182,6 +1326,18 @@
       return;
     }
 
+    /* --- tray press-and-hold -------------------------------------------- */
+    var heldCard = updateHolds(dtReal);
+    for (var hi = 0; hi < S.cards.length; hi++) {
+      S.cards[hi].lift = U.damp(S.cards[hi].lift || 0,
+        hi === heldCard ? 1 : 0, 0.45, dtReal);
+    }
+    if (S.inspect) {
+      /* Frozen while a card is open: reading one must never cost a ball. */
+      S.inspect.t += dtReal;
+      return;
+    }
+
     /* --- time scaling ------------------------------------------------- */
     var ts = fx ? fx.timeScale() : 1;
     if (S.slowT > 0) {
@@ -1195,6 +1351,13 @@
     /* Build mode heavily slows rather than hard-pausing: the table stays
      * alive so the player can see what they are building against. */
     if (S.mode === 'wave' && S.buildPick) ts *= 0.22;
+    /* Tutorial owns the clock: bullet time on the lesson ball, a full freeze
+     * while a card is on screen. Its own step timer runs on real time. */
+    if (S.mode === 'tutorial' && global.TUT) {
+      global.TUT.update(S, dtReal);
+      if (S.mode !== 'tutorial') return;   // it just ended; next frame is a build frame
+      ts *= global.TUT.timeScale();
+    }
 
     var dt = dtReal * ts;
     if (dt > 0.05) dt = 0.05;    // never let a tab-switch spike explode physics
@@ -1216,6 +1379,7 @@
       updateFlipper(S.flipL, restAngleL(), activeAngleL(), dtReal);
       updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
       updateTowers(dtReal * 0.35);
+      S.buildHint = !S.placedThisPhase && S.energy >= ENT.TOWERS.bumper.cost;
       S.buildT -= dtReal;
       if (S.buildT <= 0) startWave();
       return;
@@ -1223,7 +1387,7 @@
 
     /* --- wave ----------------------------------------------------------- */
     if (dt > 0) {
-      spawnFromTimeline(dt);
+      if (S.mode === 'wave') spawnFromTimeline(dt);
       updateTowers(dt);
 
       /* Substep count is driven by the fastest ball so nothing tunnels. */
@@ -1282,6 +1446,51 @@
 
   var pointers = {};
 
+  /* How long a finger must rest on a card before it pops out. Short enough
+   * that it never feels like a wait, long enough that a quick tap to fire the
+   * card is never mistaken for a request to read it. */
+  var HOLD_TIME = 0.2;
+
+  function openInspect(index, cell) {
+    var inst = S.cards[index];
+    if (!inst || !global.DRAW || !global.DRAW.inspectRect) return;
+    S.inspect = {
+      index: index,
+      def: inst.def,
+      ready: inst.cd <= 0,
+      cd: inst.cd,
+      frac: inst.cd <= 0 ? 1 : 1 - inst.cd / inst.cdMax,
+      levelCard: inst.levelCard,
+      hotkey: index + 1,
+      from: { x: cell.x, y: cell.y, w: cell.w, h: cell.h },
+      to: global.DRAW.inspectRect(),
+      t: 0
+    };
+    sfx('ui_tap', { rate: 0.9 });
+  }
+
+  function closeInspect() {
+    if (!S.inspect) return;
+    S.inspect = null;
+    sfx('ui_back');
+  }
+  GAME.closeInspect = closeInspect;
+
+  /* Advances every held tray press and returns the card index currently under
+   * a finger, so the tray can lift it. */
+  function updateHolds(dt) {
+    var held = -1;
+    for (var k in pointers) {
+      var pt = pointers[k];
+      if (!pt.hold || pt.hold.kind !== 'card') continue;
+      pt.holdT += dt;
+      held = pt.hold.index;
+      if (!S.inspect && pt.holdT >= HOLD_TIME) openInspect(pt.hold.index, pt.hold);
+    }
+    return S.inspect ? S.inspect.index : held;
+  }
+
+
   /* Converts a DOM event position into virtual board coordinates. */
   GAME.setViewport = function (vp) { GAME.vp = vp; };
 
@@ -1297,14 +1506,33 @@
   GAME.pointerDown = function (id, cx, cy) {
     var s = global.SFX; if (s) s.init();
     var p = toVirtual(cx, cy);
+
+    /* A card popout swallows the next touch anywhere on screen. */
+    if (S.inspect) { closeInspect(); return; }
+
     pointers[id] = { x: p.x, y: p.y, role: null };
 
-    if (S.mode !== 'wave' && S.mode !== 'build') return;
+    if (S.mode !== 'wave' && S.mode !== 'build' && S.mode !== 'tutorial') return;
+
+    /* 0. Tutorial gate sits at the top of the chain: it can swallow a tap
+     * (tap-to-continue, or a tap on something the lesson has not reached
+     * yet) before anything below can flip a flipper or place a tower. */
+    if (S.mode === 'tutorial' && global.TUT && global.TUT.pointerDown(p.x, p.y)) {
+      pointers[id].role = 'ui';
+      return;
+    }
 
     /* 1. Tray (cards + build bar) owns everything below the drain. */
     if (p.y >= U.BAND.trayTop) {
       pointers[id].role = 'ui';
-      if (global.DRAW && global.DRAW.hitTray) global.DRAW.hitTray(p.x, p.y);
+      var h = global.DRAW && global.DRAW.pickTray ? global.DRAW.pickTray(p.x, p.y) : null;
+      if (h && h.kind === 'card') {
+        /* Deferred until release: a tap fires the card, a hold opens it. */
+        pointers[id].hold = h;
+        pointers[id].holdT = 0;
+      } else if (h) {
+        global.DRAW.applyTray(h);
+      }
       return;
     }
 
@@ -1357,6 +1585,18 @@
     if (!pt) return;
     var p = toVirtual(cx, cy);
     pt.x = p.x; pt.y = p.y;
+    if (pt.hold && global.DRAW && global.DRAW.pickTray) {
+      var over = global.DRAW.pickTray(p.x, p.y);
+      if (S.inspect) {
+        /* Slide along the tray to flip straight to a neighbour's details. */
+        if (over && over.kind === 'card' && over.index !== S.inspect.index) {
+          openInspect(over.index, over);
+          pt.hold = over;
+        }
+      } else if (!over || over.kind !== 'card' || over.index !== pt.hold.index) {
+        pt.hold = null;   // dragged off the cell: cancel rather than misfire
+      }
+    }
     if (S.buildPick) {
       S.hoverSlot = BOARD.slotAt(S.table, p.x, p.y, 52);
     }
@@ -1365,6 +1605,11 @@
   GAME.pointerUp = function (id) {
     var pt = pointers[id];
     if (!pt) return;
+    if (pt.hold) {
+      if (S.inspect) closeInspect();
+      else if (global.DRAW && global.DRAW.applyTray) global.DRAW.applyTray(pt.hold);
+      pt.hold = null;
+    }
     if (pt.role === 'L' || pt.role === 'R') {
       /* Only release the flipper if no other finger is still holding it. */
       var stillHeld = false;
@@ -1378,6 +1623,7 @@
 
   GAME.clearPointers = function () {
     for (var k in pointers) delete pointers[k];
+    S.inspect = null;
     setFlipper('L', false);
     setFlipper('R', false);
   };
@@ -1389,8 +1635,11 @@
     else if (code === 'Digit2') GAME.useCard(1);
     else if (code === 'Digit3') GAME.useCard(2);
     else if (code === 'Digit4') GAME.useCard(3);
-    else if (code === 'Space') { if (S.mode === 'build') startWave(); }
-    else if (code === 'Escape') GAME.togglePause();
+    else if (code === 'Space' || code === 'Enter') {
+      if (S.mode === 'build' && code === 'Space') startWave();
+      else if (S.mode === 'tutorial' && global.TUT) global.TUT.advance();
+    }
+    else if (code === 'Escape') { if (S.inspect) closeInspect(); else GAME.togglePause(); }
   };
 
   GAME.keyUp = function (code) {
@@ -1409,7 +1658,7 @@
   GAME.towerAt = towerAt;
 
   GAME.togglePause = function () {
-    if (S.mode === 'wave' || S.mode === 'build') {
+    if (S.mode === 'wave' || S.mode === 'build' || S.mode === 'tutorial') {
       S._resume = S.mode;
       S.mode = 'paused';
       GAME.clearPointers();
