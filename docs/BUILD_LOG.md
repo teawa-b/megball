@@ -411,6 +411,49 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   defend (early BUMPER tap lands on placeBumper), paddle, all four upgrade cards, and
   the card step render as described; the interactive steps are unchanged.
 
+## 4q. Upgrading closes the pick
+
+- Buying an upgrade kept the new tower selected, so the modal immediately re-opened on
+  the tier-2 layout: no options left, just a bare SELL / CLOSE row. Every upgrade cost a
+  second tap to dismiss a screen that offered nothing.
+- `GAME.upgradeTower` now clears `S.selectedTower`. The pick closes, the table comes back
+  to full speed, and the upgrade's own ring, burst and floating name land on a clear
+  board. Selling already closed it this way, so the two now match.
+- The tutorial's upgrade steps only tour the cards and never buy, so they are unaffected.
+- Verified in the in-app browser at 375x812 on stage 2: tapping SHOCK on a bumper and
+  FROST on a paddle through `DRAW.hitUpgrade` both upgrade the tower and leave the
+  selection null with the board visible; 180 frames run clean afterwards.
+
+## 4r. Card descriptions were being cut off
+
+- The featured panel on the POWER CARDS screen clamped its description to three lines
+  (two on short phones). Four of the six cards need four lines, so SLOW TIME, MEGABALL,
+  BARRIER and MAGNETISE all ended in an ellipsis mid-sentence. A card you cannot read is
+  a card you cannot choose, which is the one thing that screen exists for.
+- Dropped `-webkit-line-clamp` from `.feat-txt .sub`; the panel now sizes to its text and
+  the flex spacer below the grid absorbs the extra height. On short phones the
+  description drops to 10.5px with tighter leading instead of being clamped, so it still
+  fits without truncating.
+- Verified in the in-app browser at 375x812, 375x667 and 360x600: all six cards report
+  `scrollHeight === clientHeight` (nothing hidden) and the sheet itself never overflows,
+  so BACK TO HOME stays on screen at every size.
+
+## 4s. BACK was sitting on the bottom edge
+
+- The menu sheets are marked with a `sub` class, which also matches the unrelated `.sub`
+  subtitle text rule and lends them `margin:12px auto 0`. Left at a full `100dvh` the
+  sheet therefore hung 12px past the viewport, and since it is `overflow:hidden` the
+  bottom padding was simply off-screen: BACK measured a 0px gap to the bottom edge on
+  every sub screen (map, stage select, power cards, endless, pause).
+- `.sheet.sub` is now `height:calc(100dvh - 12px)` with `padding-bottom:22px` plus the
+  safe-area inset, so the button clears the edge. 14px on screens under 600px tall.
+- Stage select was already 3px over at 360x600 before this and the tighter box made it
+  17px over, so the short-phone rules trim the translite window to 98px and tighten the
+  insert row. Nothing else moved.
+- Verified in the in-app browser at 375x812, 375x667 and 360x600 across all five sub
+  screens: zero sheet overflow everywhere, and the last element clears the bottom edge
+  by 22px on tall screens, 14px on short ones.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

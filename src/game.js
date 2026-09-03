@@ -598,7 +598,10 @@
     for (var i = 0; i < S.towers.length; i++) {
       if (S.towers[i] === t) { S.towers[i] = nt; break; }
     }
-    S.selectedTower = nt;
+    /* The pick is a decision, and the decision is made: close it. Keeping the
+     * new tower selected re-opened the modal on a bare SELL / CLOSE row, so
+     * every upgrade needed a second tap to dismiss a screen offering nothing. */
+    S.selectedTower = null;
     S.builtTypes[toType] = true;
     noteBoard();
 

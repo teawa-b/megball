@@ -345,7 +345,11 @@
     /* Everything past the home screen speaks the same hardware language:
      * pixel readouts, insert lamps, cabinet buttons, scorecard rows, dark
      * display plates on the dot grid. */
-    '#ui .sheet.sub{padding:calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom));}',
+    /* These sheets also carry the `.sub` text class, which lends them a 12px
+     * top margin. Left at a full 100dvh they hang 12px past the viewport, so
+     * the bottom padding fell off-screen and BACK sat flush on the edge.
+     * Subtract the margin, and give the button real clearance underneath. */
+    '#ui .sheet.sub{height:calc(100dvh - 12px);padding:calc(8px + env(safe-area-inset-top)) 16px calc(22px + env(safe-area-inset-bottom));}',
     '#ui.sub .grain{display:none;}',
     '#ui.sub .bgimg{opacity:.55;filter:blur(2px) saturate(.8);transform:translateX(-50%) scale(1.04);}',
     '#ui.sub .veil{background:radial-gradient(70% 30% at 50% 0%,rgba(63,224,255,.10),transparent 70%),',
@@ -489,7 +493,11 @@
     '#ui .feat-txt{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:center;}',
     '#ui .feat-txt .kick{margin-bottom:5px;}',
     '#ui .feat-txt .nm{display:block;font:18px/1 ' + PX + ';color:#fff;text-transform:uppercase;text-shadow:0 0 12px rgba(63,224,255,.45);}',
-    '#ui .feat-txt .sub{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:5px;font:700 11.5px/1.35 ' + F + ';color:#a9dcef;}',
+    /* No line clamp: four of the six cards need a fourth line, and a card
+     * whose description ends in an ellipsis is a card the player cannot
+     * evaluate. The panel sizes to its text and the spacer below absorbs
+     * the difference. */
+    '#ui .feat-txt .sub{display:block;margin-top:5px;font:700 11.5px/1.35 ' + F + ';color:#a9dcef;}',
     '#ui .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}',
     '#ui .chips i{font:8px/1 ' + PX + ';font-style:normal;letter-spacing:.08em;text-transform:uppercase;color:#8fe8ff;padding:4px 7px;border-radius:6px;',
     '  background:rgba(63,224,255,.08);box-shadow:inset 0 0 0 1px rgba(63,224,255,.3);}',
@@ -503,8 +511,8 @@
     '  #ui .btn.play{min-height:76px}#ui .btn.play b{font-size:28px}#ui .btn.card{min-height:64px}',
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .slots{margin-bottom:7px}',
     '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
-    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{-webkit-line-clamp:2}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
-    '@media(max-height:600px){#ui .attract{display:none}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
+    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{font-size:10.5px;line-height:1.3;margin-top:4px}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
+    '@media(max-height:600px){#ui .sheet.sub{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#ui .attract{display:none}#ui .translite{height:98px;margin:5px 0 6px}#ui .insrow{margin:8px 0 8px}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
     '@media(prefers-reduced-motion:reduce){#ui *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
