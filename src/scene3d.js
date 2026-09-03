@@ -724,10 +724,28 @@
   /* Per-level table furniture                                              */
   /* ---------------------------------------------------------------------- */
 
-  function buildTable(table) {
-    if (tableGroup) { board.remove(tableGroup); disposeGroup(tableGroup); }
-    tableGroup = new THREE.Group();
+  /* Table geometry is cached per level (layouts are deterministic), so a
+   * level start is a group swap rather than a rebuild on the frame that
+   * should be drawing. SCENE3D.warm fills the cache behind the boot splash. */
+  var tableCache = {};
+
+  function buildTable(table, key) {
+    if (tableGroup) {
+      board.remove(tableGroup);
+      if (!tableGroup.userData.cached) disposeGroup(tableGroup);
+    }
+    var grp = key != null ? tableCache[key] : null;
+    if (!grp) {
+      grp = buildTableGroup(table);
+      if (key != null) { grp.userData.cached = true; tableCache[key] = grp; }
+    }
+    tableGroup = grp;
     tableRef = table;
+    board.add(tableGroup);
+  }
+
+  function buildTableGroup(table) {
+    var tableGroup = new THREE.Group();
 
     var pegs = [], posts = [], glows = [];
     var cols = table.colliders;
@@ -827,7 +845,7 @@
       tableGroup.add(sc);
     }
 
-    board.add(tableGroup);
+    return tableGroup;
   }
 
   function disposeGroup(grp) {
@@ -1098,9 +1116,13 @@
 
     applyFieldArt();
 
-    if (S && S.table && S.table !== tableRef) buildTable(S.table);
+    if (S && S.table && S.table !== tableRef) buildTable(S.table, S.level ? S.level.id : null);
     if (!S || !S.table) {
-      if (tableGroup) { board.remove(tableGroup); disposeGroup(tableGroup); tableGroup = null; tableRef = null; }
+      if (tableGroup) {
+        board.remove(tableGroup);
+        if (!tableGroup.userData.cached) disposeGroup(tableGroup);
+        tableGroup = null; tableRef = null;
+      }
       for (var id in towerNodes) { board.remove(towerNodes[id]); disposeGroup(towerNodes[id]); delete towerNodes[id]; }
     } else {
       syncTowers(S);
@@ -1129,8 +1151,12 @@
     pivot.scale.set(zs, zs, zs);
     board.position.set(-zfx, zfy, 0);
 
-    /* Clear the whole canvas, then draw into the same fitted rectangle the
-     * 2D layer uses so both layers share one pixel grid. */
+    paint();
+  };
+
+  /* Clear the whole canvas, then draw into the same fitted rectangle the
+   * 2D layer uses so both layers share one pixel grid. */
+  function paint() {
     var top = vp.viewTop != null ? vp.viewTop : VIEW_TOP;
     var bottom = vp.viewBottom != null ? vp.viewBottom : VH;
     var w = VW * vp.scale, h = (bottom - top) * vp.scale;
@@ -1142,6 +1168,35 @@
     renderer.setScissor(x, y, w, h);
     renderer.setScissorTest(true);
     renderer.render(scene, camera);
+  }
+
+  /* Warm-up, run behind the boot splash: one draw of the bare machine
+   * (compiles every shader, uploads the field art, builds the shadow map),
+   * then each level's table built, cached, uploaded and drawn once. One
+   * step per animation frame, so the splash keeps moving in between. Any
+   * failure is swallowed: a warm-up must never keep the game from opening. */
+  SCENE3D.warm = function (defs, done) {
+    if (!renderer || !global.BOARD) { if (done) done(); return; }
+    var steps = [function () { applyFieldArt(); paint(); }];
+    for (var i = 0; i < (defs ? defs.length : 0); i++) {
+      (function (def) {
+        steps.push(function () {
+          var table = global.BOARD.build(def);
+          buildTable(table, def.id);
+          paint();
+          board.remove(tableGroup);
+          tableGroup = null; tableRef = null;
+        });
+      })(defs[i]);
+    }
+    var k = 0;
+    function tick() {
+      try { steps[k](); } catch (e) { /* see above */ }
+      k++;
+      if (k < steps.length) requestAnimationFrame(tick);
+      else if (done) done();
+    }
+    requestAnimationFrame(tick);
   };
 
   /* Renderer statistics for the last frame (draw calls, triangles). Used by

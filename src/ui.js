@@ -635,7 +635,9 @@
 
   function on(sel, fn, sheet) {
     var n = (sheet || root).querySelector(sel);
-    if (n) n.addEventListener('click', function (e) { e.preventDefault(); fn(e); });
+    /* The first menu tap is the gesture that opens the audio engine, so its
+     * one-time setup lands here rather than on the first level start. */
+    if (n) n.addEventListener('click', function (e) { e.preventDefault(); if (global.SFX && global.SFX.init) global.SFX.init(); fn(e); });
     return n;
   }
   function onAll(sel, fn, sheet) {

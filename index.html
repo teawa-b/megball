@@ -23,29 +23,99 @@
   #gl, #game { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   #gl { z-index: 0; } #game { z-index: 1; }
 
-  /* Boot splash — also the gesture that unlocks Web Audio on mobile. */
+  /* Boot splash: also the gesture that unlocks Web Audio on mobile. It is
+     the machine powering up: a ball and two flippers under glass, the name
+     on a dot-matrix display, and a chase of attract lamps. Only transform
+     and opacity animate, so the compositor keeps them moving while the main
+     thread compiles shaders behind it. */
   #boot {
     position: fixed; inset: 0; z-index: 40; display: flex;
     flex-direction: column; align-items: center; justify-content: center;
-    background: #05060d; color: #fff; transition: opacity .4s; text-align: center;
+    background: #05060d; color: #fff; transition: opacity .45s; text-align: center;
+    overflow: hidden;
+  }
+  #boot::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(60% 40% at 50% 42%, rgba(63,224,255,.10), transparent 70%),
+      radial-gradient(circle, rgba(63,224,255,.10) 1px, transparent 1.6px) 0 0 / 14px 14px;
+  }
+  #boot::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background:
+      repeating-linear-gradient(180deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px),
+      radial-gradient(80% 70% at 50% 50%, transparent 55%, rgba(0,0,0,.8) 100%);
   }
   #boot.gone { opacity: 0; pointer-events: none; }
-  #boot .mark {
-    width: 76px; height: 76px; border-radius: 50%;
-    background: #fff; border: 9px solid #000;
-    box-shadow: 0 0 46px rgba(63,224,255,.55);
-    animation: drop 1.15s cubic-bezier(.45,0,.35,1) infinite;
+  #boot .play { position: relative; width: 220px; height: 150px; z-index: 1; }
+  #boot .flip {
+    position: absolute; bottom: 30px; width: 78px; height: 18px; border-radius: 9px;
+    background: linear-gradient(180deg, #8fe8ff, #3fe0ff 55%, #0a7ea4);
+    box-shadow: 0 0 0 4px #05060d, 0 0 0 6px rgba(63,224,255,.35), 0 0 18px rgba(63,224,255,.55);
+  }
+  #boot .flip::before {
+    content: ""; position: absolute; top: 3px; width: 12px; height: 12px; border-radius: 50%;
+    background: #05060d; box-shadow: inset 0 0 0 2px #3fe0ff;
+  }
+  #boot .flip.l { left: 22px; transform-origin: 9px 9px; transform: rotate(24deg); animation: flipL 1.3s cubic-bezier(.4,0,.3,1) infinite; }
+  #boot .flip.l::before { left: 3px; }
+  #boot .flip.r { right: 22px; transform-origin: calc(100% - 9px) 9px; transform: rotate(-24deg); animation: flipR 1.3s cubic-bezier(.4,0,.3,1) infinite; }
+  #boot .flip.r::before { right: 3px; }
+  @keyframes flipL { 0%, 48%, 100% { transform: rotate(24deg); } 58%, 66% { transform: rotate(-14deg); } }
+  @keyframes flipR { 0%, 48%, 100% { transform: rotate(-24deg); } 58%, 66% { transform: rotate(14deg); } }
+  #boot .ball {
+    position: absolute; left: 50%; top: 10px; width: 52px; height: 52px; margin-left: -26px; border-radius: 50%;
+    background: radial-gradient(circle at 36% 30%, #fff 0%, #e8f6ff 45%, #b8d8ee 100%);
+    border: 7px solid #000; box-sizing: border-box;
+    box-shadow: 0 0 34px rgba(63,224,255,.55);
+    animation: drop 1.3s cubic-bezier(.45,0,.35,1) infinite;
   }
   @keyframes drop {
-    0%   { transform: translateY(-26px) scale(1,1); }
-    55%  { transform: translateY(20px)  scale(1.09,.9); }
-    70%  { transform: translateY(20px)  scale(.94,1.07); }
-    100% { transform: translateY(-26px) scale(1,1); }
+    0%   { transform: translateY(-14px) scale(1,1); }
+    52%  { transform: translateY(50px)  scale(1.12,.88); }
+    64%  { transform: translateY(46px)  scale(.94,1.08); }
+    100% { transform: translateY(-14px) scale(1,1); }
   }
-  #boot .t { margin-top: 30px; font: 16px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif; letter-spacing: .4em;
-             color: #3fe0ff; text-transform: uppercase; text-shadow: 0 0 14px rgba(63,224,255,.6); }
-  #boot .s { margin-top: 12px; font: 10px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif; letter-spacing: .14em;
-             color: rgba(143,232,255,.55); text-transform: uppercase; }
+  #boot .disp {
+    position: relative; z-index: 1; margin-top: 6px; padding: 12px 22px 11px;
+    background: #03050a; border: 1px solid rgba(63,224,255,.3);
+    box-shadow: inset 0 0 0 2px #000, inset 0 6px 22px rgba(0,0,0,.9), 0 0 26px rgba(63,224,255,.12);
+  }
+  #boot .disp::before, #boot .disp::after {
+    content: ""; position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+    background: #1c2740; box-shadow: inset 0 0 0 1px rgba(143,232,255,.35);
+  }
+  #boot .disp::before { left: 5px; } #boot .disp::after { right: 5px; }
+  #boot .t {
+    font: 30px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif; letter-spacing: .12em;
+    color: #3fe0ff; text-transform: uppercase; text-shadow: 0 0 12px rgba(63,224,255,.7);
+    -webkit-mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
+    mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
+    opacity: 0; transition: opacity .25s;
+  }
+  #boot.font .t { opacity: 1; }
+  #boot .lamps { position: relative; z-index: 1; display: flex; gap: 10px; margin-top: 18px; }
+  #boot .lamps i {
+    position: relative; width: 9px; height: 9px; border-radius: 50%;
+    background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+  }
+  #boot .lamps i::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: #ffd24a; box-shadow: 0 0 10px #ffd24a, 0 0 2px #fff;
+    opacity: 0; animation: chase 1.3s linear infinite;
+  }
+  #boot .lamps i:nth-child(2)::after { animation-delay: .13s; }
+  #boot .lamps i:nth-child(3)::after { animation-delay: .26s; }
+  #boot .lamps i:nth-child(4)::after { animation-delay: .39s; }
+  #boot .lamps i:nth-child(5)::after { animation-delay: .52s; }
+  #boot .lamps i:nth-child(6)::after { animation-delay: .65s; }
+  #boot .lamps i:nth-child(7)::after { animation-delay: .78s; }
+  @keyframes chase { 0%, 8% { opacity: 1; } 34%, 100% { opacity: 0; } }
+  #boot .s {
+    position: relative; z-index: 1; margin-top: 14px; font: 10px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: .16em; color: rgba(143,232,255,.6); text-transform: uppercase;
+  }
+  @media (prefers-reduced-motion: reduce) { #boot * { animation: none !important; } }
 
   /* Landscape nudge: the game is designed for portrait only. */
   #rotate {
@@ -72,9 +142,10 @@
 <div id="stage"><canvas id="gl"></canvas><canvas id="game"></canvas></div>
 
 <div id="boot">
-  <div class="mark"></div>
-  <div class="t">Megaball</div>
-  <div class="s" id="bootmsg">Loading…</div>
+  <div class="play"><div class="flip l"></div><div class="flip r"></div><div class="ball"></div></div>
+  <div class="disp"><div class="t">Megaball</div></div>
+  <div class="lamps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="s" id="bootmsg">Loading</div>
 </div>
 
 <div id="rotate">
@@ -198,15 +269,30 @@
     bindInput();
 
     if (SFX && SFX.setMuted) SFX.setMuted(!!GAME.progress.muted);
-    if (SFX && SFX.music) SFX.music('menu');
-
     GAME.state.mode = 'menu';
-    UI.showScreen('title');
 
-    boot.classList.add('gone');
-    setTimeout(function () { boot.style.display = 'none'; }, 450);
-
-    requestAnimationFrame(frame);
+    /* Warm the machine while the splash is still up: compile every shader,
+     * build and upload each level's table, and paint one 2D frame, so the
+     * first real frame and every level start are plain draws. The work is
+     * spread over animation frames so the splash keeps moving. */
+    bootmsg.textContent = 'Powering up';
+    var defs = [];
+    if (window.LEVELS) {
+      if (LEVELS.list) defs = defs.concat(LEVELS.list);
+      if (LEVELS.ENDLESS) defs.push(LEVELS.ENDLESS);
+    }
+    function open() {
+      if (window.FX && FX.reset) FX.reset();
+      DRAW.frame(ctx, GAME.state);
+      if (SFX && SFX.music) SFX.music('menu');
+      UI.showScreen('title');
+      bootmsg.textContent = 'Ready';
+      boot.classList.add('gone');
+      setTimeout(function () { boot.style.display = 'none'; }, 500);
+      requestAnimationFrame(frame);
+    }
+    if (use3D && SCENE3D.warm) SCENE3D.warm(defs, open);
+    else open();
   }
 
   /* Assets are decoration layered over procedural drawing, so a failure here
@@ -222,12 +308,15 @@
     bootmsg.textContent = 'Ready';
     start();
   }
-  bootmsg.textContent = 'Loading assets…';
+  bootmsg.textContent = 'Loading art';
   if (window.ART && ART.load) ART.load(ready); else ready();
   var fontDone = false;
   function fontReady() { if (!fontDone) { fontDone = true; ready(); } }
   if (document.fonts && document.fonts.load) {
-    document.fonts.load('16px "Ken Pixel"').then(fontReady, fontReady);
+    document.fonts.load('16px "Ken Pixel"').then(function () {
+      boot.classList.add('font');            // the display lights once the face is in
+      fontReady();
+    }, fontReady);
     setTimeout(fontReady, 1500);
   } else {
     fontReady();

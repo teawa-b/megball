@@ -259,6 +259,27 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   the reading face, and an amber lamp breathing beside TAP TO CONTINUE; the skip control is a
   lamp-lit readout button. Fingertip and chevron pointers keep the ball language.
 
+## 4j. Loader in theme; no hitch on level start
+
+- Boot splash (`index.html`, CSS only): the machine powering up. A ball drops between two
+  flippers that flip on impact, MEGABALL sits on a dot-matrix display (pixel face under a
+  dot mask, lit when the face has loaded), seven attract lamps chase, and the status line
+  reads Loading art / Powering up / Ready. Only transform and opacity animate, so the
+  compositor keeps it moving while the main thread works behind it.
+- The stutter on level start was the first frame doing all the heavy lifting: the very first
+  frame compiled every shader (~760 ms on a desktop, several times that on a phone) and every
+  level start rebuilt the table geometry and uploaded it on the frame that should draw
+  (24 to 67 ms measured). Fix: `SCENE3D.warm(defs, done)` runs behind the splash, one step
+  per animation frame: one draw of the bare machine (shaders, environment, shadow map, field
+  art), then each level's table built, cached per level id (`tableCache`, layouts are
+  deterministic), uploaded and drawn once. A level start is now a cached group swap; cached
+  groups are never disposed. Measured after: menu frame 0.3 ms, first frame of a level
+  1.5 to 2.4 ms, steady state under 1.5 ms.
+- The audio engine's one-time setup moves to the first menu tap (`on()` in `src/ui.js`)
+  instead of the first level start.
+- Verified in the in-app browser: boot sequence, title after warm-up, level 2, level 4 and
+  endless starts timed from script; no console errors; build + verify PASS.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
