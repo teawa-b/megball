@@ -674,6 +674,182 @@ these are the honest ones.
   full level-5 playthroughs win with 5/5 lives and drive the boss to under 3 hit points,
   where before it walked off the board at 79% health.
 
+## 4z. Calling the next wave in, and two small fixes
+
+- **The tail of a wave is its dullest stretch** — two stragglers ricocheting around while
+  the player waits on a counter. The START button already existed for the build phase; the
+  same seat now offers **NEXT WAVE** during a live wave, so the wait can be skipped. It is
+  gated hard: ENDLESS only (the campaign's authored pacing and its leak-budget stars both
+  assume a wave is fought out), only once the gates have gone QUIET (both because "nearly
+  over" is untrue while it is still arriving, and because the button sits in the spawn zone
+  and must never cover an incoming ball), never over a live boss (a boss IS the wave, not
+  its tail), and only with at most 30% of the wave still breathing.
+  The stragglers are NOT swept up when it is pressed. They keep playing right through the
+  build phase — the physics step was lifted out of `GAME.update` into `stepWorld()` so the
+  build phase can run it — and they can still reach the drain and still cost lives while
+  the player is shopping. That overlap is the price of the time just bought, and it is what
+  stops this from being a free skip. Verified: a straggler left behind drains during the
+  build phase and takes a life with it.
+- **Upgraded gear costs more to keep running.** Repair was already half of a tower's price,
+  which scales, but that left a Power Paddle cheap to nurse relative to what it does. Tier 2
+  now pays a 1.4x maintenance premium on top, which is the counterweight to the bigger
+  durability pool upgrading buys: full repair runs 20 for a Bumper against 56 for a Blast,
+  27 for a Paddle against 77 for a Power.
+- **The results card could be dismissed by a tap the player had already started.** It is the
+  one screen that raises itself, and it raises itself at the worst possible moment — the
+  last ball drains while the player is mid-rhythm on the flippers, and the next tap of that
+  rhythm landed on NEXT LEVEL. The sheet is now deaf for 550ms after it appears: longer than
+  its own entry animation, far shorter than any deliberate reach for a button. Verified with
+  `elementFromPoint`, which is the browser's own hit-test: during the window a tap at the
+  button's centre does not reach it, after the window it does.
+
+Regression-checked by running the headless bot against HEAD and the working tree
+interleaved, eight runs each, because lifting the physics stepper out of the update loop is
+the kind of refactor that silently changes behaviour. The two distributions are the same.
+
+## 4aa. The flippers get right of way
+
+Second report of the same shape as the results card: a deliberate control sitting on top of
+a reflex one. The whole playfield doubles as the flipper surface AND as the tower-selection
+surface, so a tap meant for a flipper that happened to land on a bumper opened its panel
+instead — which drops the table to 12% speed and costs the save.
+
+The tap targets were NOT the problem and shrinking them was the wrong instinct: a tower's
+42-unit radius works out at almost exactly the 44px comfortable minimum on a 375px phone,
+so a smaller one would just make managing towers fiddly to fix a different complaint. The
+problem is priority. During a WAVE the flippers now win the tap whenever either is true:
+
+- a ball is descending past y=800 into the lower field, where it is about to need a flipper
+  — this is what catches the FIRST tap of a rally, which no "recently tapped" test can; or
+- a flipper went down within the last 600ms, i.e. a rally is already under way.
+
+Nothing is swallowed: a tap a tower declines still flips. Tower management stays available
+in the quiet moments between rallies, which is the only time anyone wants it anyway, and
+the build phase is untouched. Verified across all four cases — quiet table opens the panel,
+mid-rally flips instead, a ball dropping into the deck flips instead, build phase always
+opens.
+
+## 4bb. The opening defense is no longer optional
+
+A player could tap START on a completely empty board and lose wave 1 to a rule nobody had
+told them. "You MAY build" is not something a new player reads as "you must", and a prompt
+they can dismiss by pressing the big glowing button next to it is not guidance.
+
+Before wave 1, with nothing on the board:
+
+- **The countdown holds.** Otherwise the guidance is decoration and the wave arrives anyway.
+- **START is greyed and reads BUILD FIRST**, and refuses the tap with an error and a nudge.
+  Greyed rather than hidden: the button has to stay where it lives, or the player learns its
+  position only after the rule stops applying. Every route to sending a wave — the banner,
+  the keyboard, the tray — funnels through one gate, so it cannot be walked around.
+- **The prompt became two steps, showing only the one you are on.** "BUILD YOUR FIRST
+  DEFENSE / TAP PADDLE OR BUMPER BELOW" with a chevron at the tray; then, once something is
+  in hand, "NOW PLACE IT / TAP THE MARKED SLOT" with a target ring and chevron on a
+  recommended mounting point. Stating both steps at once is a paragraph, and a new player
+  reads none of it.
+- **The marker points, it does not fence.** Every other slot still takes the tap, and the
+  prompt says so outright: "ANY SLOT WORKS — THIS ONE IS A GOOD START". The recommendation
+  is the nearest free slot to the middle of the build field, which is where the scatter
+  posts funnel traffic, so a defense there meets every lane.
+
+Strictly the OPENING phase: `waveIndex < 0` and an empty board. Once a run is under way,
+selling down to nothing is the player's business, not the game's — verified that a mid-run
+build phase with an empty board is not gated. The tutorial is exempt while it is running,
+since the lesson drives its own placement; skipping the lesson leaves the gate in place,
+which is the correct outcome.
+
+## 4cc. Endless becomes the headline
+
+The home screen led with the campaign: a round PLAY cabinet button wired to World 1, with
+Endless demoted to a row in the scorecard. That is backwards for what this game actually
+is. The campaign is five stages long and is finished once; Endless has no ceiling, owns the
+record the player comes back to beat, and is where every system built this cycle — the boss
+rota, wear, the rising ball count, calling the next wave in — actually lives.
+
+So the round button now launches Endless and the campaign moves down into the scorecard.
+
+It keeps the word PLAY rather than the word ENDLESS: it is a 116px circle set in a 30px
+pixel face, where "PLAY" fits and "ENDLESS" does not. The action stays on the cap and the
+destination rides underneath it, which is how a real cabinet is labelled anyway. The record
+surfaces in three places instead of one — the button's accessible name, the attract line
+("Best wave 23 · 1 player · free play"), and first position in the display rotation, which
+now opens on ENDLESS / BEST WAVE rather than the campaign stage. With no record yet the
+display reads ENDLESS MODE / HOW FAR CAN YOU GET, which is the pitch.
+
+The scorecard keeps four rows so the column still balances the button: Campaign (the globe),
+Levels (the stage list), Power cards, How to play. Campaign takes the amber accent Endless
+used to have. Nothing lost a route — every destination the old menu reached is still one or
+two taps away, and the ids were kept so the handlers did not move.
+
+Checked at 375x812 and 360x600: no sheet overflow, and all four routes verified by clicking
+them — big button to the Endless lobby, Campaign to the world map, Levels to the stage list.
+
+## 4dd. Upkeep, the Rimewall's teeth, and what the lesson forgot
+
+- **The tutorial now says where cards come from.** A player could finish the campaign never
+  knowing that the second and third objectives on every level are what buys the rest of the
+  deck. A new step, STARS BUY CARDS, lands immediately after the player fires their first
+  card — while "I want more of these" is the live thought — and spells out the three-star
+  scoring and what stars unlock. `TUT.VERSION` bumped to 3, so a save that has seen the old
+  lesson gets this one.
+- **Endless upkeep gets dearer as a run climbs.** `ENT.repairScale`, driven from the wave
+  (`1 + 0.18/wave`, capped at 8x). Income out there climbs steeply, so a flat repair bill
+  stopped being a decision somewhere in the teens and the board just got nursed forever out
+  of petty cash. A full rebuild of a Power Paddle runs 77 at wave 1, 216 at wave 11, 493 at
+  wave 31. The campaign stays at 1x.
+- **The Rimewall now cracks what it freezes.** Its pulse takes 14 durability out of the TWO
+  NEAREST towers in the ring, with a frost burst on each so the bill is visible. Measured
+  against a 16-tower board over a fixed 60s window, it roughly doubles the towers destroyed.
+
+The Rimewall took four passes to land, and the wrong turns are the interesting part:
+
+1. **AoE wear was a trap.** Damaging every tower in the ring looked fairer and walked the
+   whole nest toward zero in lockstep, so they failed together and the board's output fell
+   off a cliff mid-fight. A sweep lost the wave at every value from 8 upward — including
+   values dealing LESS total damage than what shipped. Concentrated on two named towers it
+   is a bill the player can see and answer.
+2. **The real damage was not where it looked.** Any truthy `wrecker` also switched on a x3
+   CONTACT wear multiplier, and a boss of mass 7.4 rattling through a nest lands contacts
+   constantly — 22 durability a touch. That, not the pulse, was dissolving the board, which
+   is why 8 and 26 behaved the same. Contact wear is now its own field, `contactWear`, and
+   only the Breaker has it: destruction by contact is the Breaker's identity, not the
+   Rimewall's.
+3. **The instrument was measuring the wrong thing.** "Does the bot win" is dominated by
+   whether it leaks to the boss's escorts, which is noise — the same setting won 4/3 and
+   lost 3/3 across runs. Switching to "how much of the board is left after a fixed 60s,
+   lives held open" gave a signal that actually moved with the input.
+4. **More was not more.** Tower destruction saturates near four towers however hard the
+   pulse bites, while the boss's own survival falls off as the board thins: 14 killed it in
+   2 of 3 runs, 22 in 1, 30 in none. So 22 and 30 bought no extra damage and cost the fight.
+
+Also checked and NOT changed: energy does not carry between campaign levels. Every route —
+next level, direct start, restart, and Endless — resets to the level's own `startEnergy`
+(135/155/170/185/200). The rising start values are most likely what read as carry-over.
+
+## 4ee. The build piles were half the size of a power card
+
+PADDLE and BUMPER drew a 64x80 face inside an 80-wide slot, against a 92x120 power card —
+so the two most-used controls in the game were roughly half the area of the least-used, and
+they read as an afterthought beside the hand. Building is the core loop; they should not be
+the smallest thing in the tray.
+
+The panel between them could not give up any width: at `trayScaleMax` a four-card hand uses
+every unit of it, which is exactly the configuration a tall phone runs. So the space came
+from the piles' own padding and from the full height of the apron instead — the face is now
+78x90 (137% of the old area, against the card's 92x120) in an 86-wide slot, and the art,
+which had been drawn at fixed offsets sized for the old face, scales with it rather than
+rattling around inside a bigger card. The hit rect grows with the cell, so the tap target
+improved as well.
+
+The price readout hangs BELOW the face, which is what capped the height: at 96 tall its dot
+matrix ran off the bottom of the apron, so the face sits at 90 and the readout ends at
+y=1365 against an apron that ends at 1366.
+
+Checked in the two configurations that actually constrain it — a short screen (tray at scale
+1, 79 units of clearance each side) and a tall one with the worst-case four-card hand (tray
+at scale 1.3, 14 units each side) — plus all three cell states at once: affordable, too
+expensive, and selected.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

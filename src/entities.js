@@ -102,13 +102,30 @@
       grav: 0.66, glyph: 'crown', outline: 13,
       boss: true, phases: 3, tint: C.frost,
       frostProof: true,
-      freezeR: 190, freezeDur: 3.2   // stuns defenses it drifts past
+      freezeR: 190, freezeDur: 3.2,  // stuns defenses it drifts past
+      /* Frost embrittles: the pulse that grips a defense also CRACKS the two
+       * nearest, hard. Deliberately delivered by the pulse rather than by
+       * contact — see `contactWear` on the Breaker. A boss this heavy
+       * (mass 7.4) rattling through a nest lands contacts constantly, so
+       * putting the damage there made it a stray-bounce lottery that quietly
+       * dissolved the whole board; on the pulse it is a visible, answerable
+       * bill on two named towers. */
+      /* 14 x 2, from a measured sweep. Tower destruction saturates around
+       * four towers however hard the pulse bites — the two nearest die, then
+       * the next two — but the boss's own survival falls off as the board
+       * thins, so anything above this buys no extra damage and costs the
+       * fight: 14 killed the boss in 2 of 3 runs, 22 in 1, 30 in none. It
+       * doubles the towers lost against no wrecker at all (4.3 vs 2.0). */
+      wrecker: 14, wreckN: 2
     },
     bossBreaker: {
       name: 'Breaker', r: 48, hp: 55, mass: 8.0, bounty: 260, lifeCost: 3,
       grav: 0.76, glyph: 'crown', outline: 14,
       boss: true, phases: 3, tint: C.amber,
-      wrecker: 34                    // durability torn out per tower contact
+      wrecker: 34,                   // durability its slam tears out of one tower
+      /* Destruction by CONTACT is the Breaker's whole identity, so it keeps
+       * the triple wear multiplier that used to be implied by `wrecker`. */
+      contactWear: 3
     },
     bossVector: {
       name: 'Vector', r: 33, hp: 80, mass: 3.0, bounty: 230, lifeCost: 3,
@@ -454,10 +471,26 @@
   /* Repairing costs half of what the tower cost, scaled by how much is
    * missing — so topping up a lightly scuffed bumper is pocket change and
    * nursing a wreck is a real decision against just rebuilding it. */
+  /* Specialised gear is expensive to keep running. The base half-of-cost
+   * already scales with the tower's price, but that alone left a Power Paddle
+   * cheap to nurse relative to what it does — an upgraded tower should be a
+   * commitment, not just a better tower. Tier 2 therefore pays a maintenance
+   * premium on top, which is also the counterweight to the bigger durability
+   * pool upgrading buys. */
+  ENT.REPAIR_TIER2 = 1.4;
+
+  /* Endless raises the price of upkeep as a run goes on; game.js sets this
+   * from the wave. Income climbs steeply out there — a cleared wave pays a
+   * capped 240 and the kills pay more on top — so a FLAT repair bill stops
+   * being a decision somewhere in the teens and the whole board just gets
+   * nursed forever out of petty cash. The campaign leaves it at 1. */
+  ENT.repairScale = 1;
+
   ENT.repairCost = function (t) {
     var missing = 1 - ENT.condition(t);
     if (missing <= 0.001) return 0;
-    return Math.max(5, Math.round(t.def.cost * 0.5 * missing));
+    var tierMul = t.def.tier >= 2 ? ENT.REPAIR_TIER2 : 1;
+    return Math.max(5, Math.round(t.def.cost * 0.5 * tierMul * ENT.repairScale * missing));
   };
 
   global.ENT = ENT;

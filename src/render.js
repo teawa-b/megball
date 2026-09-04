@@ -1426,7 +1426,14 @@
    * to 80 units: 54 css px on a tall phone, 40 on the shortest viewport the
    * game supports, against 43 before. */
   var CARD_W = 92, CARD_H = 120, HAND_Y = 1242;
-  var PILE_W = 80, PILE_H = 118, PILE_Y = 1250;
+  /* The build piles are the primary action in the tray — building is the core
+   * loop — but they were drawn as a 64x80 face inside an 80-wide slot, against
+   * a 92x120 power card, so the two most-used controls on the screen were half
+   * the area of the least-used. They now fill their gutter: the panel between
+   * them cannot give up any width (at trayScaleMax a four-card hand uses every
+   * unit of it), so the space comes from the piles' own padding and from the
+   * full height of the band. */
+  var PILE_W = 86, PILE_H = 126, PILE_Y = 1242;
   function panelRect() { return { x: 90, y: 1240, w: TX.W - 180, h: VH - 1240 - 4, cut: 16 }; }
 
   /* Tray transform. The tray is laid out in the 130-unit band at the foot
@@ -1465,8 +1472,8 @@
   function trayCells(S) {
     var items = [];
     var P = panelRect();
-    items.push({ kind: 'build', type: 'paddle', x: 5, y: PILE_Y, w: PILE_W, h: PILE_H });
-    items.push({ kind: 'build', type: 'bumper', x: TX.W - 5 - PILE_W, y: PILE_Y, w: PILE_W, h: PILE_H });
+    items.push({ kind: 'build', type: 'paddle', x: 2, y: PILE_Y, w: PILE_W, h: PILE_H });
+    items.push({ kind: 'build', type: 'bumper', x: TX.W - 2 - PILE_W, y: PILE_Y, w: PILE_W, h: PILE_H });
 
     var n = Math.min(S.cards.length, 4);
     if (n > 0) {
@@ -1590,8 +1597,13 @@
     var active = S.buildPick === it.type;
     var col = C.cyan;
 
-    var cw = it.w - 16, ch = 80;
-    var cx0 = it.x + 8, cy0 = it.y + 6;
+    /* 90, not 96: the price readout hangs below the face, and at 96 its dot
+     * matrix ran past the bottom of the apron. */
+    var cw = it.w - 8, ch = 90;
+    var cx0 = it.x + 4, cy0 = it.y + 5;
+    /* The art was drawn at fixed offsets sized for the old 64-wide face, so it
+     * scales with the card rather than rattling around inside a bigger one. */
+    var k = cw / 64;
 
     ctx.save();
     /* Two cards peeking out underneath. */
@@ -1620,41 +1632,41 @@
     ctx.stroke();
 
     /* Art. */
-    var cx = cx0 + cw / 2, cy = cy0 + 30;
+    var cx = cx0 + cw / 2, cy = cy0 + ch * 0.375;
     ctx.save();
     ctx.globalAlpha = afford ? 1 : 0.35;
     if (it.type === 'paddle') {
       ctx.strokeStyle = C.ink;
-      capsule(ctx, cx - 17, cy + 8, cx + 15, cy - 6, 9);
+      capsule(ctx, cx - 17 * k, cy + 8 * k, cx + 15 * k, cy - 6 * k, 9 * k);
       ctx.strokeStyle = col;
-      capsule(ctx, cx - 17, cy + 8, cx + 15, cy - 6, 6.5);
-      ctx.beginPath(); ctx.arc(cx - 17, cy + 8, 6.5, 0, TAU);
+      capsule(ctx, cx - 17 * k, cy + 8 * k, cx + 15 * k, cy - 6 * k, 6.5 * k);
+      ctx.beginPath(); ctx.arc(cx - 17 * k, cy + 8 * k, 6.5 * k, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = C.ink; ctx.stroke();
+      ctx.lineWidth = 2 * k; ctx.strokeStyle = C.ink; ctx.stroke();
     } else {
-      ctx.beginPath(); ctx.arc(cx, cy + 1, 17, 0, TAU);
+      ctx.beginPath(); ctx.arc(cx, cy + k, 17 * k, 0, TAU);
       ctx.fillStyle = C.panel; ctx.fill();
-      ctx.lineWidth = 3.5; ctx.strokeStyle = C.ink; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy + 1, 13, 0, TAU);
-      ctx.lineWidth = 3; ctx.strokeStyle = col; ctx.stroke();
-      ctx.beginPath(); ctx.arc(cx, cy + 1, 6, 0, TAU);
+      ctx.lineWidth = 3.5 * k; ctx.strokeStyle = C.ink; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + k, 13 * k, 0, TAU);
+      ctx.lineWidth = 3 * k; ctx.strokeStyle = col; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, cy + k, 6 * k, 0, TAU);
       ctx.fillStyle = U.rgba(col, 0.5); ctx.fill();
     }
     ctx.restore();
 
     /* Name band across the bottom of the top card. */
-    rr(ctx, cx0 + 5, cy0 + ch - 24, cw - 10, 18, 6);
+    rr(ctx, cx0 + 5, cy0 + ch - 28, cw - 10, 22, 7);
     ctx.fillStyle = active ? U.rgba(col, 0.95) : (afford ? U.rgba(col, 0.22) : 'rgba(255,255,255,0.06)');
     ctx.fill();
-    micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 14.5,
-      active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 8.5);
+    micro(ctx, it.type === 'paddle' ? 'PADDLE' : 'BUMPER', cx, cy0 + ch - 16.5,
+      active ? 'rgba(0,0,0,0.88)' : (afford ? C.white : 'rgba(255,255,255,0.32)'), 'center', 10);
 
     /* Price under the pile: a bolt lamp and the cost in amber dots, the
      * same readout language as the energy counter on the backglass. */
-    var py = cy0 + ch + 8;
+    var py = cy0 + ch + 7;
     var pc = afford ? C.amber : 'rgba(255,176,32,0.35)';
-    var dw = dmdText(ctx, String(d.cost), cx + 7, py, 8, 2.0, pc, 'center');
-    var bx = cx + 7 - dw / 2 - 10, by = py + 9;
+    var dw = dmdText(ctx, String(d.cost), cx + 8, py, 8, 2.3, pc, 'center');
+    var bx = cx + 8 - dw / 2 - 11, by = py + 10;
     ctx.beginPath();
     ctx.moveTo(bx + 2.5, by - 7); ctx.lineTo(bx - 3.5, by + 1); ctx.lineTo(bx - 0.5, by + 1);
     ctx.lineTo(bx - 2.5, by + 7); ctx.lineTo(bx + 3.5, by - 1); ctx.lineTo(bx + 0.5, by - 1);
@@ -2373,6 +2385,53 @@
   var BANNER_Y0 = 112, BANNER_H = 134;
   var readyBtn = { x: 438, y: BANNER_Y0 + 34, w: 224, h: 66, id: 'ready' };
 
+  /* The amber cabinet button, as it appears on the backglass. Shared by
+   * START (build phase) and NEXT WAVE (the tail of a live one) so the two
+   * read as the same control in the same place — which is the point: that
+   * spot always means "send the next wave". */
+  function cabinetButton(ctx, rb, label, sub, pulse) {
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = U.rgba(C.amber, 0.10 + 0.22 * pulse);
+    rr(ctx, rb.x - 3, rb.y - 3, rb.w + 6, rb.h + 6, 19);
+    ctx.stroke();
+    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16);
+    ctx.fillStyle = '#0a0d18'; ctx.fill();
+    var bg = ctx.createRadialGradient(rb.x + rb.w / 2, rb.y + rb.h * 0.25, 4,
+      rb.x + rb.w / 2, rb.y + rb.h / 2, rb.w * 0.6);
+    bg.addColorStop(0, '#fff1bf');
+    bg.addColorStop(0.35, '#ffcf4a');
+    bg.addColorStop(0.75, '#f39316');
+    bg.addColorStop(1, '#8f4306');
+    rr(ctx, rb.x + 4, rb.y + 4, rb.w - 8, rb.h - 8, 13);
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    rr(ctx, rb.x + 16, rb.y + 8, rb.w - 32, 9, 4.5); ctx.fill();
+    ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.amber, 0.45);
+    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16); ctx.stroke();
+    ptext(ctx, label, rb.x + rb.w / 2, rb.y + 25, 23, '#3a1600', 'center', 1);
+    ptext(ctx, sub, rb.x + rb.w / 2, rb.y + 48, 11, 'rgba(74,30,0,0.95)', 'center', 1);
+  }
+
+  /* The tail of a live wave: two stragglers ricocheting around while the
+   * player waits on a counter. Offer to call the next wave in, in the same
+   * seat the START button uses — GAME.canEndWaveEarly only says yes once the
+   * gates have gone quiet, so this never covers an arriving ball. */
+  function drawNextWaveBtn(ctx, S) {
+    var G = global.GAME;
+    if (!G || !G.canEndWaveEarly || !G.canEndWaveEarly()) return;
+    var tail = G.waveTail();
+    var rb = readyBtn;
+    rb.y = BANNER_Y0 + 34;
+    var pulse = 0.5 + 0.5 * Math.sin(S.time * 4);
+    ctx.save();
+    /* Slightly transparent: it lives over the playfield, and a stray ball
+     * bouncing up here must never be hidden by a button. */
+    ctx.globalAlpha = 0.92;
+    cabinetButton(ctx, rb, 'NEXT WAVE',
+      tail.alive + (tail.alive === 1 ? ' LEFT' : ' LEFT'), pulse);
+    ctx.restore();
+  }
+
   function drawBanner(ctx, S) {
     var b = S.banner;
     if (!b || S.mode !== 'build') return;
@@ -2441,35 +2500,22 @@
     /* START: the cabinet button, amber like the one on the backglass. */
     var rb = readyBtn;
     rb.y = BANNER_Y0 + 34;
-    ctx.lineWidth = 6;
-    ctx.strokeStyle = U.rgba(C.amber, 0.10 + 0.22 * pulse);
-    rr(ctx, rb.x - 3, rb.y - 3, rb.w + 6, rb.h + 6, 19);
-    ctx.stroke();
-    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16);
-    ctx.fillStyle = '#0a0d18'; ctx.fill();
-    var bg = ctx.createRadialGradient(rb.x + rb.w / 2, rb.y + rb.h * 0.25, 4, rb.x + rb.w / 2, rb.y + rb.h / 2, rb.w * 0.6);
-    bg.addColorStop(0, '#fff1bf');
-    bg.addColorStop(0.35, '#ffcf4a');
-    bg.addColorStop(0.75, '#f39316');
-    bg.addColorStop(1, '#8f4306');
-    rr(ctx, rb.x + 4, rb.y + 4, rb.w - 8, rb.h - 8, 13);
-    ctx.fillStyle = bg; ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    rr(ctx, rb.x + 16, rb.y + 8, rb.w - 32, 9, 4.5); ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = U.rgba(C.amber, 0.45);
-    rr(ctx, rb.x, rb.y, rb.w, rb.h, 16); ctx.stroke();
     /* The bonus is the whole reason to press this, so it rides on the button
      * face next to the countdown it is buying out. It shrinks as the clock
      * runs, which is what makes "go now" feel like a decision rather than
      * impatience. */
     var early = global.GAME && global.GAME.earlyBonus ? global.GAME.earlyBonus() : 0;
     var secs = Math.max(0, Math.ceil(S.buildT)) + 'S';
-    ptext(ctx, 'START', rb.x + rb.w / 2, rb.y + 25, 23, '#3a1600', 'center', 1);
-    if (early > 0) {
-      ptext(ctx, secs + '   +' + early + ' E', rb.x + rb.w / 2,
-        rb.y + 48, 11, 'rgba(74,30,0,0.95)', 'center', 1);
+    var locked = global.GAME && global.GAME.mustBuild && global.GAME.mustBuild();
+    if (locked) {
+      /* Greyed rather than hidden: the button has to stay where it lives, or
+       * the player learns its position only after the rule stops applying. */
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      cabinetButton(ctx, rb, 'START', 'BUILD FIRST', 0);
+      ctx.restore();
     } else {
-      ptext(ctx, secs, rb.x + rb.w / 2, rb.y + 48, 11, 'rgba(90,38,0,0.9)', 'center', 1);
+      cabinetButton(ctx, rb, 'START', early > 0 ? secs + '   +' + early + ' E' : secs, pulse);
     }
     drawChallengeChip(ctx, S, rb.x, BANNER_Y0 + 104, rb.w);
 
@@ -2697,23 +2743,76 @@
     ctx.strokeStyle = U.rgba(C.amber, 0.55 + 0.4 * pulse);
     ctx.stroke();
 
-    ptext(ctx, 'BUILD YOUR FIRST DEFENSE', VW / 2, y + 34, 21, C.amber, 'center', 1.5);
-    ptext(ctx, 'TAP  PADDLE  OR  BUMPER  BELOW', VW / 2, y + 66, 13,
-      'rgba(255,255,255,0.8)', 'center', 2);
-    ptext(ctx, 'YOU HAVE ' + Math.floor(S.energy) + ' ENERGY TO SPEND', VW / 2, y + 92, 11,
-      U.rgba(C.amber, 0.7), 'center', 2);
+    /* Two steps, and the prompt only ever shows the one you are on: pick a
+     * defense, then put it somewhere. An opening prompt that states both at
+     * once is a paragraph, and a new player reads none of it. */
+    var picking = !!S.buildPick;
+    if (picking) {
+      ptext(ctx, 'NOW PLACE IT', VW / 2, y + 34, 21, C.amber, 'center', 1.5);
+      ptext(ctx, 'TAP  THE  MARKED  SLOT', VW / 2, y + 66, 13,
+        'rgba(255,255,255,0.8)', 'center', 2);
+      ptext(ctx, 'ANY SLOT WORKS — THIS ONE IS A GOOD START', VW / 2, y + 92, 11,
+        U.rgba(C.amber, 0.7), 'center', 2);
+    } else {
+      ptext(ctx, 'BUILD YOUR FIRST DEFENSE', VW / 2, y + 34, 21, C.amber, 'center', 1.5);
+      ptext(ctx, 'TAP  PADDLE  OR  BUMPER  BELOW', VW / 2, y + 66, 13,
+        'rgba(255,255,255,0.8)', 'center', 2);
+      ptext(ctx, 'YOU HAVE ' + Math.floor(S.energy) + ' ENERGY TO SPEND', VW / 2, y + 92, 11,
+        U.rgba(C.amber, 0.7), 'center', 2);
+    }
 
-    /* A chevron marching down toward the tray, so the sentence has a target. */
-    var bob = Math.sin(S.time * 4.4) * 8;
-    var cy = y + h + 30 + bob;
+    /* A chevron marching down toward the tray, so the sentence has a target.
+     * Once a defense is in hand the target is the slot instead, and the
+     * chevron would be pointing at the wrong thing. */
+    if (!picking) {
+      var bob = Math.sin(S.time * 4.4) * 8;
+      var cy = y + h + 30 + bob;
+      ctx.beginPath();
+      ctx.moveTo(VW / 2 - 20, cy - 11);
+      ctx.lineTo(VW / 2, cy + 11);
+      ctx.lineTo(VW / 2 + 20, cy - 11);
+      ctx.lineWidth = 7;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = U.rgba(C.amber, 0.6 + 0.4 * pulse);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    if (picking) drawGuideSlot(ctx, S, pulse);
+  }
+
+  /* The recommended mounting point during the opening placement: a target
+   * ring with a chevron over it, on the slot GAME.guideSlot picked. Every
+   * other slot still takes the tap — this points, it does not fence. */
+  function drawGuideSlot(ctx, S, pulse) {
+    var G = global.GAME;
+    var sl = G && G.guideSlot ? G.guideSlot() : null;
+    if (!sl) return;
+    ctx.save();
+    ctx.shadowColor = C.amber;
+    ctx.shadowBlur = 18;
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = U.rgba(C.amber, 0.55 + 0.45 * pulse);
     ctx.beginPath();
-    ctx.moveTo(VW / 2 - 20, cy - 11);
-    ctx.lineTo(VW / 2, cy + 11);
-    ctx.lineTo(VW / 2 + 20, cy - 11);
-    ctx.lineWidth = 7;
+    ctx.arc(sl.x, sl.y, 30 + pulse * 5, 0, TAU);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = U.rgba(C.amber, 0.35);
+    ctx.beginPath();
+    ctx.arc(sl.x, sl.y, 44 + pulse * 8, 0, TAU);
+    ctx.stroke();
+    var bob = Math.sin(S.time * 4.4) * 6;
+    var cy = sl.y - 54 + bob;
+    ctx.beginPath();
+    ctx.moveTo(sl.x - 15, cy - 8);
+    ctx.lineTo(sl.x, cy + 8);
+    ctx.lineTo(sl.x + 15, cy - 8);
+    ctx.lineWidth = 6;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = U.rgba(C.amber, 0.6 + 0.4 * pulse);
+    ctx.strokeStyle = U.rgba(C.amber, 0.7 + 0.3 * pulse);
     ctx.stroke();
     ctx.restore();
   }
@@ -2964,6 +3063,7 @@
     }
 
     drawBanner(ctx, S);
+    drawNextWaveBtn(ctx, S);
     drawToast(ctx, S);
     drawHud(ctx, S);
     drawTray(ctx, S);
@@ -3087,6 +3187,16 @@
 
   DRAW.hitTray = function (x, y) {
     return DRAW.applyTray(DRAW.pickTray(x, y));
+  };
+
+  /* Board-space tap against the NEXT WAVE button. Sits at the very top of
+   * the field where nobody reaches to flip, so a modest pad is safe. */
+  DRAW.hitNextWave = function (x, y) {
+    var G = global.GAME;
+    if (!G || !G.canEndWaveEarly || !G.canEndWaveEarly()) return false;
+    var p = 10;
+    return inRect(x, y, { x: readyBtn.x - p, y: readyBtn.y - p,
+      w: readyBtn.w + p * 2, h: readyBtn.h + p * 2 });
   };
 
   DRAW.hitBanner = function (x, y) {

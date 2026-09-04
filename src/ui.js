@@ -938,15 +938,27 @@
       '<div class="spacer mid"></div>',
       '<div class="lamprail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>',
       '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="plate">Megaball display</span></div>',
+      /* ENDLESS is the headline. It is the mode with no ceiling, the one the
+       * record chases, and the one a returning player comes back for — the
+       * campaign is five stages long and is finished once. The round cabinet
+       * button therefore launches Endless and the campaign moves down into
+       * the scorecard, which is the reverse of how this started.
+       *
+       * The button keeps the word PLAY rather than the word ENDLESS: it is a
+       * 116px circle set in a 30px pixel face, where "PLAY" fits and
+       * "ENDLESS" does not. The action stays on the cap and the destination
+       * rides underneath it, which is also how a real cabinet is labelled. */
       '<div class="ctl">',
-      '<button class="start" id="play" aria-label="Play World 1 Stage ' + curId + '"><span class="halo" aria-hidden="true"></span><b>Play</b><small>Stage ' + curId + '</small></button>',
+      '<button class="start" id="endless" aria-label="Play Endless mode' +
+        (best ? ', best wave ' + best : '') + '"><span class="halo" aria-hidden="true"></span>' +
+        '<b>Play</b><small>Endless</small></button>',
       '<div class="scard">',
-      '<button class="sc" id="lvls"><i></i><span class="lb">Levels</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
+      '<button class="sc amb" id="play"><i></i><span class="lb">Campaign</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
+      '<button class="sc" id="lvls"><i></i><span class="lb">Levels</span><span class="ld"></span><span class="ct">Stage ' + curId + '</span></button>',
       '<button class="sc mag" id="deck"><i></i><span class="lb">Power cards</span><span class="ld"></span><span class="ct">' + owned.cards.length + '/' + cardsMax + '</span></button>',
-      '<button class="sc amb" id="endless"><i></i><span class="lb">Endless</span><span class="ld"></span><span class="ct">' + (best ? 'Wave ' + best : 'New') + '</span></button>',
       '<button class="sc" id="howto"><i></i><span class="lb">How to play</span><span class="ld"></span></button>',
       '</div></div>',
-      '<p class="attract">Press play · 1 player · free play</p>'
+      '<p class="attract">' + (best ? 'Best wave ' + best + ' · ' : '') + '1 player · free play</p>'
     ].join(''), true);
     mark(sheet, 'hero');
     mark(sheet, 'home');
@@ -978,8 +990,8 @@
     /* Attract-mode messages for the display. */
     var msgs = [
       ['MEGABALL'],
+      best ? ['ENDLESS', 'BEST WAVE ' + best] : ['ENDLESS MODE', 'HOW FAR CAN YOU GET'],
       ['WORLD 1', 'STAGE ' + curId + (cur ? '  ' + cur.name.toUpperCase() : '')],
-      best ? ['ENDLESS', 'BEST WAVE ' + best] : ['ENDLESS MODE', 'NO RECORD YET'],
       ['STARS ' + total + ' / 15', 'RANK ' + rank.toUpperCase()],
       ['PRESS PLAY']
     ];
@@ -1477,6 +1489,29 @@
 
   /* ---------------------------------------------------------------------- */
 
+  /* A screen the player did not ask for must not be dismissible by a tap they
+   * had already started making.
+   *
+   * The results card is the only one that appears on its own, and it appears
+   * at exactly the worst moment: the last ball drains while the player is
+   * mid-rhythm on the flippers, and the very next tap of that rhythm lands on
+   * NEXT LEVEL. So the sheet is deaf for half a second after it arrives —
+   * longer than its own entry animation, far shorter than any deliberate
+   * reach for a button. */
+  var guardTimer = 0;
+  function guardTaps(ms) {
+    var sheet = root.querySelector('.sheet');
+    if (!sheet) return;
+    sheet.style.pointerEvents = 'none';
+    if (guardTimer) global.clearTimeout(guardTimer);
+    guardTimer = global.setTimeout(function () {
+      guardTimer = 0;
+      /* Only lift the guard if this is still the sheet on screen — a fast
+       * navigation away must not re-arm a detached node. */
+      if (sheet.parentNode) sheet.style.pointerEvents = '';
+    }, ms || 550);
+  }
+
   UI.showScreen = function (name, data) {
     /* The globe owns a WebGL context of its own. Release it the instant we
      * leave the world screen, before anything else touches the DOM, so the
@@ -1501,6 +1536,8 @@
     else if (name === 'paused') screenPaused();
     else if (name === 'results') screenResults(data);
     root.scrollTop = 0;
+    /* Results is the one screen that raises itself; see guardTaps. */
+    if (name === 'results') guardTaps();
   };
 
   UI.current = function () { return current; };

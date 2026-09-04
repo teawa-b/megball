@@ -73,6 +73,7 @@
     hoverSlot: null,
 
     /* flippers */
+    lastFlipT: -9,       // when a flipper was last pressed (see flipperIntent)
     flipL: { on: false, angle: 0, omega: 0, prev: 0 },
     flipR: { on: false, angle: 0, omega: 0, prev: 0 },
 
@@ -167,6 +168,7 @@
 
     S.lives = S.livesMax = def.lives;
     S.energy = def.startEnergy;
+    ENT.repairScale = 1;
     S.waveIndex = -1;
     S.leaks = 0; S.totalKills = 0; S.earned = 0;
     S.peakTowers = 0;
@@ -199,6 +201,7 @@
     var s = global.SFX;
     if (s) { s.init(); s.lowpass(0); s.music(def.id === 5 ? 'battle' : 'battle'); }
 
+    S.lastFlipT = -9;
     S.flipL.angle = S.flipL.prev = restAngleL();
     S.flipR.angle = S.flipR.prev = restAngleR();
 
@@ -385,7 +388,18 @@
     return S.level ? S.level.waves[i] : null;
   }
 
+  /* Upkeep gets dearer as an Endless run climbs. Refreshed wherever the wave
+   * number can change, so the price on the REPAIR button and the price
+   * actually charged are always the same number. */
+  function syncRepairScale() {
+    ENT.repairScale = (S.level && S.level.endless)
+      ? Math.min(8, 1 + Math.max(0, S.waveIndex) * 0.18)
+      : 1;
+  }
+  GAME.syncRepairScale = syncRepairScale;
+
   function beginBuildPhase(first) {
+    syncRepairScale();
     var next = ensureWave(S.waveIndex + 1);
     if (!next) { winLevel(); return; }
     S.mode = 'build';
@@ -444,6 +458,7 @@
     var early = GAME.earlyBonus();
 
     S.waveIndex++;
+    syncRepairScale();
     var w = ensureWave(S.waveIndex);
     if (!w) { winLevel(); return; }
 
@@ -470,7 +485,105 @@
     if (w.boss || w.mini) { sfx('boss_spawn'); var s = global.SFX; if (s) s.music('boss'); }
     teach('wave' + (S.waveIndex + 1));
   }
-  GAME.startWaveNow = function () { if (S.mode === 'build') startWave(); };
+  /* The opening build phase is not optional any more.
+   *
+   * A first-time player who taps START on an empty board loses wave 1 to a
+   * rule nobody told them, and "you MAY build" is not something a new player
+   * reads as "you must". So before wave 1 the countdown holds and the wave
+   * cannot be sent until one defense is down — and the prompt points at where
+   * to put it. Strictly the OPENING phase only: once the run is under way,
+   * selling down to nothing is the player's business, not the game's. */
+  GAME.mustBuild = function () {
+    return S.mode === 'build' && S.waveIndex < 0 && !S.towers.length &&
+      !S.pendingTutorial;
+  };
+
+  /* Where to point a first-time player. The middle of the build field is the
+   * honest answer: it is where the scatter posts funnel traffic, so a defense
+   * there meets every lane. Nearest FREE slot to that point, so the marker
+   * can never land on an occupied one. */
+  GAME.guideSlot = function () {
+    if (!GAME.mustBuild() || !S.table) return null;
+    var best = null, bd = 1e9;
+    for (var i = 0; i < S.table.slots.length; i++) {
+      var sl = S.table.slots[i];
+      if (sl.occupant) continue;
+      var d = U.dist2(sl.x, sl.y, 360, 630);
+      if (d < bd) { bd = d; best = sl; }
+    }
+    return best;
+  };
+
+  /* Every way of sending a wave by hand funnels through here, so the opening
+   * gate cannot be walked around by the banner, the keyboard, or the tray. */
+  function requestStartWave() {
+    if (GAME.mustBuild()) {
+      sfx('ui_error');
+      GAME.toast('Build a defense first — tap PADDLE or BUMPER below', 2.8);
+      S.buildHint = true;
+      return false;
+    }
+    startWave();
+    return true;
+  }
+  GAME.requestStartWave = requestStartWave;
+
+  GAME.startWaveNow = function () { if (S.mode === 'build') requestStartWave(); };
+
+  /* ---------------------------------------------------------------------- */
+  /* Calling the next wave in during the tail of this one                    */
+  /* ---------------------------------------------------------------------- */
+
+  /* What is left of the wave being fought: balls not yet spawned, plus balls
+   * still on the table. */
+  GAME.waveTail = function () {
+    if (S.mode !== 'wave' || !S.waveTimeline) return null;
+    var total = S.waveTimeline.length;
+    if (!total) return null;
+    var alive = 0, boss = false;
+    for (var i = 0; i < S.balls.length; i++) {
+      var b = S.balls[i];
+      if (b.dead) continue;
+      alive++;
+      if (b.def.boss) boss = true;
+    }
+    return { total: total, unspawned: total - S.waveCursor, alive: alive, boss: boss };
+  };
+
+  /* May the player call the next wave in right now?
+   *
+   * The end of a wave is its dullest stretch: two stragglers ricocheting
+   * around while the player waits for a counter to reach zero. Every tower
+   * defense lets you skip that, so this one does too.
+   *
+   *   ENDLESS ONLY — the campaign's authored pacing and its leak-budget stars
+   *     both assume a wave is fought out to the end.
+   *   FULLY SPAWNED — the gates have to be quiet, both because "the wave is
+   *     nearly over" is not true while it is still arriving, and because the
+   *     button sits in the spawn zone and must never cover an incoming ball.
+   *   NO BOSS — a boss IS the wave, not its tail.
+   *   A TAIL, not a wave: at most 30% of the wave still breathing. */
+  GAME.EARLY_TAIL = 0.3;
+  GAME.canEndWaveEarly = function () {
+    if (!S.level || !S.level.endless || S.mode !== 'wave') return false;
+    if (S.inspect || S.notice || S.selectedTower || S.buildPick) return false;
+    var t = GAME.waveTail();
+    if (!t || t.boss || t.unspawned > 0) return false;
+    return t.alive > 0 && t.alive <= Math.max(1, Math.ceil(t.total * GAME.EARLY_TAIL));
+  };
+
+  GAME.endWaveEarly = function () {
+    if (!GAME.canEndWaveEarly()) { sfx('ui_error'); return false; }
+    sfx('ui_tap');
+    var f = global.FX;
+    if (f) f.text(360, 700, 'NEXT WAVE', { color: C.amber, size: 32, life: 1.1, rise: 30, pop: 1 });
+    /* The stragglers are NOT swept up. They stay in play through the build
+     * phase and on into the next wave, where they can still reach the drain
+     * and still cost lives — which is what stops this from being a free skip
+     * and makes calling it in an actual decision. */
+    endWave();
+    return true;
+  };
 
   /* How many balls may be in flight at once. Readability is still the
    * constraint, but a FIXED dozen is what made late endless feel like a
@@ -823,6 +936,7 @@
     var f = side === 'L' ? S.flipL : S.flipR;
     if (f.on === on) return;
     f.on = on;
+    if (on) S.lastFlipT = S.time;
     sfx(on ? 'flipper_up' : 'flipper_down', { pan: side === 'L' ? -0.5 : 0.5 });
     if (on && global.FX) {
       var px = side === 'L' ? F.lx : F.rx;
@@ -1156,7 +1270,7 @@
     if (swinging) {
       /* The swing that lands is also the swing that wears the arm, by the
        * struck ball's mass. A Colossus takes a real bite out of a paddle. */
-      wearTower(t, b.mass * (b.def.wrecker ? 3 : 1));
+      wearTower(t, b.mass * (b.def.contactWear || 1));
       if (t.broken) return;
       var dmg = d.dmg * (S.overchargeT > 0 ? 1.8 : 1) * ENT.outputMul(t);
       dealDamage(b, dmg, 'paddle', hit.px, hit.py);
@@ -1215,7 +1329,7 @@
      * though the per-hit cost is the same. A Breaker tears in three times as
      * deep. Wear is charged in the tutorial too, but nothing there lives long
      * enough to matter, and exempting it would need a second code path. */
-    wearTower(t, b.mass * (b.def.wrecker ? 3 : 1));
+    wearTower(t, b.mass * (b.def.contactWear || 1));
     if (t.broken) return;
 
     /* A frozen bumper still bounces — it is a lump of metal — but its lamps
@@ -1704,12 +1818,36 @@
        * The answer is to not have every defense in one nest — which is
        * exactly the board a player builds if nothing ever punishes it. */
       var froze = 0;
+      var inRing = [];
       for (var k = 0; k < S.towers.length; k++) {
         var tw = S.towers[k];
         if (U.dist2(tw.x, tw.y, b.x, b.y) > d.freezeR * d.freezeR) continue;
         tw.frozenT = Math.max(tw.frozenT, d.freezeDur);
         froze++;
         if (f2) f2.ring(tw.x, tw.y, { r0: 6, r1: 44, color: C.frost, life: 0.45, width: 3 });
+        inRing.push(tw);
+      }
+
+      /* The freeze grips everything in the ring, but only the CLOSEST few
+       * actually crack. Spreading the damage over every tower in range looked
+       * fair and was a trap: it walks the whole nest toward zero at the same
+       * rate, they fail together, and the board's output falls off a cliff
+       * mid-fight. That is a death spiral, not a hard boss — a measured sweep
+       * lost the wave at every AoE value from 8 upward while dealing less
+       * total damage than this does. Concentrated, it is a bill the player can
+       * see coming and answer: repair those two, or give ground. */
+      if (d.wrecker && inRing.length) {
+        inRing.sort(function (p, q) {
+          return U.dist2(p.x, p.y, b.x, b.y) - U.dist2(q.x, q.y, b.x, b.y);
+        });
+        var nWreck = Math.min(d.wreckN || 1, inRing.length);
+        for (var w2 = 0; w2 < nWreck; w2++) {
+          if (f2) {
+            f2.spark(inRing[w2].x, inRing[w2].y,
+              { count: 12, color: C.frost, speed: 240, life: 0.45, size: 2.6, glow: 1 });
+          }
+          wearTower(inRing[w2], d.wrecker);
+        }
       }
       if (f2) {
         f2.ring(b.x, b.y, { r0: b.r, r1: d.freezeR, color: C.frost, life: 0.55, width: 7 });
@@ -1819,6 +1957,56 @@
     }
   }
 
+  /* One frame of table physics: flippers, balls, and every collision, run in
+   * substeps small enough that nothing tunnels. Lifted out of GAME.update so
+   * the BUILD phase can run it too — a wave the player ended early leaves
+   * stragglers on the table, and they have to keep playing. */
+  function stepWorld(dt, dtReal) {
+    if (dt <= 0) {
+      /* Frozen (hitstop): still poll the flippers so input feels live. */
+      updateFlipper(S.flipL, restAngleL(), activeAngleL(), dtReal);
+      updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
+      return;
+    }
+
+    /* Substep count is driven by the fastest thing on the table so nothing
+     * tunnels — and while a flipper is travelling that is the flipper, not
+     * any ball. Its tip covers ~4500 units/s against a 1750 ball cap, so
+     * sizing the step off the balls alone is what let a late save swing
+     * clean over an incoming ball. The raised cap only applies during the
+     * ~50ms of an actual swing. */
+    var maxSp = 0, minR = 999;
+    for (var i = 0; i < S.balls.length; i++) {
+      var b = S.balls[i];
+      var sp = U.len(b.vx, b.vy);
+      if (sp > maxSp) maxSp = sp;
+      if (b.r < minR) minR = b.r;
+    }
+    if (minR === 999) minR = 13;
+    var cap = PHYS.SUBSTEP_CAP;
+    if (S.flipL.angle !== (S.flipL.on ? activeAngleL() : restAngleL()) ||
+        S.flipR.angle !== (S.flipR.on ? activeAngleR() : restAngleR())) {
+      if (FLIP_TIP_SPEED > maxSp) maxSp = FLIP_TIP_SPEED;
+      cap = 16;
+    }
+    var steps = PHYS.substeps(maxSp, minR, dt, cap);
+    var sdt = dt / steps;
+
+    for (var st = 0; st < steps; st++) {
+      updateFlipper(S.flipL, restAngleL(), activeAngleL(), sdt);
+      updateFlipper(S.flipR, restAngleR(), activeAngleR(), sdt);
+      updateBalls(sdt);
+      for (var bi = 0; bi < S.balls.length; bi++) {
+        var bb = S.balls[bi];
+        if (bb.dead) continue;
+        ballVsStatic(bb, sdt);
+        ballVsTowers(bb, sdt);
+        ballVsFlippers(bb);
+      }
+      ballVsBalls();
+    }
+  }
+
   /* ====================================================================== */
   /* Main update                                                            */
   /* ====================================================================== */
@@ -1906,13 +2094,28 @@
 
     /* --- build phase --------------------------------------------------- */
     if (S.mode === 'build') {
-      updateFlipper(S.flipL, restAngleL(), activeAngleL(), dtReal);
-      updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
-      updateTowers(dtReal * 0.35);
       S.buildHint = !S.placedThisPhase && S.energy >= ENT.TOWERS.bumper.cost;
       if (S.towers.length) S.firstBuild = false;
-      S.buildT -= dtReal;
-      if (S.buildT <= 0) startWave();
+      /* The countdown holds while the opening defense is still owed —
+       * otherwise the guidance is decoration and wave 1 arrives anyway. */
+      if (!GAME.mustBuild()) S.buildT -= dtReal;
+      if (S.balls.length) {
+        /* Stragglers from a wave the player called time on keep playing right
+         * through the build phase. That overlap IS the price of the time they
+         * just bought: those balls can still reach the drain and still cost
+         * lives while the player is shopping. The table therefore runs at
+         * full speed rather than the usual build-phase crawl. */
+        updateTowers(dt);
+        stepWorld(dt, dtReal);
+        reapBalls();
+      } else {
+        updateFlipper(S.flipL, restAngleL(), activeAngleL(), dtReal);
+        updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
+        updateTowers(dtReal * 0.35);
+      }
+      /* Belt and braces: the clock is already held above, but the opening
+       * gate must not be walked around by a stale countdown either. */
+      if (S.buildT <= 0 && !GAME.mustBuild()) startWave();
       return;
     }
 
@@ -1920,49 +2123,8 @@
     if (dt > 0) {
       if (S.mode === 'wave') spawnFromTimeline(dt);
       updateTowers(dt);
-
-      /* Substep count is driven by the fastest thing on the table so nothing
-       * tunnels — and while a flipper is travelling that is the flipper, not
-       * any ball. Its tip covers ~4500 units/s against a 1750 ball cap, so
-       * sizing the step off the balls alone is what let a late save swing
-       * clean over an incoming ball. The raised cap only applies during the
-       * ~50ms of an actual swing. */
-      var maxSp = 0, minR = 999;
-      for (var i = 0; i < S.balls.length; i++) {
-        var b = S.balls[i];
-        var sp = U.len(b.vx, b.vy);
-        if (sp > maxSp) maxSp = sp;
-        if (b.r < minR) minR = b.r;
-      }
-      if (minR === 999) minR = 13;
-      var cap = PHYS.SUBSTEP_CAP;
-      if (S.flipL.angle !== (S.flipL.on ? activeAngleL() : restAngleL()) ||
-          S.flipR.angle !== (S.flipR.on ? activeAngleR() : restAngleR())) {
-        if (FLIP_TIP_SPEED > maxSp) maxSp = FLIP_TIP_SPEED;
-        cap = 16;
-      }
-      var steps = PHYS.substeps(maxSp, minR, dt, cap);
-      var sdt = dt / steps;
-
-      for (var st = 0; st < steps; st++) {
-        updateFlipper(S.flipL, restAngleL(), activeAngleL(), sdt);
-        updateFlipper(S.flipR, restAngleR(), activeAngleR(), sdt);
-        updateBalls(sdt);
-        for (var bi = 0; bi < S.balls.length; bi++) {
-          var bb = S.balls[bi];
-          if (bb.dead) continue;
-          ballVsStatic(bb, sdt);
-          ballVsTowers(bb, sdt);
-          ballVsFlippers(bb);
-        }
-        ballVsBalls();
-      }
-    } else {
-      /* Frozen (hitstop): still poll the flippers so input feels live. */
-      updateFlipper(S.flipL, restAngleL(), activeAngleL(), dtReal);
-      updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
     }
-
+    stepWorld(dt, dtReal);
     reapBalls();
 
     if (S.mode === 'wave' && waveComplete()) endWave();
@@ -2111,8 +2273,18 @@
     if (S.mode === 'build' && global.DRAW && global.DRAW.hitBanner &&
       global.DRAW.hitBanner(p.x, p.y)) {
       pointers[id].role = 'ui';
-      sfx('ui_tap');
-      startWave();
+      if (requestStartWave()) sfx('ui_tap');
+      return;
+    }
+
+    /* 3b. During a wave's tail the same seat offers the NEXT WAVE. Checked
+     * before the field falls through to the flippers; canEndWaveEarly gates
+     * it to the quiet end of a wave, so it can only ever steal a tap in a
+     * window where there is nothing left to flip at. */
+    if (S.mode === 'wave' && global.DRAW && global.DRAW.hitNextWave &&
+      global.DRAW.hitNextWave(p.x, p.y)) {
+      pointers[id].role = 'ui';
+      GAME.endWaveEarly();
       return;
     }
 
@@ -2125,13 +2297,16 @@
       return;
     }
 
-    /* 4. Tapping an existing tower opens its upgrade panel. */
-    var t = towerAt(p.x, p.y);
-    if (t) {
-      pointers[id].role = 'ui';
-      S.selectedTower = (S.selectedTower === t) ? null : t;
-      sfx('ui_tap');
-      return;
+    /* 5. Tapping an existing tower opens its upgrade panel — unless the
+     * player is plainly mid-rally, in which case the flippers win the tap. */
+    if (!flipperIntent()) {
+      var t = towerAt(p.x, p.y);
+      if (t) {
+        pointers[id].role = 'ui';
+        S.selectedTower = (S.selectedTower === t) ? null : t;
+        sfx('ui_tap');
+        return;
+      }
     }
     if (S.selectedTower) {
       /* Tapping away closes the panel — but still counts as a flip, because
@@ -2204,7 +2379,8 @@
     else if (code === 'Digit3') GAME.useCard(2);
     else if (code === 'Digit4') GAME.useCard(3);
     else if (code === 'Space' || code === 'Enter') {
-      if (S.mode === 'build') startWave();
+      if (S.mode === 'build') requestStartWave();
+      else if (S.mode === 'wave' && GAME.canEndWaveEarly()) GAME.endWaveEarly();
       else if (S.mode === 'tutorial' && global.TUT) global.TUT.advance();
     }
     else if (code === 'Escape') {
@@ -2218,6 +2394,38 @@
     if (code === 'ArrowLeft' || code === 'KeyA' || code === 'KeyZ') setFlipper('L', false);
     else if (code === 'ArrowRight' || code === 'KeyD' || code === 'Slash') setFlipper('R', false);
   };
+
+  /* Is the player plainly reaching for the flippers right now?
+   *
+   * The whole playfield doubles as the flipper control surface AND as the
+   * tower-selection surface. That is fine in a build phase and a real problem
+   * in a rally: a tap meant for a flipper that happens to land on a bumper
+   * opens its panel instead, drops the table into bullet time, and costs the
+   * save. The tap targets are not the problem — 42 units is exactly the
+   * comfortable minimum for a deliberate tap, and shrinking them would only
+   * make managing towers fiddly. The problem is priority, so during a WAVE
+   * the flippers take precedence whenever either is true:
+   *
+   *   - a ball is descending into the lower field, where it is about to need
+   *     a flipper (this covers the FIRST tap of a rally, which no
+   *     recently-tapped test can catch), or
+   *   - a flipper went down in the last 600ms, i.e. a rally is already on.
+   *
+   * Nothing is swallowed: a tap that a tower does not take still flips.
+   * Managing towers mid-wave stays available in the quiet moments, which is
+   * the only time anybody actually wants to do it. */
+  var FLIP_INTENT = 0.6;
+  var FLIP_ZONE_Y = 800;
+  function flipperIntent() {
+    if (S.mode !== 'wave') return false;
+    if (S.time - (S.lastFlipT || -9) < FLIP_INTENT) return true;
+    for (var i = 0; i < S.balls.length; i++) {
+      var b = S.balls[i];
+      if (!b.dead && b.vy > 0 && b.y > FLIP_ZONE_Y) return true;
+    }
+    return false;
+  }
+  GAME.flipperIntent = flipperIntent;
 
   function towerAt(x, y) {
     for (var i = 0; i < S.towers.length; i++) {

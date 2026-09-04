@@ -560,9 +560,23 @@
     },
     update: function () {
       var c = S.cards[0];
-      if (!c) return 'end';
-      if (c.uses > 0) { floatText(VW / 2, 980, 'CARD FIRED!', C.amber, 32); return 'end'; }
+      if (!c) return 'stars';
+      if (c.uses > 0) { floatText(VW / 2, 980, 'CARD FIRED!', C.amber, 32); return 'stars'; }
     }
+  };
+
+  /* Where the rest of the deck comes from. The card the player has just fired
+   * is one of seven, and nothing anywhere told them how to get the others —
+   * so a player could finish the campaign never knowing that the second and
+   * third objectives on every level are what buys them. Said right after
+   * firing a card, while "I want more of these" is the live thought. */
+  STEPS.stars = {
+    enter: function () {
+      say('STARS BUY CARDS',
+        'Every level is worth THREE stars: clear it, stay inside its leak budget, and beat its own challenge. Stars unlock new cards and extra card slots, so going back for a missed one is how your deck grows. All three are listed before you start a level.',
+        { pos: 'mid' });
+    },
+    next: 'end'
   };
 
   STEPS.end = {
@@ -622,7 +636,7 @@
    * version has not seen THIS tutorial, so World 1 Level 1 teaches it again —
    * which is also what re-arms it for anyone whose flag was set by an earlier
    * build. */
-  TUT.VERSION = 2;
+  TUT.VERSION = 3;
 
   TUT.shouldRun = function (def, prog) {
     if (!def || def.id !== 1) return false;
