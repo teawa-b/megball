@@ -205,6 +205,10 @@
       try {
         if (canvas.setPointerCapture) canvas.setPointerCapture(e.pointerId);
       } catch (err) { /* best effort only */ }
+      /* A finger on the glass settles the question of what this is being
+       * played on: the keyboard legend in the side bars retracts and stays
+       * gone for the session (U.INPUT, src/util.js). */
+      if (e.pointerType === 'touch') U.INPUT.touched = true;
       GAME.pointerDown(e.pointerId, e.clientX, e.clientY);
       e.preventDefault();
     }, { passive: false });

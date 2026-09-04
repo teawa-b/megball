@@ -590,9 +590,84 @@ you hand back, so now so does this one.
   loses L2 onward. Reward for reading the board, ruin for impatience, which is the shape
   the mechanic is supposed to have.
 
+## 4y. The durability readout, and two dead ends before it
+
+Three designs went in the bin before this one landed, which is worth recording because the
+failures were all the same failure.
+
+1. **A gauge RING around each tower.** Legible, and it looked awful: a bright halo on every
+   worn defense, competing with the machine underneath. "It just looks very rough."
+2. **A level BAR inside the tower.** Cleaner, still an instrument bolted onto a pinball
+   table rather than part of one.
+3. **Six glowing, branching, wobbling CRACKS.** The right idea, badly overdone — on a
+   30-unit dome that is far too much geometry, and a coloured glow on a body that already
+   glows is just noise. "Very aggressive, but almost unappealing to look at."
+
+Every one of them was UI stuck ON the machine. What shipped is the machine itself ageing:
+
+- **Tint, carrying most of it.** A worn tower's colour ages toward steel and its lamps go
+  dull — in the 2D painter and in the WebGL bodies alike. Hue survives the mix, so a Blast
+  bumper is still the magenta one; it has just lost its life. The fade is curved
+  (`(1-cond)^0.7`) rather than linear: a straight ramp put almost no change into the first
+  third of a tower's life, which is exactly where the tint is the only signal there is.
+- **Cracks, as an accent.** One to three fine hairlines running from the rim inward, one
+  kink each, no branches and no glow of their own — a dark split with its lip catching the
+  light, which is what damage on a machined surface actually looks like. They hold off
+  until 70% condition, so a lightly scuffed defense is merely duller and a cracked one has
+  visibly earned it. Below 20% the lips catch a slow amber ember, the only colour they ever
+  take.
+- Still deliberately NOT the mark a ball wears. A damaged ball gets fat black wedges shoved
+  outward from its centre on a white body; a tower gets fine hairlines running inward from
+  its rim. Opposite direction, opposite weight, so a cracked bumper can never be mistaken at
+  a glance for a big enemy parked on the slot.
+
+Nothing at all is drawn above 97%, so a fresh board carries no UI whatsoever.
+
+The frozen state kept a ring, deliberately: it is rare, temporary, and the whole point is
+that it shouts. It wears the same mark a frosted BALL does — a ring with radial spines —
+because it is the same idea, and a cold wash alone was invisible on a cyan paddle.
+
+REPAIR moved beneath SELL and CLOSE rather than above them, and only appears below 97%, so
+the row is never a dead button on an untouched board.
+
+Re-measured after the change (the headless bot does not load `render.js`, so the simulation
+is untouched, but the sampling is worth recording): patient Endless over 8 runs reached
+waves 22 24 29 25 26 3 29 24 — median ~25 with one unlucky early wipe, which is the shape
+an Endless mode that rolls a fresh seed per run should have. Campaign over 6 runs: L1-L3
+always cleared, L4 5/6, L5 2/6. Earlier single-run figures in this log were under-sampled;
+these are the honest ones.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
 library to `dist/vendor/`, and writes `dist/megaball.zip` (index.html at the root plus
 `vendor/three.min.js`). `node tools/verify.js` proves no remote URLs, no network APIs, no
 modules, no remote fonts, only `vendor/` subresources, under 35 MB.
+
+## 6. Gallery screenshots
+
+Eight 1800x1200 (3:2) images in `docs/screenshots/`, each under 1.4 MB, built from
+real frames of the running game.
+
+**Capture.** The browser pane's own screenshot is 660x1425 with letterboxing baked in, so
+the game was driven from JS in a background tab and read off its canvases instead:
+`devicePixelRatio` forced to 2.5 on a 640x1386 viewport (1600x3465), one manual
+`GAME.update` + `DRAW.frame`, then `#gl` composited over `#game` in the SAME task — the
+WebGL buffer is not preserved, a readback one tick later is black. A throwaway Node
+server on :5199 wrote the POSTed PNG. Stepping by hand meant every shot could be posed:
+a fourteen-tower board, Colossus at 55% health, fourteen enemies bunched before Flash
+Freeze, `waveIndex = 19` so the readout says WAVE 20. One trap: balls only exist while
+`S.mode === 'wave'` — spawn them in build mode and the update loop culls them before the
+next frame, leaving shadows and rings with no ball inside.
+
+**A first pass was thrown out.** Tilted phone frames on generated comic plates, with
+insets, wires, speech bubbles, caption slabs and bursts all on one page. The game ended up
+a sliver in the corner, everything was dark, and the type (Segoe/Arial) read as a slide
+deck. The second pass keeps one rule: the game fills the frame. Six panels are a straight
+3:2 crop of the table blown up edge to edge; the two that need the whole phone (hero,
+cards) stand it upright at full height on a blurred, zoomed copy of the same frame.
+
+Per image: one Impact headline with an ink stroke and hard shadow, one subline in the
+game's own Kenney Pixel face on a black DMD slab, and at most one ring with a label —
+positioned from *source-shot* pixels through the crop mapping, not by eye. Speed lines
+and Ben-Day dots live only in the outer band so they never sit on the action.

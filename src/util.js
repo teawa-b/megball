@@ -50,6 +50,43 @@
   U.WALL_L = 40;
   U.WALL_R = 680;
 
+  /* ---------- input device --------------------------------------------- */
+  /* MEGABALL is a phone game and teaches itself as one: hold the left or the
+   * right side of the glass. The same press works with a mouse, and the
+   * arrow keys drive the flippers as well, but nobody on a laptop would
+   * think to try that unless the machine said so — hence the key legend the
+   * renderer paints in the side bars (drawKeyRails, src/render.js).
+   *
+   * The test is "is a mouse or trackpad driving this", never the user agent.
+   * A hover-capable fine pointer means a computer; a laptop with a touch
+   * screen still counts, right up until a finger actually lands, at which
+   * point the legend retracts for good. A phone or tablet reports a coarse
+   * pointer with no hover and so never sees any of it. */
+  var mqFine = null;
+  try {
+    if (global.matchMedia) mqFine = global.matchMedia('(hover: hover) and (pointer: fine)');
+  } catch (e) { mqFine = null; }
+
+  U.INPUT = {
+    /* Live, so plugging a mouse into a tablet mid-session is picked up. */
+    mouse: !!(mqFine && mqFine.matches),
+    /* Set on the first touch and never unset: a machine that has been
+     * played with a finger is a touch device, whatever else is attached. */
+    touched: false,
+    /* Flipper presses made from the keyboard. The legend dims once the
+     * player has plainly got the message. */
+    keyUses: 0
+  };
+
+  if (mqFine) {
+    var onPointerKind = function () { U.INPUT.mouse = mqFine.matches; };
+    if (mqFine.addEventListener) mqFine.addEventListener('change', onPointerKind);
+    else if (mqFine.addListener) mqFine.addListener(onPointerKind);
+  }
+
+  /* True while the keyboard legend should be on screen. */
+  U.INPUT.showKeys = function () { return U.INPUT.mouse && !U.INPUT.touched; };
+
   /* ---------- scalar math --------------------------------------------- */
   U.clamp = function (v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); };
   U.lerp = function (a, b, t) { return a + (b - a) * t; };

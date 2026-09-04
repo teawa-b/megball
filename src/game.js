@@ -2187,8 +2187,10 @@
   };
 
   GAME.keyDown = function (code) {
-    if (code === 'ArrowLeft' || code === 'KeyA' || code === 'KeyZ') setFlipper('L', true);
-    else if (code === 'ArrowRight' || code === 'KeyD' || code === 'Slash') setFlipper('R', true);
+    /* Counted so the side-rail legend can fade back once the player has
+     * clearly found the keys (see drawKeyRails in src/render.js). */
+    if (code === 'ArrowLeft' || code === 'KeyA' || code === 'KeyZ') { U.INPUT.keyUses++; setFlipper('L', true); }
+    else if (code === 'ArrowRight' || code === 'KeyD' || code === 'Slash') { U.INPUT.keyUses++; setFlipper('R', true); }
     else if (code === 'Digit1') GAME.useCard(0);
     else if (code === 'Digit2') GAME.useCard(1);
     else if (code === 'Digit3') GAME.useCard(2);

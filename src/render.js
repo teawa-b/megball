@@ -461,19 +461,23 @@
     ctx.restore();
     /* Outside the pop-in transform: a gauge that scaled with the build
      * animation would read as part of the machine rather than as a readout. */
-    drawWearRing(ctx, t, S);
+    drawWearState(ctx, t, S);
   }
 
   function drawPaddleTower(ctx, t, S) {
     var d = t.def;
     var tip = ENT.paddleTip(t);
-    var hot = t.swingT > 0;
+    var frozen = t.frozenT > 0;
+    var hot = t.swingT > 0 && !frozen;
     var oc = S.overchargeT > 0;
+    /* The body itself ages, so a tired board reads from across the table
+     * without anyone having to parse a gauge. */
+    var col = frozen ? C.frost : wornColor(d.color, ENT.condition(t));
 
     /* Detection ring — only while idle-scanning or selected, so it does not
      * add permanent clutter. */
     if (S.selectedTower === t || S.buildPick) {
-      ctx.strokeStyle = U.rgba(d.color, 0.22);
+      ctx.strokeStyle = U.rgba(col, 0.22);
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
@@ -485,13 +489,13 @@
     ctx.save();
     if (hot || oc) {
       ctx.globalCompositeOperation = 'lighter';
-      ctx.strokeStyle = U.rgba(d.color, hot ? 0.3 : 0.15);
+      ctx.strokeStyle = U.rgba(col, hot ? 0.3 : 0.15);
       capsule(ctx, t.x, t.y, tip[0], tip[1], t.armRad + 10);
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.strokeStyle = C.ink;
     capsule(ctx, t.x, t.y, tip[0], tip[1], t.armRad + 3.5);
-    ctx.strokeStyle = hot ? d.color : U.mixHex(d.color, C.table, 0.42);
+    ctx.strokeStyle = hot ? col : U.mixHex(col, C.table, 0.42);
     capsule(ctx, t.x, t.y, tip[0], tip[1], t.armRad);
     ctx.strokeStyle = U.rgba(C.white, hot ? 0.8 : 0.28);
     capsule(ctx, t.x + (tip[0] - t.x) * 0.25, t.y + (tip[1] - t.y) * 0.25, tip[0], tip[1], t.armRad * 0.32);
@@ -509,7 +513,7 @@
     var ready = t.cd <= 0;
     ctx.beginPath();
     ctx.arc(t.x, t.y, 11, 0, TAU);
-    ctx.fillStyle = ready ? d.color : U.mixHex(d.color, C.panel, 0.7);
+    ctx.fillStyle = ready ? col : U.mixHex(col, C.panel, 0.7);
     ctx.fill();
 
     if (!ready) {
@@ -518,7 +522,7 @@
       ctx.moveTo(t.x, t.y);
       ctx.arc(t.x, t.y, 14, -Math.PI / 2, -Math.PI / 2 + TAU * frac);
       ctx.closePath();
-      ctx.fillStyle = U.rgba(d.color, 0.4);
+      ctx.fillStyle = U.rgba(col, 0.4);
       ctx.fill();
     }
 
@@ -528,12 +532,14 @@
 
   function drawBumperTower(ctx, t, S) {
     var d = t.def;
+    var frozen = t.frozenT > 0;
     var pulse = t.pulse > 0 ? t.pulse / 0.28 : 0;
     var r = t.r + pulse * 5;
-    var superheated = S.superheatT > 0;
+    var superheated = S.superheatT > 0 && !frozen;
+    var col = frozen ? C.frost : wornColor(d.color, ENT.condition(t));
 
     if (S.selectedTower === t && d.blastR) {
-      ctx.strokeStyle = U.rgba(d.color, 0.2);
+      ctx.strokeStyle = U.rgba(col, 0.2);
       ctx.lineWidth = 2;
       ctx.setLineDash([8, 8]);
       ctx.beginPath();
@@ -546,7 +552,7 @@
     ctx.globalCompositeOperation = 'lighter';
     ctx.beginPath();
     ctx.arc(t.x, t.y, r + 12 + pulse * 10, 0, TAU);
-    ctx.fillStyle = U.rgba(d.color, 0.1 + pulse * 0.22 + (superheated ? 0.08 : 0));
+    ctx.fillStyle = U.rgba(col, 0.1 + pulse * 0.22 + (superheated ? 0.08 : 0));
     ctx.fill();
     ctx.restore();
 
@@ -561,17 +567,17 @@
     ctx.beginPath();
     ctx.arc(t.x, t.y, r - 5, 0, TAU);
     ctx.lineWidth = 4;
-    ctx.strokeStyle = pulse > 0 ? C.white : d.color;
+    ctx.strokeStyle = pulse > 0 ? C.white : col;
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(t.x, t.y, r * 0.5, 0, TAU);
-    ctx.fillStyle = U.rgba(d.color, 0.25 + pulse * 0.6);
+    ctx.fillStyle = U.rgba(col, 0.25 + pulse * 0.6);
     ctx.fill();
 
-    if (t.type === 'blast') drawGlyphBurst(ctx, t.x, t.y, 9, d.color);
-    else if (t.type === 'shock') drawGlyphBolt(ctx, t.x, t.y, 9, d.color);
-    else if (t.type === 'launch') drawGlyphArrow(ctx, t.x, t.y, 9, d.color);
+    if (t.type === 'blast') drawGlyphBurst(ctx, t.x, t.y, 9, col);
+    else if (t.type === 'shock') drawGlyphBolt(ctx, t.x, t.y, 9, col);
+    else if (t.type === 'launch') drawGlyphArrow(ctx, t.x, t.y, 9, col);
     else {
       ctx.beginPath();
       ctx.arc(t.x, t.y, 5, 0, TAU);
@@ -586,7 +592,7 @@
         ctx.beginPath();
         ctx.arc(t.x, t.y, r + 7, -Math.PI / 2, -Math.PI / 2 + TAU * (1 - t.abilityCd / max));
         ctx.lineWidth = 3;
-        ctx.strokeStyle = U.rgba(d.color, 0.8);
+        ctx.strokeStyle = U.rgba(col, 0.8);
         ctx.stroke();
       }
     }
@@ -987,68 +993,185 @@
   /* Wear                                                                   */
   /* ---------------------------------------------------------------------- */
 
-  /* Durability, drawn on the tower itself. Invisible while a defense is
-   * fresh — a board of untouched towers should carry no gauges at all — and
-   * from the first scuff onward it is an arc that empties and changes colour,
-   * so "which of these is about to go" is answerable at a glance instead of
-   * by tapping each one. Shared by the 2D and 3D paths so the readout is
-   * identical whichever is running. */
+  /* Durability, read off the tower itself. An earlier version drew a gauge
+   * ring AROUND each tower, which put a bright halo on every defense on the
+   * board and made a worn board look like a bag of loose parts — the gauges
+   * competed with the machine instead of belonging to it.
+   *
+   * Two quieter signals now, and they work at different distances:
+   *
+   *   TINT   — a worn tower desaturates toward steel and its lamps go dull
+   *            (2D here, WebGL in scene3d.js). No gauge to read: a tired
+   *            board simply looks tired from across the table.
+   *   METER  — a small level bar INSIDE the tower's own footprint, which
+   *            empties left to right and shifts green -> amber -> magenta.
+   *            This is the number, for when the player is deciding which one
+   *            to repair.
+   *
+   * Nothing at all is drawn above 97%, so a fresh board carries no UI.
+   */
+  /* Used by the REPAIR row in the tower panel, which is a readout and can
+   * afford a plain green-to-magenta scale. On the table itself the towers
+   * speak through their cracks and their colour instead — see crackColor. */
   function wearColor(t) {
     var band = ENT.wearBand(t);
     return band === 0 ? C.green : (band === 1 ? C.amber : C.magenta);
   }
 
-  function drawWearRing(ctx, t, S) {
-    var frozen = t.frozenT > 0;
-    var cond = ENT.condition(t);
-    if (cond >= 0.999 && !frozen) return;
+  /* The tower's own colour, aged. Hue survives so a Blast bumper still reads
+   * as the magenta one; it just loses its life.
+   *
+   * Curved rather than linear: with cracks held back until 70%, the tint is
+   * the ONLY signal across the whole first third of a tower's life, and a
+   * straight ramp put almost none of it there. `^0.7` front-loads the fade so
+   * a lightly worn defense already looks a little tired. */
+  function wearFade(cond) {
+    return cond >= 0.999 ? 0 : Math.pow(1 - cond, 0.7);
+  }
+  DRAW.wearFade = wearFade;
 
-    var r = (t.family === 'bumper' ? t.r : 20) + 13;
-    var col = wearColor(t);
-    var band = ENT.wearBand(t);
+  function wornColor(hex, cond) {
+    return cond >= 0.999 ? hex : U.mixHex(hex, C.steel, wearFade(cond) * 0.62);
+  }
+  DRAW.wornColor = wornColor;
+
+  /* Wear shows as the casing FRACTURING.
+   *
+   * Deliberately NOT the mark a damaged ball wears. A ball gets fat black
+   * wedges shoved outward from its centre, on a white body. A tower splits
+   * the other way — fine fissures running from its RIM inward, dark-cored
+   * with the light inside leaking out along them. Same idea, opposite
+   * direction, opposite weight, so a cracked bumper can never be mistaken at
+   * a glance for a big enemy sitting on the slot.
+   *
+   * A bar gauge lived here before, and a ring before that. Both were UI
+   * stuck onto the machine; this is the machine itself coming apart, which is
+   * the thing the player actually needs to feel.
+   */
+  /* Wear shows as the casing FRACTURING — but quietly.
+   *
+   * A first pass drew six wobbling, glowing, branching splits per tower and
+   * it looked like scribble: on a 30-unit dome that is far too much geometry,
+   * and a coloured glow on top of a tower that already glows is just noise.
+   * What actually reads as damage on a machined surface is very little: one
+   * or two fine hairlines with a chipped edge catching the light.
+   *
+   * So: at most three, thin, nearly straight, no glow, no colour of their
+   * own. The TINT carries how bad it is (the tower ages toward steel and its
+   * lamps go dull); the cracks only say that it is physical damage. And they
+   * hold off until 70%, so a lightly scuffed defense is merely duller and a
+   * cracked one has visibly earned it.
+   *
+   * Still deliberately not the mark a ball wears: a damaged ball gets fat
+   * BLACK wedges shoved outward from its centre on a white body, where a
+   * tower gets fine hairlines running inward from its rim. Opposite
+   * direction, opposite weight.
+   */
+  function crackCount(cond) {
+    if (cond > 0.70) return 0;
+    if (cond > 0.45) return 1;
+    if (cond > 0.20) return 2;
+    return 3;
+  }
+
+  /* Deterministic per tower and per fissure, so a given tower's damage keeps
+   * the same shape frame to frame and only ever gains new splits. */
+  function hash01(seed, i) {
+    var x = Math.sin(seed * 12.9898 + i * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function drawTowerCracks(ctx, t, S) {
+    var cond = ENT.condition(t);
+    var n = crackCount(cond);
+    if (!n) return;
+
+    /* Inside the tower's own footprint: damage belongs to the thing that is
+     * damaged, and the deck around it stays clear. */
+    var bumper = t.family === 'bumper';
+    var R = bumper ? t.r * 0.9 : 17;
+    var seed = (t.id * 2654435761) % 1000;
+    /* On a failing shell the chipped edges catch a faint ember, which is the
+     * only colour the cracks ever take. Slow, and offset per tower, so a row
+     * of dying defenses never strobes in unison. */
+    var ember = cond <= 0.20
+      ? 0.35 + 0.25 * Math.abs(Math.sin(S.time * 3 + t.id)) : 0;
+    var flash = t.wearFlash > 0 ? U.clamp(t.wearFlash / 0.5, 0, 1) : 0;
 
     ctx.save();
-    /* A full green ring on a frozen-but-undamaged tower would read as "this
-     * one is fine" over a tower that is switched off, so the gauge only
-     * appears when there is actually wear to report. */
-    if (cond < 0.999) {
-      /* Track, then the remaining arc, drawn from the top and clockwise so it
-       * empties the same way every cooldown on the table does. */
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, TAU); ctx.stroke();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-      ctx.lineCap = 'round';
-      ctx.strokeStyle = col;
-      /* A failing tower blinks; anything healthier stays steady, so the blink
-       * only ever means "this one, now". */
-      if (band === 3) ctx.globalAlpha = 0.45 + 0.55 * Math.abs(Math.sin(S.time * 7));
+    for (var i = 0; i < n; i++) {
+      var a = hash01(seed, i) * TAU;
+      var depth = 0.5 + hash01(seed, i + 40) * 0.28;
+      /* One kink, not four: a fracture, not a squiggle. */
+      var kink = (hash01(seed, i + 70) - 0.5) * 0.28;
+      var x0 = t.x + Math.cos(a) * R;
+      var y0 = t.y + Math.sin(a) * R;
+      var xm = t.x + Math.cos(a + kink) * R * (1 - depth * 0.55);
+      var ym = t.y + Math.sin(a + kink) * R * (1 - depth * 0.55);
+      var x1 = t.x + Math.cos(a + kink * 0.3) * R * (1 - depth);
+      var y1 = t.y + Math.sin(a + kink * 0.3) * R * (1 - depth);
+
       ctx.beginPath();
-      ctx.arc(t.x, t.y, r, -Math.PI / 2, -Math.PI / 2 + TAU * cond);
+      ctx.moveTo(x0, y0); ctx.lineTo(xm, ym); ctx.lineTo(x1, y1);
+      // the split
+      ctx.lineWidth = bumper ? 2.2 : 1.8;
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.stroke();
-      ctx.globalAlpha = 1;
+      // and the lip of it catching the light, offset by a hair
+      ctx.beginPath();
+      ctx.moveTo(x0 + 0.9, y0 - 0.9); ctx.lineTo(xm + 0.9, ym - 0.9); ctx.lineTo(x1 + 0.9, y1 - 0.9);
+      ctx.lineWidth = bumper ? 1 : 0.85;
+      ctx.strokeStyle = ember
+        ? U.rgba(C.amber, ember + flash * 0.4)
+        : 'rgba(255,255,255,' + (0.26 + flash * 0.4).toFixed(2) + ')';
+      ctx.stroke();
     }
+    ctx.restore();
+  }
 
-    /* The pip that fires when a tower drops a band. */
-    if (t.wearFlash > 0) {
-      var e = U.clamp(t.wearFlash / 0.5, 0, 1);
-      ctx.globalAlpha = e;
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = col;
-      ctx.beginPath(); ctx.arc(t.x, t.y, r + (1 - e) * 26, 0, TAU); ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
+  /* Everything a tower's condition puts on screen: the fractures, and the
+   * frost mark if a Rimewall has it switched off. The TINT lives in the tower
+   * painters themselves (and in scene3d.js for the WebGL bodies). */
+  function drawWearState(ctx, t, S) {
+    var frozen = t.frozenT > 0;
+    var cond = ENT.condition(t);
+    if (cond >= 0.97 && !frozen) return;
 
+    ctx.save();
     if (frozen) {
-      /* Rimewall stun: a hard frost ring plus a dimming wash, so an inert
-       * defense never looks like one that is simply not being hit. */
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = U.rgba(C.frost, 0.5 + 0.4 * Math.abs(Math.sin(S.time * 5)));
-      ctx.beginPath(); ctx.arc(t.x, t.y, r + 6, 0, TAU); ctx.stroke();
+      /* Rimewall stun. The SAME mark a frosted ball wears — a ring with
+       * radial spines — because it is the same idea, and a player who has
+       * seen one chilled ball already knows what it means. A ring is fine
+       * here where it was clutter for wear: this one is rare, temporary, and
+       * the whole point is that it shouts. On a cyan paddle a wash alone was
+       * invisible, the tower being cyan already. */
+      var fr = (t.family === 'bumper' ? t.r : 20) + 5;
+      var beat = 0.6 + 0.4 * Math.abs(Math.sin(S.time * 5));
       ctx.globalCompositeOperation = 'lighter';
-      ctx.fillStyle = U.rgba(C.frost, 0.14);
-      ctx.beginPath(); ctx.arc(t.x, t.y, r + 6, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(t.x, t.y, fr, 0, TAU);
+      ctx.fillStyle = U.rgba(C.frost, 0.15);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = U.rgba(C.frost, 0.9 * beat);
+      ctx.beginPath(); ctx.arc(t.x, t.y, fr, 0, TAU);
+      ctx.stroke();
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      for (var fi = 0; fi < 6; fi++) {
+        var fa = fi * TAU / 6 + S.time * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(t.x + Math.cos(fa) * (fr - 3), t.y + Math.sin(fa) * (fr - 3));
+        ctx.lineTo(t.x + Math.cos(fa) * (fr + 7), t.y + Math.sin(fa) * (fr + 7));
+        ctx.strokeStyle = U.rgba(C.frost, 0.8 * beat);
+        ctx.stroke();
+      }
     }
+
+    drawTowerCracks(ctx, t, S);
     ctx.restore();
   }
 
@@ -1998,17 +2121,15 @@
     for (var i = 0; i < n; i++) {
       out.ups.push({ x: x0 + i * (cw + gap), y: y, w: cw, h: UP_CARD_H, id: 'upgrade', to: ups[i] });
     }
-    /* REPAIR sits above SELL and CLOSE, and only when there is something to
-     * repair — the row would otherwise be a permanent dead button on a board
-     * that has not taken a hit yet. It is the main energy sink that wear
-     * creates, so it gets the full width and reads first. */
+    /* SELL and CLOSE share a row under the cards, and REPAIR sits beneath
+     * them — full width, and only when there is something to repair, so the
+     * row is never a dead button on a board that has not taken a hit yet. */
     var by = n ? y + UP_CARD_H + 30 : UP_CY - 36;
-    if (ENT.condition(t) < 0.999) {
-      out.repair = { x: 102, y: by, w: 516, h: 68, id: 'repair', cost: ENT.repairCost(t) };
-      by += 80;
-    }
     out.sell = { x: 102, y: by, w: 300, h: 72, id: 'sell' };
     out.back = { x: 418, y: by, w: 200, h: 72, id: 'closeTower' };
+    if (ENT.condition(t) < 0.97) {
+      out.repair = { x: 102, y: by + 82, w: 516, h: 68, id: 'repair', cost: ENT.repairCost(t) };
+    }
     return out;
   }
   DRAW.upgradeRects = function (S) {
@@ -2165,14 +2286,34 @@
       upHits.push(b);
     }
 
-    /* REPAIR, then SELL and CLOSE together, last. */
+    /* SELL and CLOSE together, then REPAIR under them, last. */
     var k = L.ups.length;
+    var sb = L.sell, back = L.back;
+    ctx.save();
+    popIn(ctx, sb, sel, k);
+    rr(ctx, sb.x, sb.y, sb.w, sb.h, 16);
+    ctx.fillStyle = 'rgba(40,6,24,0.96)'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(C.magenta, 0.75); ctx.stroke();
+    ptext(ctx, 'SELL', sb.x + 96, sb.y + sb.h / 2 + 1, 20, C.magenta, 'center', 2);
+    ptext(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w - 86, sb.y + sb.h / 2 + 1, 20, C.amber, 'center', 1);
+    ctx.restore();
+    upHits.push(sb);
+
+    ctx.save();
+    popIn(ctx, back, sel, k);
+    rr(ctx, back.x, back.y, back.w, back.h, 16);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.stroke();
+    ptext(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2 + 1, 18, U.rgba(C.white, 0.85), 'center', 2);
+    ctx.restore();
+    upHits.push(back);
+
     if (L.repair) {
       var rb = L.repair;
       var canFix = S.energy >= rb.cost;
       var fixCol = canFix ? C.green : 'rgba(255,255,255,0.3)';
       ctx.save();
-      popIn(ctx, rb, sel, k);
+      popIn(ctx, rb, sel, k + 1);
       rr(ctx, rb.x, rb.y, rb.w, rb.h, 16);
       ctx.fillStyle = canFix ? 'rgba(8,34,20,0.96)' : 'rgba(18,20,26,0.96)'; ctx.fill();
       ctx.lineWidth = 3;
@@ -2195,28 +2336,7 @@
         canFix ? C.amber : 'rgba(255,176,32,0.35)', 'center', 1);
       ctx.restore();
       upHits.push(rb);
-      k++;
     }
-
-    var sb = L.sell, back = L.back;
-    ctx.save();
-    popIn(ctx, sb, sel, k);
-    rr(ctx, sb.x, sb.y, sb.w, sb.h, 16);
-    ctx.fillStyle = 'rgba(40,6,24,0.96)'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(C.magenta, 0.75); ctx.stroke();
-    ptext(ctx, 'SELL', sb.x + 96, sb.y + sb.h / 2 + 1, 20, C.magenta, 'center', 2);
-    ptext(ctx, '+' + ENT.sellValue(t) + ' E', sb.x + sb.w - 86, sb.y + sb.h / 2 + 1, 20, C.amber, 'center', 1);
-    ctx.restore();
-    upHits.push(sb);
-
-    ctx.save();
-    popIn(ctx, back, sel, k);
-    rr(ctx, back.x, back.y, back.w, back.h, 16);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.stroke();
-    ptext(ctx, 'CLOSE', back.x + back.w / 2, back.y + back.h / 2 + 1, 18, U.rgba(C.white, 0.85), 'center', 2);
-    ctx.restore();
-    upHits.push(back);
 
     ctx.restore();
   }
@@ -2444,14 +2564,17 @@
     ctx.lineJoin = 'round';
     ctx.shadowColor = col; ctx.shadowBlur = 11;
     if (kind === 'wear') {
-      /* The very gauge the towers wear (drawWearRing), so the card teaches
-       * its own icon: a dim full ring, a bright partial arc, and a needle. */
-      ctx.globalAlpha = 0.28;
+      /* A shell splitting: the same thing the towers do on the table, so the
+       * card is a picture of the mark the player is about to start seeing. */
       ctx.beginPath(); ctx.arc(cx, cy, 19, 0, TAU); ctx.stroke();
-      ctx.globalAlpha = 1;
-      ctx.beginPath(); ctx.arc(cx, cy, 19, -Math.PI / 2, Math.PI * 0.32); ctx.stroke();
       ctx.beginPath();
-      ctx.moveTo(cx, cy + 6); ctx.lineTo(cx + 10, cy - 11);
+      ctx.moveTo(cx - 19, cy - 5);
+      ctx.lineTo(cx - 7, cy + 1);
+      ctx.lineTo(cx - 11, cy + 9);
+      ctx.lineTo(cx - 2, cy + 18);
+      ctx.moveTo(cx - 7, cy + 1);
+      ctx.lineTo(cx + 6, cy - 8);
+      ctx.lineTo(cx + 18, cy - 6);
       ctx.stroke();
     } else {
       ctx.beginPath();
@@ -2647,6 +2770,105 @@
   }
 
   /* ---------------------------------------------------------------------- */
+  /* Keyboard legend                                                        */
+  /* ---------------------------------------------------------------------- */
+
+  /* On a phone you hold the left or right side of the glass, and the game
+   * says so. That same press works with a mouse, and ArrowLeft / ArrowRight
+   * drive the flippers too — but only somebody who already knew would try.
+   *
+   * A computer window is height-limited, so the fitted board leaves slim
+   * black bars either side (see resize). This spends them the way a real
+   * cabinet does: one flipper key on each side rail, level with the flipper
+   * it works, lit while that flipper is up. It costs the table nothing, it
+   * is painted only where a mouse or trackpad is driving, and it is gone the
+   * moment a finger touches the screen (U.INPUT, src/util.js) — so a phone
+   * never draws a pixel of it. Clicking one raises that flipper, because the
+   * side bars already fall on the flipper half of the input surface.
+   */
+  var keyRail = { a: 0, t: 0 };
+
+  function drawKeyRails(ctx, S) {
+    var barW = vp.ox;
+    /* Below this the bars are a bezel, not a rail: crowding the glass with a
+     * hint would be worse than leaving it out. */
+    var live = U.INPUT.showKeys() && barW >= 56 &&
+      (S.mode === 'wave' || S.mode === 'build' || S.mode === 'tutorial');
+
+    /* Wall-clock fade: it eases up after the table settles instead of
+     * snapping in with the level, and eases out again if the mouse leaves. */
+    var now = U.now();
+    var dt = keyRail.t ? Math.min((now - keyRail.t) / 1000, 0.1) : 0;
+    keyRail.t = now;
+    keyRail.a = U.approach(keyRail.a, live ? 1 : 0, dt * (live ? 1.1 : 4));
+    if (keyRail.a <= 0.004) return;
+
+    /* Half-lit at rest, dimmer still once the keys have obviously been
+     * found: this is a hint, not a HUD element. */
+    var base = (U.INPUT.keyUses >= 4 ? 0.26 : 0.5) * keyRail.a;
+    var s = Math.max(26, Math.min(44, barW * 0.4));
+    /* Level with the flippers, pulled up if a short window would push the
+     * caption off the bottom edge. */
+    var cy = Math.min(vp.oy + BOARD.FLIP.y * vp.scale, vp.h - s - 24);
+
+    keyCap(ctx, barW / 2, cy, s, -1, S.flipL.on, base, barW >= 72);
+    keyCap(ctx, vp.w - barW / 2, cy, s, 1, S.flipR.on, base, barW >= 72);
+  }
+
+  /* One key, drawn in screen pixels: a cap with an arrow on its face that
+   * presses in and lights when the flipper on that side is raised, which
+   * doubles as proof the key did something. `dir` is -1 left, 1 right. */
+  function keyCap(ctx, cx, cy, s, dir, lit, base, label) {
+    var a = lit ? Math.min(1, base + 0.5) : base;
+    var drop = s * 0.14;                       // travel between cap and base
+    var press = lit ? drop * 0.7 : 0;
+    var x = cx - s / 2, y = cy - s / 2 + press;
+    var fh = s - drop;                         // cap face height
+
+    ctx.save();
+
+    /* The well the cap sits in, so it reads as a key with travel. */
+    rr(ctx, x, cy - s / 2 + drop, s, fh, s * 0.22);
+    ctx.fillStyle = U.rgba(C.ink, 0.55 * Math.min(1, base * 2.4));
+    ctx.fill();
+    ctx.strokeStyle = U.rgba(C.steel, a * 0.7);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    /* Cap face. */
+    rr(ctx, x, y, s, fh, s * 0.22);
+    ctx.fillStyle = U.rgba(lit ? C.cyanDeep : C.panel, 0.92 * Math.min(1, base * 2.4));
+    ctx.fill();
+    ctx.strokeStyle = U.rgba(C.cyan, a * 0.75);
+    ctx.lineWidth = 1.25;
+    ctx.stroke();
+
+    /* Top bevel: a keycap catches the light on its leading edge. */
+    ctx.beginPath();
+    ctx.moveTo(x + s * 0.24, y + 1.5);
+    ctx.lineTo(x + s * 0.76, y + 1.5);
+    ctx.strokeStyle = U.rgba(C.frost, a * 0.35);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    /* The arrow itself. */
+    var aw = s * 0.16, ah = s * 0.21, fy = y + fh * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * aw, fy);
+    ctx.lineTo(cx - dir * aw, fy - ah);
+    ctx.lineTo(cx - dir * aw, fy + ah);
+    ctx.closePath();
+    ctx.fillStyle = U.rgba(lit ? C.white : C.cyan, Math.min(1, a + 0.15));
+    ctx.fill();
+
+    if (label) {
+      ptext(ctx, 'FLIPPER', cx, cy + s / 2 + 11, 9, U.rgba(C.cyan, a * 0.72), 'center', 1);
+    }
+
+    ctx.restore();
+  }
+
+  /* ---------------------------------------------------------------------- */
   /* Frame                                                                  */
   /* ---------------------------------------------------------------------- */
 
@@ -2756,6 +2978,10 @@
     drawNotice(ctx, S);
 
     ctx.restore();
+
+    /* Outside the board transform: the side bars are screen space, and the
+     * legend belongs to the cabinet rather than to the board. */
+    drawKeyRails(ctx, S);
   };
 
   /* In 3D mode the tower bodies live in WebGL; the 2D layer adds only the
@@ -2765,7 +2991,7 @@
     for (var i = 0; i < S.towers.length; i++) {
       var t = S.towers[i], d = t.def;
       var sel = S.selectedTower === t;
-      drawWearRing(ctx, t, S);
+      drawWearState(ctx, t, S);
       if (t.family === 'paddle' && (sel || S.buildPick)) {
         ctx.strokeStyle = U.rgba(d.color, 0.28);
         ctx.lineWidth = 2;

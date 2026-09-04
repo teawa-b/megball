@@ -998,8 +998,14 @@
       var ENT = global.ENT;
       var frozen = t.frozenT > 0;
       var cond = ENT ? ENT.condition(t) : 1;
-      var c = frozen ? C.frost : t.def.color;
-      var dim = frozen ? 0.35 : 0.4 + 0.6 * cond;
+      /* Age the LAMP COLOUR as well as its brightness: dimming alone reads as
+       * "on cooldown", where a lamp that has also lost its colour reads as a
+       * part that is wearing out. Hue survives the mix, so a Blast bumper is
+       * still the magenta one. */
+      var fade = global.DRAW && global.DRAW.wearFade
+        ? global.DRAW.wearFade(cond) : (1 - cond);
+      var c = frozen ? C.frost : U.mixHex(t.def.color, C.steel, fade * 0.62);
+      var dim = frozen ? 0.32 : 1 - 0.68 * fade;
       if (ud.kind === 'paddle') {
         ud.arm.rotation.z = -t.angle;
         var hot = t.swingT > 0 && !frozen;
