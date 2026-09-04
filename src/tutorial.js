@@ -546,22 +546,81 @@
   STEPS.upgLaunch = upgStep('launch', 'LAUNCH BUMPER', 'Hurls balls back to the top. Buys you time, not kills.', 'upgSell');
   STEPS.upgSell = upgStep('sell', 'SELL', 'Changed your mind? Selling refunds part of the cost. Paddles upgrade too: FROST slows, POWER turns a ball into a weapon.', 'cards');
 
+  /* Which card the lesson points at. SLOW TIME by preference: everyone starts
+   * with it, and it is the one card whose effect can be DEMONSTRATED rather
+   * than described — the table visibly changes speed. Falls back to the first
+   * card for anyone replaying the lesson with a different deck. */
+  function lessonCardIndex() {
+    for (var i = 0; i < S.cards.length; i++) {
+      if (S.cards[i].def.id === 'slowtime') return i;
+    }
+    return 0;
+  }
+
+  /* Keep a couple of balls falling down the safe columns, so there is always
+   * something on the table for the card to act on. The step used to run on an
+   * empty board: the player tapped SLOW TIME, nothing moved because nothing
+   * was moving, and the one card they own stayed an abstraction. */
+  function dropCardBall() {
+    var live = 0;
+    for (var i = 0; i < S.balls.length; i++) if (!S.balls[i].dead) live++;
+    if (live >= 3) return;
+    var b = spawnBall(CLEAR_X[T.misses++ % CLEAR_X.length], S.table.spawnY,
+      { vx: 0, vy: 60 });
+    /* Not a fight: these are here to be watched, and a bumper kill mid-demo
+     * would empty the table exactly as the player reaches for the card. */
+    if (b) { b.hp = 999; b.maxHp = 999; }
+    T.ball = null;              // no single ball is "the" ball in this step
+  }
+
   STEPS.cards = {
     enter: function () {
       S.selectedTower = null;
-      say('CARDS', 'Cards are one-tap powers on a cooldown. HOLD one to read what it does, then TAP it to fire.', { tap: false, pos: 'top' });
-      point('tap', 0, 0, { tray: 'card0' });
+      zoom(1);
+      /* Full speed on purpose: the tutorial's own bullet time would mask the
+       * very thing this card exists to show. */
+      slow(1, 0.5);
+      T.misses = 0;
+      T.flag = false;
+      T.wait = 0;
+      dropCardBall();
+      var ci = lessonCardIndex();
+      var isSlow = S.cards[ci] && S.cards[ci].def.id === 'slowtime';
+      say(isSlow ? 'SLOW TIME' : 'CARDS',
+        isSlow
+          ? 'Cards are one-tap powers on a cooldown. HOLD one to read it. This one drags every ball on the table into slow motion — TAP it and watch.'
+          : 'Cards are one-tap powers on a cooldown. HOLD one to read what it does, then TAP it to fire.',
+        { tap: false, pos: 'top' });
+      point('tap', 0, 0, { tray: 'card' + ci });
     },
-    /* Only the pointed-at card takes the press, so a tap fires it and a hold
-     * opens its popout (both handled by the tray, not by us). */
+    /* The pointed-at card takes the press, and so does the lower field, so the
+     * player can flip at the demo balls while they watch. Tower taps are
+     * deliberately NOT let through: an upgrade panel here would bury the one
+     * thing this step exists to show. */
     allow: function (x, y) {
-      var r = cardCell(0);
-      return !!(r && inRect(x, y, r));
+      var r = cardCell(lessonCardIndex());
+      if (r && inRect(x, y, r)) return true;
+      return y > 960 && y < U.BAND.trayTop;
     },
     update: function () {
-      var c = S.cards[0];
+      var c = S.cards[lessonCardIndex()];
       if (!c) return 'stars';
-      if (c.uses > 0) { floatText(VW / 2, 980, 'CARD FIRED!', C.amber, 32); return 'stars'; }
+      if (!T.flag) {
+        if (c.uses > 0) {
+          /* Fired. Hold the step open so the slow motion is actually SEEN —
+           * cutting away the instant it is tapped would teach the button and
+           * hide the effect. */
+          T.flag = true;
+          T.wait = 3.4;
+          hush();
+          floatText(VW / 2, 620, 'SLOW MOTION', C.frost, 34);
+        } else {
+          dropCardBall();
+        }
+      } else {
+        T.wait -= T.dt;
+        if (T.wait <= 0) return 'stars';
+      }
     }
   };
 
@@ -756,7 +815,7 @@
       var r = null;
       if (p.tray === 'bumper') r = buildCell('bumper');
       else if (p.tray === 'paddle') r = buildCell('paddle');
-      else if (p.tray === 'card0') r = cardCell(0);
+      else if (p.tray.indexOf('card') === 0) r = cardCell(+p.tray.slice(4) || 0);
       else if (p.tray === 'sell') r = sellRect();
       else if (p.tray.indexOf('up:') === 0) r = upgradeRect(p.tray.slice(3));
       else if (p.tray === 'builds') {

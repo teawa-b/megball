@@ -707,27 +707,36 @@ Regression-checked by running the headless bot against HEAD and the working tree
 interleaved, eight runs each, because lifting the physics stepper out of the update loop is
 the kind of refactor that silently changes behaviour. The two distributions are the same.
 
-## 4aa. The flippers get right of way
+## 4aa. Tap flips, hold opens — separating two intents on one surface
 
-Second report of the same shape as the results card: a deliberate control sitting on top of
-a reflex one. The whole playfield doubles as the flipper surface AND as the tower-selection
-surface, so a tap meant for a flipper that happened to land on a bumper opened its panel
-instead — which drops the table to 12% speed and costs the save.
+The whole playfield doubles as the flipper surface AND the tower-selection surface, so a tap
+meant for a flipper that landed on a bumper opened its panel, dropped the table to 12% speed,
+and cost the save.
 
-The tap targets were NOT the problem and shrinking them was the wrong instinct: a tower's
-42-unit radius works out at almost exactly the 44px comfortable minimum on a 375px phone,
-so a smaller one would just make managing towers fiddly to fix a different complaint. The
-problem is priority. During a WAVE the flippers now win the tap whenever either is true:
+The first fix gave the flippers priority whenever a ball was descending past y=800 or a
+flipper had gone down inside 600ms. It killed the accident and created a worse one: during a
+busy wave both are nearly always true, so managing a tower became impossible exactly when
+the player most wanted to — "it's causing issues where I actually want to upgrade when a
+ball is below the thing". Time-slicing two intents on one surface cannot work, because the
+moments they are wanted overlap almost completely.
 
-- a ball is descending past y=800 into the lower field, where it is about to need a flipper
-  — this is what catches the FIRST tap of a rally, which no "recently tapped" test can; or
-- a flipper went down within the last 600ms, i.e. a rally is already under way.
+They are separated by GESTURE now instead. During a WAVE:
 
-Nothing is swallowed: a tap a tower declines still flips. Tower management stays available
-in the quiet moments between rallies, which is the only time anyone wants it anyway, and
-the build phase is untouched. Verified across all four cases — quiet table opens the panel,
-mid-rally flips instead, a ball dropping into the deck flips instead, build phase always
-opens.
+- A tap flips. It never selects a tower, so the original accident is impossible.
+- A HOLD of 0.3s on a defense opens its panel — the same press-and-hold the tray already
+  uses to read a card, so the vocabulary was already taught. Slightly longer than the card's
+  0.2s, because a stray touch on the playfield is far likelier than one on a tray cell.
+- The press still flips immediately either way, so the gesture never costs a flip; the
+  flipper is only released at the moment the panel actually opens.
+- Sliding off the defense cancels it — that was a swipe, not a hold.
+- A ring fills on the tower while held. Without it the gesture is a guess: you press, nothing
+  happens, and there is nothing to tell you that holding a moment longer is the answer.
+- Letting go early says so once per level, because a player who taps a defense and gets
+  nothing has no other way to discover the hold exists.
+
+A BUILD phase is untouched — nothing else wants the tap there, so a plain tap still opens the
+panel. Verified all four: tap-with-a-ball-low flips and hints, hold opens and releases the
+flipper, slide-off cancels, build-phase tap opens.
 
 ## 4bb. The opening defense is no longer optional
 
@@ -849,6 +858,33 @@ Checked in the two configurations that actually constrain it — a short screen 
 1, 79 units of clearance each side) and a tall one with the worst-case four-card hand (tray
 at scale 1.3, 14 units each side) — plus all three cell states at once: affordable, too
 expensive, and selected.
+
+## 4ff. The card lesson now has something to slow down
+
+The tutorial's card step ran on an EMPTY table. The player was told cards are one-tap
+powers, pointed at SLOW TIME, and tapped it — and nothing happened, because nothing was
+moving. The one card everybody owns stayed an abstraction taught by its own caption.
+
+It now demonstrates instead of describing:
+
+- Two or three balls fall down the lesson's safe columns for the whole step, topped up as
+  they drain, so there is always something for the card to act on. They are given absurd hit
+  points on purpose: a bumper kill mid-demo would empty the table exactly as the player
+  reaches for the card.
+- The step runs at FULL SPEED. Everywhere else the lesson leans on bullet time, which here
+  would mask the very thing the card exists to show.
+- Firing it holds the step open for 3.4s with a SLOW MOTION callout, so the effect is
+  watched rather than skipped past. Cutting to the next card the instant it is tapped would
+  teach the button and hide the result.
+- The pointer finds SLOW TIME wherever it sits in the hand rather than assuming slot 0, so
+  the lesson still lands for someone replaying it from HOW TO PLAY with a different deck;
+  the copy falls back to the generic line if that card is not in the hand at all.
+- The lower field stays tappable so the player can flip at the demo balls while they watch.
+  Tower taps are deliberately not let through — an upgrade panel here would bury the point.
+
+Measured: balls travel 150.6 units per half-second before the tap and 82.1 after. The step
+holds, then hands on to STARS BUY CARDS, and the lesson still ends clean — no leftover demo
+balls, slow state cleared, cards back to full.
 
 ## 5. Packaging
 

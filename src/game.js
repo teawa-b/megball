@@ -73,7 +73,6 @@
     hoverSlot: null,
 
     /* flippers */
-    lastFlipT: -9,       // when a flipper was last pressed (see flipperIntent)
     flipL: { on: false, angle: 0, omega: 0, prev: 0 },
     flipR: { on: false, angle: 0, omega: 0, prev: 0 },
 
@@ -87,6 +86,8 @@
     toastText: '', toastT: 0,
     banner: null,
     notice: null,        // pop-out explainer / question (freezes the sim)
+    towerHold: null,     // { tower, p } while a defense is being held open
+    towerHintShown: false,
     comboT: 0,
     time: 0,
     shakeBudget: 0,
@@ -179,6 +180,8 @@
     S.overchargeT = S.barrierT = S.magnetT = S.superheatT = 0;
     S.buildOpen = false; S.buildPick = null; S.selectedTower = null;
     S.firstBuild = false;
+    S.towerHold = null;
+    S.towerHintShown = false;
     S.tutorialsShown = {};
     S.time = 0;
     S.comboT = 0;
@@ -201,7 +204,6 @@
     var s = global.SFX;
     if (s) { s.init(); s.lowpass(0); s.music(def.id === 5 ? 'battle' : 'battle'); }
 
-    S.lastFlipT = -9;
     S.flipL.angle = S.flipL.prev = restAngleL();
     S.flipR.angle = S.flipR.prev = restAngleR();
 
@@ -936,7 +938,6 @@
     var f = side === 'L' ? S.flipL : S.flipR;
     if (f.on === on) return;
     f.on = on;
-    if (on) S.lastFlipT = S.time;
     sfx(on ? 'flipper_up' : 'flipper_down', { pan: side === 'L' ? -0.5 : 0.5 });
     if (on && global.FX) {
       var px = side === 'L' ? F.lx : F.rx;
@@ -2038,6 +2039,7 @@
 
     /* --- tray press-and-hold -------------------------------------------- */
     var heldCard = updateHolds(dtReal);
+    updateTowerHolds(dtReal);
     for (var hi = 0; hi < S.cards.length; hi++) {
       S.cards[hi].lift = U.damp(S.cards[hi].lift || 0,
         hi === heldCard ? 1 : 0, 0.45, dtReal);
@@ -2182,6 +2184,39 @@
 
   /* Advances every held tray press and returns the card index currently under
    * a finger, so the tray can lift it. */
+  /* How long a finger must rest on a defense mid-wave before its panel opens.
+   * A little longer than the tray's card hold: a stray touch on the playfield
+   * is far likelier than one on a tray cell. */
+  var TOWER_HOLD = 0.3;
+
+  function updateTowerHolds(dt) {
+    S.towerHold = null;
+    for (var k in pointers) {
+      var pt = pointers[k];
+      if (!pt.towerHold) continue;
+      /* A tower that broke or was sold under the finger cannot be opened. */
+      if (S.towers.indexOf(pt.towerHold) < 0) { pt.towerHold = null; continue; }
+      pt.towerHoldT += dt;
+      if (pt.towerHoldT < TOWER_HOLD) {
+        S.towerHold = { tower: pt.towerHold, p: pt.towerHoldT / TOWER_HOLD };
+        continue;
+      }
+      S.selectedTower = pt.towerHold;
+      pt.towerHold = null;
+      sfx('ui_tap', { rate: 0.9 });
+      /* The flip already happened on the press. Drop the flipper now rather
+       * than leaving the arm stuck up behind an open panel. */
+      if (pt.role === 'L' || pt.role === 'R') {
+        var stillHeld = false;
+        for (var k2 in pointers) {
+          if (k2 !== k && pointers[k2].role === pt.role) stillHeld = true;
+        }
+        if (!stillHeld) setFlipper(pt.role, false);
+        pt.role = 'ui';
+      }
+    }
+  }
+
   function updateHolds(dt) {
     var held = -1;
     for (var k in pointers) {
@@ -2297,16 +2332,28 @@
       return;
     }
 
-    /* 5. Tapping an existing tower opens its upgrade panel — unless the
-     * player is plainly mid-rally, in which case the flippers win the tap. */
-    if (!flipperIntent()) {
-      var t = towerAt(p.x, p.y);
-      if (t) {
-        pointers[id].role = 'ui';
-        S.selectedTower = (S.selectedTower === t) ? null : t;
-        sfx('ui_tap');
-        return;
-      }
+    /* 5. An existing tower.
+     *
+     * In a BUILD phase a tap opens its panel outright — nothing else wants
+     * the tap there. During a WAVE it must not, because the whole field is
+     * also the flipper surface: a tap meant for a flipper that happened to
+     * land on a bumper opened its panel and dropped the table into bullet
+     * time, and losing a save that way is infuriating.
+     *
+     * An earlier fix gave the flippers priority whenever a ball was low or a
+     * rally was under way, which fixed the accident and created a worse one —
+     * during a busy wave that is nearly always true, so managing a tower
+     * became impossible exactly when the player most wanted to. The two
+     * intents are separated by GESTURE now instead of by timing: a tap flips,
+     * a HOLD opens the panel. Same press-and-hold the tray already uses to
+     * read a card, and a ring fills on the tower while you hold it, so it is
+     * never a surprise and never a race. */
+    var t = towerAt(p.x, p.y);
+    if (t && S.mode !== 'wave') {
+      pointers[id].role = 'ui';
+      S.selectedTower = (S.selectedTower === t) ? null : t;
+      sfx('ui_tap');
+      return;
     }
     if (S.selectedTower) {
       /* Tapping away closes the panel — but still counts as a flip, because
@@ -2314,8 +2361,11 @@
       S.selectedTower = null;
     }
 
-    /* 5. Otherwise: the whole field is the flipper control surface. */
+    /* 6. Otherwise: the whole field is the flipper control surface. A press
+     * over a tower flips exactly like any other, and merely starts the hold
+     * timer alongside — so the flip is never traded away for the gesture. */
     pointers[id].role = p.x < U.VW / 2 ? 'L' : 'R';
+    if (t) { pointers[id].towerHold = t; pointers[id].towerHoldT = 0; }
     setFlipper(pointers[id].role, true);
   };
 
@@ -2336,6 +2386,8 @@
         pt.hold = null;   // dragged off the cell: cancel rather than misfire
       }
     }
+    /* Slid off the defense: that was a swipe, not a hold. */
+    if (pt.towerHold && towerAt(p.x, p.y) !== pt.towerHold) pt.towerHold = null;
     if (S.buildPick) {
       S.hoverSlot = BOARD.slotAt(S.table, p.x, p.y, 52);
     }
@@ -2344,6 +2396,15 @@
   GAME.pointerUp = function (id) {
     var pt = pointers[id];
     if (!pt) return;
+    if (pt.towerHold) {
+      /* Let go too soon. Said once per level, because a player who taps a
+       * defense mid-wave and gets nothing has no way to discover the hold. */
+      if (!S.towerHintShown) {
+        S.towerHintShown = true;
+        GAME.toast('HOLD a defense to open it during a wave', 3.2);
+      }
+      pt.towerHold = null;
+    }
     if (pt.hold) {
       if (S.inspect) closeInspect();
       else if (global.DRAW && global.DRAW.applyTray) global.DRAW.applyTray(pt.hold);
@@ -2394,38 +2455,6 @@
     if (code === 'ArrowLeft' || code === 'KeyA' || code === 'KeyZ') setFlipper('L', false);
     else if (code === 'ArrowRight' || code === 'KeyD' || code === 'Slash') setFlipper('R', false);
   };
-
-  /* Is the player plainly reaching for the flippers right now?
-   *
-   * The whole playfield doubles as the flipper control surface AND as the
-   * tower-selection surface. That is fine in a build phase and a real problem
-   * in a rally: a tap meant for a flipper that happens to land on a bumper
-   * opens its panel instead, drops the table into bullet time, and costs the
-   * save. The tap targets are not the problem — 42 units is exactly the
-   * comfortable minimum for a deliberate tap, and shrinking them would only
-   * make managing towers fiddly. The problem is priority, so during a WAVE
-   * the flippers take precedence whenever either is true:
-   *
-   *   - a ball is descending into the lower field, where it is about to need
-   *     a flipper (this covers the FIRST tap of a rally, which no
-   *     recently-tapped test can catch), or
-   *   - a flipper went down in the last 600ms, i.e. a rally is already on.
-   *
-   * Nothing is swallowed: a tap that a tower does not take still flips.
-   * Managing towers mid-wave stays available in the quiet moments, which is
-   * the only time anybody actually wants to do it. */
-  var FLIP_INTENT = 0.6;
-  var FLIP_ZONE_Y = 800;
-  function flipperIntent() {
-    if (S.mode !== 'wave') return false;
-    if (S.time - (S.lastFlipT || -9) < FLIP_INTENT) return true;
-    for (var i = 0; i < S.balls.length; i++) {
-      var b = S.balls[i];
-      if (!b.dead && b.vy > 0 && b.y > FLIP_ZONE_Y) return true;
-    }
-    return false;
-  }
-  GAME.flipperIntent = flipperIntent;
 
   function towerAt(x, y) {
     for (var i = 0; i < S.towers.length; i++) {

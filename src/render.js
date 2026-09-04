@@ -3062,6 +3062,7 @@
       ctx.fillRect(U.WALL_R + 8, 0, VW - U.WALL_R - 8, TRAY_TOP);
     }
 
+    drawTowerHold(ctx, S);
     drawBanner(ctx, S);
     drawNextWaveBtn(ctx, S);
     drawToast(ctx, S);
@@ -3126,6 +3127,30 @@
         ctx.stroke();
       }
     }
+  }
+
+  /* The press-and-hold that opens a defense mid-wave, drawn as a ring filling
+   * on the tower under the finger. Without it the gesture is a guess: you
+   * press, nothing happens, and there is no way to learn that holding a
+   * moment longer is the answer. With it, the affordance explains itself and
+   * lifting off early is obviously a cancel rather than a failure. */
+  function drawTowerHold(ctx, S) {
+    var h = S.towerHold;
+    if (!h || !h.tower) return;
+    var t = h.tower;
+    var r = (t.family === 'bumper' ? t.r : 20) + 16;
+    ctx.save();
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.arc(t.x, t.y, r, 0, TAU); ctx.stroke();
+    ctx.shadowColor = C.white;
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = U.rgba(C.white, 0.95);
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, r, -Math.PI / 2, -Math.PI / 2 + TAU * U.clamp(h.p, 0, 1));
+    ctx.stroke();
+    ctx.restore();
   }
 
   /* ---------------------------------------------------------------------- */
