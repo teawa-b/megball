@@ -218,10 +218,13 @@
     canvas.addEventListener('pointercancel', up, { passive: true });
     canvas.addEventListener('lostpointercapture', up, { passive: true });
 
-    /* Belt and braces: never leave a flipper stuck down. */
+    /* Belt and braces: never leave a flipper stuck down. Coming back also
+     * re-arms the audio context, which the browser suspends behind the page —
+     * see the note at the foot of src/audio.js. */
     window.addEventListener('blur', function () { GAME.clearPointers(); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) GAME.clearPointers();
+      else if (window.SFX && SFX.resume) SFX.resume();
     });
 
     window.addEventListener('keydown', function (e) {
@@ -244,9 +247,38 @@
 
   /* ---- loop ------------------------------------------------------------ */
 
+  /* Frame pacing.
+   *
+   * rAF fires at the panel's refresh rate, and current Android phones ship
+   * 90 and 120 Hz panels. On a 120 Hz phone that is two full passes over
+   * BOTH canvases -- the WebGL machine and the 2D layer on top of it -- for
+   * every 60 Hz worth of game. The update below is variable-timestep, so a
+   * higher rate is never *wrong*: nothing runs fast, the balls just get more
+   * samples. It is simply twice the GPU work and twice the heat, on exactly
+   * the mid-range chips that throttle over a ten-minute session.
+   *
+   * So we skip a callback that arrives sooner than MIN_FRAME after the one
+   * we last drew. The threshold is 11 ms rather than a literal 1/60 s on
+   * purpose: 11 ms halves a 120 Hz panel to 60 while leaving 90 Hz and
+   * 60 Hz panels drawing every callback. A true 16.7 ms gate would round
+   * 90 Hz down to 45, which is worse than not capping at all.
+   *
+   *   120 Hz (8.3 ms) -> draws every 2nd callback -> 60 fps
+   *    90 Hz (11.1 ms) -> draws every callback     -> 90 fps
+   *    60 Hz (16.7 ms) -> draws every callback     -> 60 fps
+   */
+  var MIN_FRAME = 11;
+
   var last = 0;
+  var lastDrawn = -1e9;
   function frame(now) {
     requestAnimationFrame(frame);
+
+    /* Too soon after the last drawn frame: burn the callback and keep `last`
+     * untouched, so the dt below still spans the skipped time exactly. */
+    if (now - lastDrawn < MIN_FRAME) return;
+    lastDrawn = now;
+
     if (!last) last = now;
     /* Clamp dt: a backgrounded tab returning with a 3-second delta would
      * otherwise teleport every ball through the table. */

@@ -454,6 +454,142 @@ generation. No hand-authored art, audio or 3D model files exist in the project.
   screens: zero sheet overflow everywhere, and the last element clears the bottom edge
   by 22px on tall screens, 14px on short ones.
 
+## 4t. Boot splash given room; the backglass wakes up
+
+- The splash looked squashed because the wordmark exactly filled the display: 209px of
+  text in a 210px inner box, touching both bezels. The type now scales with the viewport
+  (`clamp(21px, 6.9vw, 30px)`), the bezel carries 30px of side padding, and the display,
+  lamp chase and tagline each got vertical breathing room. The play area widened to
+  `min(62vw, 236px)` but kept its 150px height on purpose - the ball's drop keyframe
+  lands exactly on the flipper faces, and raising it opened a visible gap between them.
+  At 375px the wordmark now clears each bezel by 31px; at 320px it scales down and still
+  clears by 31px.
+- Home screen, more life, all of it compositor work:
+  - An attract lamp rail above the display, carrying the boot splash's chase onto the
+    backglass so the machine looks awake while it waits. Nine lamps, one opacity each.
+  - The scorecard insert lamps now wink in turn, the way a cabinet nags you to choose a
+    mode. The dot keeps its steady glow; a cap on top fades in and out.
+- Home screen, faster: the START button used to breathe by animating a 60px-blur
+  `box-shadow`, which repaints a large area every frame for as long as the menu is open.
+  The glow moved to its own halo element animating only opacity and transform. Measured
+  with `document.getAnimations()` and each animation's keyframe properties: the old sheet
+  had one paint-triggering animation (`startPulse: boxShadow`), the new one has zero -
+  all 25 running animations are `opacity`/`transform` only.
+- Note on measurement: frame rate could not be measured in the in-app browser, which
+  throttles `requestAnimationFrame` to ~1.5fps regardless of page cost (confirmed: the
+  same 1.5fps with every UI animation disabled, and zero long tasks over 4s). The perf
+  claim above rests on the property audit, not on an fps number.
+- Verified at 375x812, 360x600 and 320x568: no sheet overflow, the lamp chase advances
+  between frames, the DMD still cycles its messages, and a cold boot dismisses the splash
+  and lands on the home screen as before.
+
+## 4u. Attrition, boss variants, and a difficulty curve that arrives
+
+Playtest verdict on Endless: "I reached level ten and literally didn't have to touch the
+phone." A handful of upgraded bumpers held the board on their own, the wave never got
+denser, and the only boss was ten waves away. Six changes, all measured against a headless
+bot that plays the real `game.js`:
+
+- **Defenses wear out.** Every registered impact scuffs the defense that took it, by the
+  striking ball's MASS, so a Hauler batters a bumper far harder than a Drone. Output falls
+  with condition (never below 55%, so a tired tower is not dead weight) and an exhausted
+  one breaks and frees its slot. Bumpers are always on and register a hit per contact, so
+  they wear roughly three times faster than paddles - the difference is emergent from one
+  rule, not a second set of numbers. Every upgrade buys a bigger pool, so specialising is
+  also buying staying power. REPAIR is a new row in the tower's own panel, priced on how
+  much is missing, and it is the energy sink the late game never had.
+- **Bumpers were the problem, and the re-hit cooldown was the number.** At `hitCd 0.14` a
+  ball rattling in a nest took seven damage instances a second. Now 0.2, with damage
+  1.6 -> 1.45. Paddles took a lighter trim (2.2/0.62 -> 2.05/0.68).
+- **Endless actually escalates.** Concurrency was a fixed 13 and is now `12 + 0.9/wave`
+  up to 30; the points budget gained a quadratic term; spawn gaps tighten from 1.15s to
+  0.26s; the HP curve roughly doubled. Measured peak balls on screen: 5 at wave 1, 13 at
+  wave 10, 30 from wave 22.
+- **A boss every fifth wave, and a different one each time.** Colossus, then Rimewall
+  (frost slides off it; it freezes the defenses it passes), Breaker (tears durability out
+  of towers, so the flippers have to carry the fight), Vector (dashes sideways, outrunning
+  a static nest), then the two damage locks - Prism takes paddle damage only, Crucible
+  bumper damage only. Past the rota they arrive in pairs. A lock never blocks the
+  empowered-ball chain or a card, or a board of the wrong shape would face an unwinnable
+  wave. Locks are readable on the ball (a second, turning dashed ring) and spelled out
+  under the health bar, and the wrong damage source says IMMUNE rather than silently
+  doing nothing.
+- **World 1 Level 3 ends on a mini-boss.** The Warden is a Colossus a Level-3 board can
+  actually kill, so the real one on Level 5 is a test rather than an ambush.
+- **Measured outcome.** A maxed board can no longer play itself: stop flipping at wave 10
+  and the run ends by wave 14; stop at wave 15 and lives fall 5 -> 1 inside one wave.
+  Campaign difficulty is statistically unchanged (5 runs each, before and after: L1-L3
+  always cleared, L4 4/5, L5 2/5), so the rebalance did not turn the teaching arc into a
+  wall.
+
+## 4v. Three bugs
+
+- **The music never came back.** Backgrounding the app suspends the AudioContext, and the
+  visibility handler only restarted the note scheduler - which cannot produce sound on a
+  suspended context. Worse, the scheduler kept queueing notes against a frozen clock, so
+  they all landed on the same instant. Now: `tick()` refuses to schedule unless the
+  context is running, and a `resumeAudio()` resumes the CONTEXT (from `visibilitychange`,
+  `pageshow`, `focus`, and the next tap) before resyncing the sequencer. It is guarded so
+  the resync only fires on an actually-stalled track - `init()` runs on every tap, and
+  recovering unconditionally would stutter the music on every flipper press. Covered by a
+  lifecycle test with a mock Web Audio context: the old code fails "music comes back after
+  the app returns", the new code passes it twice over.
+- **Big balls stuck against the side walls.** The outer pegs of the middle row sat at
+  x=104 and x=616, leaving a 47-unit channel against a wall surface at 48 - narrower than
+  a Hauler is wide (52). One that found it wedged there, shoved back and forth between the
+  wall and the peg, and the wave could not finish. The pegs moved to 128/592 (71-unit
+  channel), and a general wedge watchdog now sums a ball's static contact normals: when
+  they cancel out for 0.3s the ball is freed toward open table. Measured on 96 balls
+  dropped into the channel: worst-case escape went from 16.5s to 3.9s, and a 320-ball
+  sweep of the whole table reports zero wedges.
+- **The first-round build prompt was a toast.** A new player with an empty board can lose
+  the level before realising the tray is where defenses come from, and a 15px line at the
+  bottom of a moving screen is not where anyone is looking. The opening phase now gets a
+  full callout in the build field, with a chevron pointing at the tray, which clears the
+  moment the first defense goes down.
+
+## 4w. Two pop-out cards
+
+A notice is a card that stops the table to say one thing, or ask one question - the same
+furniture as the upgrade pick, because both mean "the table has stopped and this is a
+decision". The sim is frozen while one is up, so an explainer can never be the reason a
+wave got through, and backgrounding the app does not silently answer one.
+
+- **DEFENSES WEAR OUT** fires once ever, the first time anything on the board actually
+  drops a condition band. Explaining it up front would be a rule about nothing; explaining
+  it when the player can see a scuffed bumper is when it means something.
+- **FIRST TIME?** is offered at the top of an Endless run to anyone who has not been
+  through the lesson, and asked once - a prompt that returns every run stops being an
+  offer. TEACH ME runs the full tutorial and hands back into the Endless build phase
+  (verified end to end; the tutorial has no level-1 dependencies). The offer lives in
+  `startLevel` because Endless is reachable from the lobby, a results screen and
+  `startEndless`, and all three land there.
+
+## 4x. Sending the wave early
+
+The START button on the build banner already worked — tap it, or press Space, and the wave
+goes. Nobody pressed it, because doing so was strictly worse: you gave up prep time and got
+nothing for it. Other tower defense games make that a real decision by PAYING for the time
+you hand back, so now so does this one.
+
+- The bonus is `secondsRemaining x rate`, where the rate climbs with the run
+  (`3 + 0.7/wave`, capped at 12/s) so the offer stays worth taking once a wave clear pays
+  hundreds. It rides on the button face next to the countdown and visibly shrinks as the
+  clock runs. Letting the countdown expire pays nothing, which falls out of the same
+  expression rather than needing a special case.
+- The painted cabinet button is only ~34 real pixels tall on a 375px phone, under the
+  comfortable tap minimum, and the banner has no room to grow the art — so the HIT rect is
+  inflated by 14 units instead. Verified that a press 10 units below the art now lands, and
+  that field taps still place towers rather than being swallowed.
+- Enter starts a wave as well as Space; Enter previously fell through to the tutorial.
+- The tutorial's closing line now points at it, since an early-start bonus is invisible as
+  a mechanic until somebody says it is there.
+- **Tuned against three bots.** Patient (lets the clock run): Endless wave 22, campaign
+  L1-L4 cleared. Rushing only when nothing more can be bought: wave 23 — a small edge for
+  correct judgement. Rushing blindly every wave, ready or not: dies on Endless wave 2 and
+  loses L2 onward. Reward for reading the board, ruin for impatience, which is the shape
+  the mechanic is supposed to have.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the

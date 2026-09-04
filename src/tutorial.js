@@ -567,7 +567,10 @@
 
   STEPS.end = {
     enter: function () {
-      say('THAT IS THE GAME', 'Keep the bumper, it is on the house. Wave 1 is on its way. Good luck!', { pos: 'mid' });
+      /* The last thing said before the build banner appears, so it is also
+       * the right moment to point at the START button on it — the early-start
+       * bonus is invisible as a mechanic until somebody says it is there. */
+      say('THAT IS THE GAME', 'Keep the bumper, it is on the house. Built early? Tap START on the banner to send the wave now — you are paid for every second you hand back. Good luck!', { pos: 'mid' });
     },
     next: null
   };

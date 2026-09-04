@@ -990,23 +990,34 @@
       node.scale.set(pop, pop, pop);
 
       var ud = node.userData;
-      var c = t.def.color;
+      /* Wear and freeze are told through the LAMPS, which is how a real
+       * machine tells you something is wrong with it: a worn tower's lights
+       * go dull, and a frozen one goes cold blue and stops glowing. The
+       * numeric readout lives on the 2D layer (drawWearRing in render.js);
+       * this is the part you notice without looking for it. */
+      var ENT = global.ENT;
+      var frozen = t.frozenT > 0;
+      var cond = ENT ? ENT.condition(t) : 1;
+      var c = frozen ? C.frost : t.def.color;
+      var dim = frozen ? 0.35 : 0.4 + 0.6 * cond;
       if (ud.kind === 'paddle') {
         ud.arm.rotation.z = -t.angle;
-        var hot = t.swingT > 0;
-        var ready = t.cd <= 0;
+        var hot = t.swingT > 0 && !frozen;
+        var ready = t.cd <= 0 && !frozen;
         var oc = S.overchargeT > 0;
-        ud.ring.material = led(c, ready ? (oc ? 2.4 : 1.4) : 0.3);
-        ud.strip.material = led(c, hot ? 3.2 : (ready ? 0.9 : 0.2));
-        ud.glow.material = glow(c, ready ? (oc ? 0.9 : 0.5) : 0.15);
-        ud.armGlow.material = glow(c, hot ? 0.8 : (ready ? 0.18 : 0.05), true);
+        ud.ring.material = led(c, (ready ? (oc ? 2.4 : 1.4) : 0.3) * dim);
+        ud.strip.material = led(c, (hot ? 3.2 : (ready ? 0.9 : 0.2)) * dim);
+        ud.glow.material = glow(c, (ready ? (oc ? 0.9 : 0.5) : 0.15) * dim);
+        ud.armGlow.material = glow(c, (hot ? 0.8 : (ready ? 0.18 : 0.05)) * dim, true);
       } else {
         var pulse = t.pulse > 0 ? t.pulse / 0.28 : 0;
-        var sh = S.superheatT > 0;
+        var sh = S.superheatT > 0 && !frozen;
         node.scale.z = pop * (1 - pulse * 0.18);
-        ud.core.material = pulse > 0.15 ? led(C.white, 1.5 + pulse * 2) : led(c, 1.4 + (sh ? 0.8 : 0));
-        ud.ring.material = led(c, 1.3 + pulse * 3 + (sh ? 0.8 : 0));
-        ud.glow.material = glow(pulse > 0.15 ? C.white : c, 0.5 + pulse * 0.7 + (sh ? 0.2 : 0));
+        ud.core.material = pulse > 0.15 ? led(C.white, (1.5 + pulse * 2) * dim)
+          : led(c, (1.4 + (sh ? 0.8 : 0)) * dim);
+        ud.ring.material = led(c, (1.3 + pulse * 3 + (sh ? 0.8 : 0)) * dim);
+        ud.glow.material = glow(pulse > 0.15 && !frozen ? C.white : c,
+          (0.5 + pulse * 0.7 + (sh ? 0.2 : 0)) * dim);
       }
     }
     for (var id in towerNodes) {

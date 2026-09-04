@@ -91,14 +91,27 @@
         text: 'Build a Frost Paddle', short: 'FROST PADDLE' },
       teach: [
         { at: 'start', text: 'Upgrade a paddle to FROST — the slow spreads on contact' },
-        { at: 'wave3', text: 'Haulers cost 2 lives if they get out' }
+        { at: 'wave3', text: 'Haulers cost 2 lives if they get out' },
+        { at: 'wave5', text: 'WARDEN incoming — a small Colossus. Focus everything on it' }
       ],
       waves: [
         { build: 10, entries: [e('basic', 5, 1.0, 0.3, ALL)] },
         { build: 10, entries: [e('heavy', 1, 0, 0.4, L.MID), e('fast', 3, 0.9, 2.2, FLANKS)] },
         { build: 11, entries: [e('basic', 5, 0.9, 0.3, ALL), e('heavy', 1, 0, 3.5, L.MIDL)] },
         { build: 11, entries: [e('heavy', 2, 2.4, 0.4, FLANKS), e('fast', 5, 0.7, 2.0, INNER)] },
-        { build: 12, entries: [e('basic', 6, 0.8, 0.3, ALL), e('heavy', 2, 2.0, 3.0, INNER), e('fast', 4, 0.6, 6.0, FLANKS)] }
+        /* Mini-boss finale. The Warden is a Colossus a Level-3 board can
+         * actually kill, so the real one on Level 5 is a test rather than an
+         * ambush. Its escort is deliberately thin: the lesson is "focus one
+         * big target", and a pile-up would drown that out. */
+        {
+          build: 14, mini: true,
+          entries: [
+            e('basic', 5, 0.85, 0.3, ALL),
+            e('bossWarden', 1, 0, 3.0, L.MID),
+            e('fast', 4, 0.7, 7.5, FLANKS),
+            e('heavy', 1, 0, 12.0, L.MIDR)
+          ]
+        }
       ]
     },
 
@@ -180,7 +193,7 @@
     leakBudget: 0,
     challenge: null,
     teach: [
-      { at: 'wave2', text: 'No end to this one. Every 10th wave is a boss: clear it for a life back' }
+      { at: 'wave2', text: 'No end to this one. Every 5th wave is a boss: clear it for a life back' }
     ],
     waves: []
   };
@@ -188,75 +201,131 @@
   /* Which enemies the generator may draw from, and from which wave (0-based)
    * each joins the pool. Weight = its share of the wave's points budget. */
   var ENDLESS_POOL = [
-    { type: 'basic',    from: 0, cost: 1.0 },
-    { type: 'fast',     from: 1, cost: 1.2 },
-    { type: 'heavy',    from: 3, cost: 3.0 },
-    { type: 'armored',  from: 5, cost: 2.5 },
-    { type: 'splitter', from: 7, cost: 2.6 }
+    { type: 'basic',      from: 0,  cost: 1.0 },
+    { type: 'fast',       from: 1,  cost: 1.2 },
+    { type: 'heavy',      from: 2,  cost: 3.0 },
+    { type: 'armored',    from: 4,  cost: 2.5 },
+    { type: 'splitter',   from: 6,  cost: 2.6 },
+    /* From the teens an ordinary wave can carry a Warden of its own, so the
+     * gap between boss waves stops being downtime. */
+    { type: 'bossWarden', from: 11, cost: 9.0 }
   ];
 
-  /* Enemy HP multiplier for endless wave `n`. Linear early so the first ten
-   * waves feel like the campaign, then a gentle quadratic so a maxed board
-   * still meets its match. */
+  /* Enemy HP multiplier for endless wave `n`. Linear early so the first few
+   * waves feel like the campaign, then a quadratic that actually bites: the
+   * old curve reached only 2x by wave 10, which a lightly upgraded board beat
+   * without the player touching the phone. */
   LEVELS.endlessDifficulty = function (n) {
-    return 1 + n * 0.07 + n * n * 0.003;
+    return 1 + n * 0.10 + n * n * 0.0055;
   };
 
-  LEVELS.isBossWave = function (n) { return (n + 1) % 10 === 0; };
+  /* How many balls may be in flight at once. Readability is still the
+   * constraint, but it is a RISING one — "more and more on screen" is the
+   * main thing that makes late endless feel like a siege rather than a
+   * metronome. game.js reads this for its spawn throttle. */
+  LEVELS.endlessConcurrency = function (n) {
+    return Math.min(30, 12 + Math.floor(n * 0.9));
+  };
+
+  /* Bosses every FIFTH wave. Ten was far enough apart that a run could coast
+   * through the gaps. */
+  LEVELS.BOSS_EVERY = 5;
+  LEVELS.isBossWave = function (n) { return (n + 1) % LEVELS.BOSS_EVERY === 0; };
+
+  /* The boss rota. Each entry asks a different question of the board, and the
+   * order is the order they are learned in: a plain wall first, then the two
+   * that punish a one-note board (frost / durability), then speed, then the
+   * two damage-source locks. Past the end of the list they come in PAIRS,
+   * drawn from the whole roster, which is where a run really ends. */
+  LEVELS.BOSS_ORDER = ['boss', 'bossRime', 'bossBreaker', 'bossVector', 'bossPrism', 'bossCrucible'];
+
+  /* Which boss (or bosses) wave `n` fields, plus the marquee line for it. */
+  LEVELS.endlessBoss = function (n, rng) {
+    var tier = Math.floor((n + 1) / LEVELS.BOSS_EVERY);       // 1, 2, 3, ...
+    var order = LEVELS.BOSS_ORDER;
+    if (tier <= order.length) {
+      return { types: [order[tier - 1]], tier: tier };
+    }
+    /* Beyond the rota: two at once, never the same one twice. */
+    var a = rng.int(0, order.length - 1);
+    var b = (a + 1 + rng.int(0, order.length - 2)) % order.length;
+    return { types: [order[a], order[b]], tier: tier };
+  };
 
   /* Write endless wave `n` (0-based) using the run's rng. */
   LEVELS.endlessWave = function (n, rng) {
-    var build = Math.max(6, 11 - n * 0.25);
+    var build = Math.max(7, 12 - n * 0.22);
     if (LEVELS.isBossWave(n)) {
-      /* Boss waves: the Colossus plus a rising escort. Its own HP scales
-       * with the shared multiplier, so the 30th-wave boss is a real wall. */
-      var tier = Math.floor((n + 1) / 10);
+      /* Boss waves: the boss (or pair) plus a rising escort. Their own HP
+       * scales with the shared multiplier, so the 30th-wave boss is a wall. */
+      var bs = LEVELS.endlessBoss(n, rng);
+      var tier = bs.tier;
+      var bentries = [];
+      for (var bi = 0; bi < bs.types.length; bi++) {
+        bentries.push(e(bs.types[bi], 1, 0, 0.6 + bi * 2.2,
+          bs.types.length > 1 ? (bi === 0 ? L.MIDL : L.MIDR) : L.MID));
+      }
+      bentries.push(e('fast', 3 + tier * 2, 1.0, 5.0, FLANKS));
+      bentries.push(e('basic', 4 + tier * 3, 0.7, 9.0, ALL, 'random'));
+      if (tier >= 3) bentries.push(e('armored', tier, 1.6, 14.0, INNER));
       return {
         build: build + 4, boss: true, endlessIndex: n,
-        entries: [
-          e('boss', 1, 0, 0.6, L.MID),
-          e('fast', 3 + tier * 2, 1.2, 5.0, FLANKS),
-          e('basic', 4 + tier * 3, 0.8, 10.0, ALL, 'random')
-        ]
+        bosses: bs.types, entries: bentries
       };
     }
 
-    var budget = 6 + n * 2.1;
+    /* Budget is the wave's total "points" of enemy. The quadratic term is
+     * what puts twenty-odd balls on the table by the twenties instead of the
+     * dozen the old linear budget topped out at. */
+    var budget = 7 + n * 2.6 + n * n * 0.035;
     var pool = [];
     for (var i = 0; i < ENDLESS_POOL.length; i++) {
       if (n >= ENDLESS_POOL[i].from) pool.push(ENDLESS_POOL[i]);
     }
 
-    /* One backbone entry of fodder, then one or two "specials" from the
+    /* One backbone entry of fodder, then one to three "specials" from the
      * heavier end of the pool. Fodder always stays: a wave of nothing but
      * Haulers is a slog, not a puzzle. */
     var entries = [];
     var fodder = rng() < 0.35 && n >= 1 ? 'fast' : 'basic';
-    var fodderShare = pool.length > 1 ? rng.range(0.45, 0.65) : 1;
+    var fodderShare = pool.length > 1 ? rng.range(0.42, 0.6) : 1;
     var fodderCost = fodder === 'fast' ? 1.2 : 1.0;
     var fodderN = Math.max(3, Math.round(budget * fodderShare / fodderCost));
     var laneSets = [ALL, INNER, FLANKS, ALL];
-    var gap = Math.max(0.42, 1.25 - n * 0.03);
+    var gap = Math.max(0.26, 1.15 - n * 0.045);
     entries.push(e(fodder, fodderN, gap, 0.3, rng.pick(laneSets), rng() < 0.4 ? 'random' : 'cycle'));
 
     var left = budget - fodderN * fodderCost;
-    var specials = pool.length > 1 ? (n >= 8 && rng() < 0.5 ? 2 : 1) : 0;
-    var delay = 1.8;
+    var specials = pool.length > 1 ? Math.min(3, 1 + Math.floor(n / 7)) : 0;
+    var delay = 1.6;
+    /* Each special type appears at most ONCE per wave. Drawing the same one
+     * twice used to stack — four Wardens in a single wave 21, which is not a
+     * harder wave so much as an unreadable one. */
+    var used = {};
     for (var k = 0; k < specials && left > 1.5; k++) {
       /* Bias toward the newest unlock so a wave that introduces Bulwarks
        * actually shows some. */
-      var cand = pool.slice(1);
+      var cand = [];
+      for (var ci = 1; ci < pool.length; ci++) {
+        if (!used[pool[ci].type] && pool[ci].cost <= left) cand.push(pool[ci]);
+      }
+      if (!cand.length) break;
       var pickIdx = rng() < 0.45 ? cand.length - 1 : rng.int(0, cand.length - 1);
       var sp = cand[pickIdx];
+      used[sp.type] = true;
       var share = k === specials - 1 ? 1 : rng.range(0.4, 0.7);
       var cnt = Math.max(1, Math.floor(left * share / sp.cost));
-      cnt = Math.min(cnt, 4 + Math.floor(n / 4));
+      /* A Warden is a fight, not a formation: never more than a pair, and
+       * only late, or the between-boss waves become boss waves. */
+      cnt = Math.min(cnt, sp.type === 'bossWarden'
+        ? Math.min(2, 1 + Math.floor(n / 22))
+        : 5 + Math.floor(n / 3));
       left -= cnt * sp.cost;
       var lanes = sp.type === 'heavy' ? (rng() < 0.5 ? FLANKS : INNER) : rng.pick(laneSets);
-      var sgap = sp.type === 'fast' ? 0.7 : (sp.type === 'heavy' ? 2.2 : 1.4);
-      entries.push(e(sp.type, cnt, sgap, delay + rng.range(0, 1.5), lanes,
+      var sgap = sp.type === 'fast' ? 0.6 : (sp.type === 'heavy' ? 2.0 : 1.3);
+      entries.push(e(sp.type, cnt, sgap, delay + rng.range(0, 1.4), lanes,
         sp.type === 'basic' ? 'random' : 'cycle'));
-      delay += 2.5;
+      delay += 2.2;
     }
 
     return { build: build, entries: entries, endlessIndex: n };

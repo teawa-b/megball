@@ -107,18 +107,11 @@
           });
         }
       }
-      if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
-        var p = ctx.resume();
-        if (p && p.then) {
-          p.then(function () {
-            SFX.ready = ctx.state === 'running';
-            // Music may have been requested before audio was unlocked.
-            if (wantedTrack && !muted) startMusic(wantedTrack, true);
-          }, function () { /* resume rejected — stay silent, never throw */ });
-        }
-      }
+      // Resume the context and re-arm the music, whether this is the very
+      // first unlocking tap or a tap after the app came back from the
+      // background. Both are the same problem, so both take the same path.
+      resumeAudio();
       SFX.ready = ctx.state === 'running';
-      if (wantedTrack && !muted && !schedTimer) startMusic(wantedTrack, true);
     } catch (e) { /* audio is optional; never let it kill the game */ }
   }
 
@@ -941,6 +934,12 @@
 
   function tick() {
     if (!ctx || !curTrack) return;
+    // A suspended context has a FROZEN clock. Scheduling against it queues
+    // note after note at the same instant, and when the browser finally
+    // resumes, every one of them fires together — which is how the music came
+    // back as a single burst and then nothing at all. Wait for the real
+    // clock; resumeAudio() below restarts us.
+    if (ctx.state !== 'running') return;
     try {
       var spb = 60 / curTrack.def.bpm / curTrack.def.div;
       // If the tab was backgrounded, currentTime has run far past `next`.
@@ -987,6 +986,50 @@
     g.connect(musicGain);
     curTrack = { name: name, def: TRACKS[name], gain: g, step: 0, next: ctx.currentTime + 0.06 };
     startScheduler();
+  }
+
+  /**
+   * Bring the mix back after the page was hidden, the app was backgrounded,
+   * or an OS interruption suspended the context. Safe to call as often as you
+   * like — it is a no-op on an already-running context with a live track.
+   *
+   * This is the whole fix for "the music never comes back": the browser
+   * suspends the AudioContext when the page goes away, and NOTHING in a
+   * visibility handler resumes it. Restarting the scheduler against a
+   * suspended context just spins.
+   */
+  function resumeAudio() {
+    try {
+      if (!ctx) return;
+      var finish = function () {
+        SFX.ready = ctx.state === 'running';
+        if (!SFX.ready || muted || !wantedTrack) return;
+        if (!curTrack || curTrack.name !== wantedTrack) {
+          startMusic(wantedTrack, true);
+          return;
+        }
+        // Healthy: still scheduling, and its cursor is still ahead of the
+        // clock. Leave it alone. init() runs on EVERY tap, so recovering
+        // unconditionally here would yank the sequencer's cursor forward on
+        // every flipper press and stutter the music the whole game.
+        if (schedTimer && curTrack.next >= ctx.currentTime) return;
+        // Same track, stopped clock. Its scheduling cursor belongs to a time
+        // that no longer means anything, so resync it and re-open the gain —
+        // a fade that was mid-ramp when the page went away can otherwise be
+        // left sitting at silence forever.
+        curTrack.next = ctx.currentTime + 0.06;
+        try {
+          curTrack.gain.gain.cancelScheduledValues(ctx.currentTime);
+          curTrack.gain.gain.setValueAtTime(1, ctx.currentTime);
+        } catch (e2) {}
+        startScheduler();
+      };
+      if (ctx.state === 'suspended' && typeof ctx.resume === 'function') {
+        var p = ctx.resume();
+        if (p && p.then) { p.then(finish, function () { /* needs a gesture */ }); return; }
+      }
+      finish();
+    } catch (e) {}
   }
 
   function music(name) {
@@ -1066,19 +1109,35 @@
   }
 
   /* ---------------------------------------------------------------------- */
-  /* Battery: don't sequence music for a tab nobody is looking at.           */
+  /* Leaving and coming back                                                 */
   /* ---------------------------------------------------------------------- */
 
+  /* Going away: stop sequencing, so a game in a pocket is not burning battery
+   * on a note scheduler nobody can hear.
+   *
+   * Coming back: resume the CONTEXT, not just the scheduler. Every mobile
+   * browser (and the desktop app when its window is hidden) suspends the
+   * AudioContext behind the page, and a suspended context cannot be restarted
+   * by restarting a timer — which is why the music used to be gone for good
+   * once the game had been backgrounded even once.
+   *
+   * Three events rather than one, because no single one of them is reliable
+   * everywhere: iOS Safari can restore a page from the back/forward cache
+   * with `pageshow` and no visibility change at all, and a desktop window
+   * regaining focus does not always fire one either. resumeAudio() is
+   * idempotent, so the overlap costs nothing. If the browser insists on a
+   * fresh gesture, the next tap reaches init(), which takes the same path. */
   try {
-    if (global.document && global.document.addEventListener) {
-      global.document.addEventListener('visibilitychange', function () {
-        if (global.document.hidden) {
-          stopScheduler();
-        } else if (!muted && curTrack) {
-          curTrack.next = ctx ? ctx.currentTime + 0.06 : 0;
-          startScheduler();
-        }
+    var doc = global.document;
+    if (doc && doc.addEventListener) {
+      doc.addEventListener('visibilitychange', function () {
+        if (doc.hidden) stopScheduler();
+        else resumeAudio();
       });
+    }
+    if (global.addEventListener) {
+      global.addEventListener('pageshow', function () { resumeAudio(); });
+      global.addEventListener('focus', function () { resumeAudio(); });
     }
   } catch (e) {}
 
@@ -1091,6 +1150,7 @@
     init: init,
     play: play,
     music: music,
+    resume: resumeAudio,
     setMuted: setMuted,
     isMuted: isMuted,
     lowpass: lowpass,

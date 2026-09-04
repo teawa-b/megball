@@ -121,11 +121,20 @@
     /* Sit in the gaps between slot rows, so they add scatter without ever
      * overlapping a place-able slot. */
     /* Pegs live in the gaps BETWEEN slot rows, so they add scatter and visual
-     * texture without ever colliding with a place-able slot. */
+     * texture without ever colliding with a place-able slot.
+     *
+     * CLEARANCE RULE: every peg must leave more than one Hauler-diameter
+     * (2 x r26 = 52) between itself and the side wall, whose inner surface is
+     * at WL+8 / WR-8. The outer pegs of the middle row used to sit at 104 and
+     * 616, leaving a 47-unit channel — narrower than the biggest ordinary
+     * ball. A Hauler that found one wedged there permanently, jittering
+     * between the wall pushing it in and the peg pushing it out, and the wave
+     * could not finish. They now stand at 128 / 592 for a 71-unit channel.
+     * See the wedge watchdog in game.js for the general case. */
     var pegs = def.pegs || [
       [232, 330], [360, 330], [488, 330],
       [168, 450], [296, 450], [424, 450], [552, 450],
-      [104, 570], [296, 570], [424, 570], [616, 570],
+      [128, 570], [296, 570], [424, 570], [592, 570],
       [168, 690], [360, 690], [552, 690],
       [232, 810], [424, 810], [488, 810],
       [296, 930], [424, 930]

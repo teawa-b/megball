@@ -64,6 +64,7 @@
     buildOpen: false,
     buildPick: null,     // tower type string being placed
     buildHint: false,    // pulse the tray build buttons (nothing built this phase)
+    firstBuild: false,   // big mid-field callout: nothing built on the board yet
     placedThisPhase: false,
     inspect: null,       // card detail popout (freezes the sim while open)
     selectedTower: null,
@@ -84,6 +85,7 @@
     /* misc */
     toastText: '', toastT: 0,
     banner: null,
+    notice: null,        // pop-out explainer / question (freezes the sim)
     comboT: 0,
     time: 0,
     shakeBudget: 0,
@@ -143,6 +145,7 @@
 
   GAME.startLevel = function (id, loadout) {
     S.inspect = null;
+    S.notice = null;
     var def = LEVELS.byId(id);
     if (!def) return;
 
@@ -173,6 +176,7 @@
     S.slowT = 0; S.slowMul = 1;
     S.overchargeT = S.barrierT = S.magnetT = S.superheatT = 0;
     S.buildOpen = false; S.buildPick = null; S.selectedTower = null;
+    S.firstBuild = false;
     S.tutorialsShown = {};
     S.time = 0;
     S.comboT = 0;
@@ -206,6 +210,10 @@
     beginBuildPhase(true);
     S.mode = 'build';
     if (tut) global.TUT.start(S);
+    /* Endless is reachable from the lobby, from a results screen and from
+     * GAME.startEndless, and every one of those lands here — so the tutorial
+     * offer belongs here rather than on any single entry point. */
+    else if (def.endless) offerEndlessTutorial();
   };
 
   /* Called by the tutorial when it finishes or is skipped. Restores the normal
@@ -254,6 +262,8 @@
   GAME.quitToMenu = function () {
     var fromEndless = !!(S.level && S.level.endless);
     S.mode = 'menu';
+    S.notice = null;
+    S.inspect = null;
     S.balls.length = 0;
     S.towers.length = 0;
     var s = global.SFX; if (s) { s.lowpass(0); s.music('menu'); }
@@ -270,6 +280,97 @@
     for (var i = 0; i < t.length; i++) {
       if (t[i].at === tag) { S.tutorialsShown[tag] = true; GAME.toast(t[i].text, 4.2); return; }
     }
+  }
+
+  /* ====================================================================== */
+  /* Notices                                                                */
+  /* ====================================================================== */
+
+  /* A pop-out card that stops the table to say one thing, or to ask one
+   * question. Deliberately the same shape as the hold-to-read card popout:
+   * the table freezes, the field dims, and nothing the player was doing can
+   * cost them a ball while they read. A toast is not enough for a rule the
+   * player has not met before — they are watching the balls, not the strip at
+   * the bottom of the screen.
+   *
+   *   { kicker, title, lines[], color, glyph, buttons[{ id, label, tone }] }
+   *
+   * One button = tap anywhere to dismiss. Two = a real choice, and only the
+   * buttons take the tap. */
+  GAME.showNotice = function (n) {
+    if (S.notice) return;
+    n.t = 0;
+    S.notice = n;
+    S.buildPick = null;
+    S.selectedTower = null;
+    sfx('ui_tap', { rate: 0.85 });
+    var s = global.SFX; if (s && s.lowpass) s.lowpass(0.6);
+  };
+
+  GAME.noticeAction = function (id) {
+    var n = S.notice;
+    if (!n) return;
+    S.notice = null;
+    var s = global.SFX;
+    if (s && s.lowpass && S.slowT <= 0) s.lowpass(0);
+    if (id === 'tutorialYes') {
+      sfx('ui_tap');
+      S.pendingTutorial = true;
+      S.toastT = 0;
+      S.banner = null;
+      if (global.TUT) global.TUT.start(S);
+      return;
+    }
+    sfx('ui_back');
+  };
+
+  /* Shown once, ever, the first time anything on the board actually wears
+   * down. Explaining it up front on a fresh board would be a rule about
+   * nothing; explaining it the moment the player can see a scuffed bumper is
+   * the moment it means something. */
+  function noticeWear() {
+    if (PROG.seenWear || S.mode === 'tutorial') return;
+    PROG.seenWear = true;
+    saveProgress();
+    GAME.showNotice({
+      kicker: 'MAINTENANCE',
+      title: 'DEFENSES WEAR OUT',
+      color: C.amber,
+      glyph: 'wear',
+      lines: [
+        'Every impact scuffs the defense that took it, and a heavy ball scuffs hardest.',
+        'A worn defense hits softer. An exhausted one breaks and leaves its slot empty.',
+        'BUMPERS wear fastest — they are always on. PADDLES last far longer, and every upgrade raises durability.',
+        'Tap any defense to REPAIR it before it goes.'
+      ],
+      buttons: [{ id: 'ok', label: 'GOT IT' }]
+    });
+  }
+
+  /* Offered at the top of an Endless run to anyone who has not been through
+   * the lesson. Asked once: a prompt that returns every single run stops
+   * being an offer and becomes a door to close. */
+  function offerEndlessTutorial() {
+    if (!global.TUT) return false;
+    if (PROG.tutorialV === global.TUT.VERSION) return false;
+    if (PROG.endlessTutAsked) return false;
+    PROG.endlessTutAsked = true;
+    saveProgress();
+    GAME.showNotice({
+      kicker: 'ENDLESS',
+      title: 'FIRST TIME?',
+      color: C.cyan,
+      glyph: 'learn',
+      lines: [
+        'Endless keeps sending waves until you run out of lives. A boss arrives every 5 waves.',
+        'Want the two-minute lesson on flippers, building and upgrades first?'
+      ],
+      buttons: [
+        { id: 'tutorialYes', label: 'TEACH ME', tone: 'go' },
+        { id: 'ok', label: 'I KNOW HOW' }
+      ]
+    });
+    return true;
   }
 
   /* ---------------------------------------------------------------------- */
@@ -294,8 +395,14 @@
      * not placed one this phase, the tray buttons pulse and we say so once. */
     S.placedThisPhase = false;
     S.buildHint = false;
+    /* An empty board on the opening phase is the one moment a player can lose
+     * the whole level to not understanding the tray, so that phase gets a
+     * full callout in mid-field rather than a toast at the bottom of the
+     * screen and a pulse on two small buttons. It clears the instant anything
+     * is built. Later phases keep the quieter nudge. */
+    S.firstBuild = !S.towers.length && !S.pendingTutorial && S.mode !== 'tutorial';
     /* Never nag over the tutorial — it is already telling them what to do. */
-    if (!S.pendingTutorial && S.mode !== 'tutorial' &&
+    if (!S.firstBuild && !S.pendingTutorial && S.mode !== 'tutorial' &&
       S.energy >= ENT.TOWERS.bumper.cost && S.towers.length < 4) {
       GAME.toast('Spend your Energy — tap PADDLE or BUMPER to build', 4.2);
     }
@@ -303,14 +410,39 @@
       title: S.level.endless ? 'WAVE ' + (S.waveIndex + 2)
         : 'WAVE ' + (S.waveIndex + 2) + ' OF ' + S.level.waves.length,
       preview: LEVELS.wavePreview(next),
-      boss: !!next.boss,
-      label: next.boss ? (S.level.endless ? 'BOSS WAVE' : 'FINAL WAVE') : 'INCOMING',
+      boss: !!(next.boss || next.mini),
+      label: next.boss ? (S.level.endless ? 'BOSS WAVE' : 'FINAL WAVE')
+        : (next.mini ? 'MINI BOSS' : 'INCOMING'),
       t: 0
     };
-    if (next.boss) sfx('warn');
+    if (next.boss || next.mini) sfx('warn');
   }
 
+  /* Energy paid per second of build countdown handed back by starting early.
+   * Climbs with the run so the offer stays worth taking once a wave clear is
+   * paying hundreds, but capped so late Endless cannot be farmed by rushing.
+   * `S.waveIndex` is the last wave CLEARED during a build phase, so the wave
+   * about to start is one on from it. */
+  function earlyRate() {
+    return Math.min(12, 3 + Math.max(0, S.waveIndex + 1) * 0.7);
+  }
+
+  /* What the player would be paid for pressing START right now. The renderer
+   * puts this on the button so the offer visibly shrinks as the clock runs. */
+  GAME.earlyBonus = function () {
+    if (S.mode !== 'build' || !S.level) return 0;
+    var n = Math.round(Math.max(0, S.buildT) * earlyRate());
+    return n < 2 ? 0 : n;
+  };
+
   function startWave() {
+    /* Sending the wave early is only a real decision if going early PAYS.
+     * Skipping the countdown otherwise costs prep time and buys nothing, so
+     * the button was there but there was never a reason to press it — the
+     * trade is now "less time to build, more to build WITH". Falls out to
+     * zero on the automatic start, where nothing was handed back. */
+    var early = GAME.earlyBonus();
+
     S.waveIndex++;
     var w = ensureWave(S.waveIndex);
     if (!w) { winLevel(); return; }
@@ -331,19 +463,40 @@
     S.selectedTower = null;
 
     sfx('wave_start');
-    if (w.boss) { sfx('boss_spawn'); var s = global.SFX; if (s) s.music('boss'); }
+    if (early > 0) {
+      addEnergy(early, 360, 300, 'EARLY START  +' + early);
+      sfx('card_ready', { vol: 0.7 });
+    }
+    if (w.boss || w.mini) { sfx('boss_spawn'); var s = global.SFX; if (s) s.music('boss'); }
     teach('wave' + (S.waveIndex + 1));
   }
   GAME.startWaveNow = function () { if (S.mode === 'build') startWave(); };
 
+  /* How many balls may be in flight at once. Readability is still the
+   * constraint, but a FIXED dozen is what made late endless feel like a
+   * metronome: the wave got no denser, only slightly tougher, and a decent
+   * board could hold it without the player touching the phone. In endless it
+   * now climbs with the wave; the campaign keeps its authored pacing. */
+  function ballCap() {
+    if (S.level && S.level.endless) {
+      return LEVELS.endlessConcurrency(Math.max(0, S.waveIndex));
+    }
+    return 13;
+  }
+  GAME.ballCap = ballCap;
+
   function spawnFromTimeline(dt) {
     S.waveT += dt;
     var tl = S.waveTimeline;
+    var cap = ballCap();
     while (S.waveCursor < tl.length && tl[S.waveCursor].t <= S.waveT) {
       var ev = tl[S.waveCursor++];
-      /* Concurrency cap keeps the board readable — the design rule is that
-       * difficulty comes from combinations, not from object count. */
-      if (S.balls.length >= 13 && ev.type !== 'boss') { S.waveT -= dt * 0.5; S.waveCursor--; break; }
+      /* Difficulty still comes from combinations first — the cap is what
+       * stops a backlog from dumping thirty balls in one frame. A boss is
+       * never held back: it is the wave. */
+      if (S.balls.length >= cap && !ENT.BALL_TYPES[ev.type].boss) {
+        S.waveT -= dt * 0.5; S.waveCursor--; break;
+      }
       spawnBall(ev);
     }
   }
@@ -573,6 +726,7 @@
     S.buildPick = null;
     S.placedThisPhase = true;
     S.buildHint = false;
+    S.firstBuild = false;
 
     sfx('place');
     var f = global.FX;
@@ -699,14 +853,84 @@
       if (t.hitFlash > 0) t.hitFlash -= dt;
       if (t.abilityCd > 0) t.abilityCd -= dt;
       if (t.pulse > 0) t.pulse -= dt;
+      if (t.wearFlash > 0) t.wearFlash -= dt;
+      if (t.frozenT > 0) t.frozenT -= dt;
 
       if (t.family === 'paddle') updatePaddle(t, dt, oc);
       else t.r = t.def.r;
     }
   }
 
+  /* ---------------------------------------------------------------------- */
+  /* Wear                                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  /* Scuff a tower by `amount` and handle the moment it comes apart. Every
+   * path that lets a ball touch a defense funnels through here, so there is
+   * exactly one place that decides what a broken tower looks and sounds like.
+   */
+  function wearTower(t, amount) {
+    if (!t || t.broken) return;
+    var band = ENT.wearBand(t);
+    if (ENT.wear(t, amount)) { breakTower(t); return; }
+    if (ENT.wearBand(t) !== band) {
+      /* First time anything on the board crosses into WORN, explain it — the
+       * player is about to watch their defenses die and needs to know that is
+       * the design rather than a bug. */
+      noticeWear();
+      var f = global.FX;
+      if (f) {
+        f.spark(t.x, t.y, {
+          count: 6, color: C.amber, speed: 130, life: 0.4, size: 2.2
+        });
+      }
+      sfx('armor_crack', { vol: 0.35, rate: 1.35 });
+    }
+  }
+
+  function breakTower(t) {
+    var f = global.FX;
+    if (f) {
+      f.burst(t.x, t.y, { count: 22, color: C.steel, color2: C.amber, power: 260, life: 0.6, size: 4 });
+      f.shard(t.x, t.y, { count: 10, color: C.steel, speed: 280, life: 0.6, size: 7 });
+      f.ring(t.x, t.y, { r0: 8, r1: 82, color: C.amber, life: 0.4, width: 5 });
+      f.shake(7, 0.24);
+      f.text(t.x, t.y - 34, 'BROKEN', { color: C.amber, size: 22, life: 1.2, rise: 30, pop: 1 });
+    }
+    sfx('sell', { vol: 0.9, rate: 0.65 });
+    if (t.slot) t.slot.occupant = null;
+    for (var i = 0; i < S.towers.length; i++) {
+      if (S.towers[i] === t) { U.swapRemove(S.towers, i); break; }
+    }
+    if (S.selectedTower === t) S.selectedTower = null;
+    GAME.toast(t.def.name.toUpperCase() + ' broke — rebuild or repair sooner', 3.4);
+  }
+
+  /* Pay to top a tower back up. Offered from the tower's own panel, so the
+   * decision sits right next to SELL and the upgrade options. */
+  GAME.repairTower = function (t) {
+    if (!t || t.broken) return false;
+    var cost = ENT.repairCost(t);
+    if (cost <= 0) { sfx('ui_error'); return false; }
+    if (!spend(cost)) return false;
+    t.dur = t.durMax;
+    t.wearFlash = 0.5;
+    sfx('upgrade', { vol: 0.7, rate: 1.15 });
+    var f = global.FX;
+    if (f) {
+      f.ring(t.x, t.y, { r0: 8, r1: 70, color: C.green, life: 0.45, width: 5 });
+      f.spark(t.x, t.y, { count: 16, color: C.green, speed: 200, life: 0.45, size: 2.6, glow: 1 });
+      f.text(t.x, t.y - 38, 'REPAIRED', { color: C.green, size: 20, life: 1.0, rise: 26 });
+    }
+    return true;
+  };
+
   function updatePaddle(t, dt, overcharged) {
     var d = t.def;
+    /* A frozen paddle is inert: no scan, no swing, no cooldown progress.
+     * That is the Rimewall's whole threat — it turns a corner of the board
+     * off for a few seconds rather than shooting at it. */
+    if (t.frozenT > 0) { t.omega = 0; return; }
     if (t.cd > 0) t.cd -= dt * (overcharged ? 2.4 : 1);
 
     var prev = t.angle;
@@ -749,14 +973,23 @@
 
   function ballVsStatic(b, dt) {
     var cols = S.table.colliders;
-    var isBoss = b.def.boss;
+    /* The Colossus is wider than some gaps between the scatter posts, so it
+     * simply shoulders through the small furniture instead of wedging in it.
+     * Reads as mass; prevents an unwinnable final wave. A ball that the wedge
+     * watchdog below has just freed borrows the same privilege briefly. */
+    var noSmall = b.def.boss || b.ghostT > 0;
+
+    /* Pinch detection. Summing the contact normals is the cheapest honest
+     * test for "squeezed": two surfaces pushing the ball opposite ways cancel
+     * out, where two surfaces meeting at a corner do not. See updateBalls for
+     * what happens when it persists. */
+    var nHit = 0, sumX = 0, sumY = 0;
+
     for (var i = 0; i < cols.length; i++) {
       var col = cols[i];
-      /* The Colossus is wider than some gaps between the scatter posts, so it
-       * simply shoulders through the small furniture instead of wedging in it.
-       * Reads as mass; prevents an unwinnable final wave. */
-      if (isBoss && (col.kind === 'peg' || col.kind === 'post')) continue;
+      if (noSmall && (col.kind === 'peg' || col.kind === 'post')) continue;
       if (!PHYS.test(b, col)) continue;
+      nHit++; sumX += hit.nx; sumY += hit.ny;
       var imp = PHYS.resolve(b, col.restitution, col.friction, 0, 0, col.minOut);
       if (imp > 120) {
         var f = global.FX;
@@ -784,6 +1017,10 @@
         }
       }
     }
+
+    /* Two or more surfaces whose normals very nearly cancel = the ball is in
+     * a channel narrower than itself. Flagged here, timed in updateBalls. */
+    if (nHit >= 2 && sumX * sumX + sumY * sumY < 0.7) b.pinch = true;
   }
 
   function ballVsFlippers(b) {
@@ -878,6 +1115,10 @@
       if (t.buildT > 0.15) continue;   // still popping in
       if (t.family === 'paddle') towerPaddleHit(t, b);
       else towerBumperHit(t, b, dt);
+      /* A hit can break the tower, and breaking removes it with a swap —
+       * which drops the last tower into this index. Step back so it still
+       * gets its turn instead of being skipped for the substep. */
+      if (S.towers[i] !== t) i--;
     }
   }
 
@@ -913,7 +1154,11 @@
     var ang = Math.atan2(hit.ny, hit.nx);
 
     if (swinging) {
-      var dmg = d.dmg * (S.overchargeT > 0 ? 1.8 : 1);
+      /* The swing that lands is also the swing that wears the arm, by the
+       * struck ball's mass. A Colossus takes a real bite out of a paddle. */
+      wearTower(t, b.mass * (b.def.wrecker ? 3 : 1));
+      if (t.broken) return;
+      var dmg = d.dmg * (S.overchargeT > 0 ? 1.8 : 1) * ENT.outputMul(t);
       dealDamage(b, dmg, 'paddle', hit.px, hit.py);
 
       if (t.type === 'frost') {
@@ -956,7 +1201,7 @@
     var d = t.def;
     PHYS.resolve(b, d.restitution, 0.02, 0, 0, d.kick);
 
-    if (t.type === 'launch') {
+    if (t.type === 'launch' && t.frozenT <= 0) {
       /* Launch bumper's whole point is time, not damage: send it home. */
       b.vy = -d.launchUp;
       b.vx = U.clamp(b.vx * 0.4 + U.jit(140), -320, 320);
@@ -965,13 +1210,25 @@
     if (S.time - last < d.hitCd) return;
     t.hitCds[b.id] = S.time;
 
+    /* A bumper is always on, so it takes a scuff on every registered contact
+     * — which is exactly why it wears so much faster than a paddle even
+     * though the per-hit cost is the same. A Breaker tears in three times as
+     * deep. Wear is charged in the tutorial too, but nothing there lives long
+     * enough to matter, and exempting it would need a second code path. */
+    wearTower(t, b.mass * (b.def.wrecker ? 3 : 1));
+    if (t.broken) return;
+
+    /* A frozen bumper still bounces — it is a lump of metal — but its lamps
+     * are out and it deals nothing. */
+    if (t.frozenT > 0) return;
+
     t.pulse = 0.28;
     t.hitFlash = 0.2;
     var fx = global.FX;
     var ang = Math.atan2(hit.ny, hit.nx);
     var superheated = S.superheatT > 0;
 
-    dealDamage(b, d.dmg, 'bumper', hit.px, hit.py);
+    dealDamage(b, d.dmg * ENT.outputMul(t), 'bumper', hit.px, hit.py);
     if (S.mode === 'tutorial' && global.TUT) global.TUT.event('bumperHit', b, t);
 
     if (fx) {
@@ -1159,6 +1416,25 @@
     var before = b.hp;
     ENT.damage(b, amount, src);
 
+    /* A locked boss (Prism / Crucible) shrugged that off. Say so, out loud
+     * and on the ball — a player who cannot tell "immune" from "missed" will
+     * keep feeding it the one thing that does not work. Rate-limited so a
+     * bumper nest does not paint the screen with the word. */
+    if (b.deflected) {
+      b.deflected = false;
+      if (S.time - (b.deflectT || -9) > 0.9) {
+        b.deflectT = S.time;
+        var fd = global.FX;
+        if (fd) {
+          fd.ring(b.x, b.y, { r0: b.r, r1: b.r + 26, color: C.steel, life: 0.3, width: 4 });
+          fd.text(b.x, b.y - b.r - 20, 'IMMUNE',
+            { color: C.steel, size: 18, life: 0.8, rise: 22 });
+        }
+        sfx('ui_error', { vol: 0.35 });
+      }
+      return;
+    }
+
     if (b.armorBroke) {
       b.armorBroke = false;
       sfx('armor_crack');
@@ -1201,7 +1477,7 @@
 
     /* Splitters divide on death — introduced late because it raises the
      * object count, which is the one thing that hurts readability. */
-    if (b.def.splitInto && S.balls.length < 15) {
+    if (b.def.splitInto && S.balls.length < ballCap() + 2) {
       for (var i = 0; i < b.def.splitCount; i++) {
         var ang = -Math.PI / 2 + (i - (b.def.splitCount - 1) / 2) * 0.9;
         var s = ENT.makeBall(b.def.splitInto, b.x, b.y, {
@@ -1323,6 +1599,33 @@
         }
       }
 
+      /* Wedge watchdog. The stall check below only catches a ball that has
+       * gone QUIET; a big ball squeezed into a channel narrower than itself
+       * — the classic one was a Hauler between the side wall and an outer
+       * peg — keeps being shoved back and forth at speed and never trips it.
+       * ballVsStatic flags the pinch by summing its contact normals; if the
+       * squeeze persists, we free the ball outright: it may pass through the
+       * small furniture for a moment and is pushed toward open table. The
+       * geometry that caused the original trap is fixed in board.js — this is
+       * the guarantee that the NEXT one degrades into a shrug. */
+      if (b.pinch) {
+        b.pinch = false;
+        b.pinchT = (b.pinchT || 0) + dt;
+        if (b.pinchT > 0.3) {
+          b.pinchT = 0;
+          b.ghostT = 0.5;
+          var away = b.x < U.VW / 2 ? 1 : -1;
+          b.vx = away * 320;
+          b.vy = Math.min(b.vy, -160);
+          if (global.FX) {
+            global.FX.ring(b.x, b.y, { r0: b.r, r1: b.r + 36, color: C.steel, life: 0.32, width: 3 });
+          }
+        }
+      } else {
+        b.pinchT = 0;
+      }
+      if (b.ghostT > 0) b.ghostT -= dt;
+
       /* Ball-search watchdog. Any physics table can wedge a ball somewhere it
        * cannot escape (a corner, a flipper notch, between two bumpers), and a
        * wedged ball means the wave never completes and the level soft-locks.
@@ -1364,32 +1667,96 @@
     }
   }
 
+  /* One ability tick per boss. The shared part — phases, the downward surge,
+   * the escort — is the Colossus; each variant then does its own thing on top
+   * so the archetype is legible from what happens on screen, not from a name
+   * on the health bar. */
   function updateBoss(b, dt) {
     b.abilityCd -= dt;
+    var d = b.def;
+    var tint = d.tint || C.magenta;
     var phase = b.hp / b.maxHp < 0.34 ? 2 : (b.hp / b.maxHp < 0.67 ? 1 : 0);
     if (phase !== b.phase) {
       b.phase = phase;
       sfx('boss_hurt', { vol: 1 });
       var fx = global.FX;
       if (fx) {
-        fx.ring(b.x, b.y, { r0: b.r, r1: b.r + 140, color: C.magenta, life: 0.5, width: 8 });
+        fx.ring(b.x, b.y, { r0: b.r, r1: b.r + 140, color: tint, life: 0.5, width: 8 });
         fx.shake(12, 0.35);
-        fx.text(b.x, b.y - b.r - 30, 'PHASE ' + (phase + 1), { color: C.magenta, size: 26, life: 1.1, rise: 30, pop: 1 });
+        fx.text(b.x, b.y - b.r - 30, 'PHASE ' + (phase + 1), { color: tint, size: 26, life: 1.1, rise: 30, pop: 1 });
       }
     }
-    if (b.abilityCd <= 0) {
-      b.abilityCd = 7 - phase * 1.6;
-      b.vy += 300;
-      var f2 = global.FX;
+    if (b.abilityCd > 0) return;
+
+    b.abilityCd = (d.mini ? 8.5 : 7) - phase * 1.6;
+    var f2 = global.FX;
+
+    if (d.freezeR) {
+      /* RIMEWALL. Kills the lamps on everything around it for a few seconds.
+       * The answer is to not have every defense in one nest — which is
+       * exactly the board a player builds if nothing ever punishes it. */
+      var froze = 0;
+      for (var k = 0; k < S.towers.length; k++) {
+        var tw = S.towers[k];
+        if (U.dist2(tw.x, tw.y, b.x, b.y) > d.freezeR * d.freezeR) continue;
+        tw.frozenT = Math.max(tw.frozenT, d.freezeDur);
+        froze++;
+        if (f2) f2.ring(tw.x, tw.y, { r0: 6, r1: 44, color: C.frost, life: 0.45, width: 3 });
+      }
       if (f2) {
-        f2.ring(b.x, b.y, { r0: b.r, r1: b.r + 90, color: C.magenta, life: 0.4, width: 5 });
+        f2.ring(b.x, b.y, { r0: b.r, r1: d.freezeR, color: C.frost, life: 0.55, width: 7 });
+        f2.shake(8, 0.24);
+        if (froze) f2.text(b.x, b.y - b.r - 28, 'FROZEN x' + froze, { color: C.frost, size: 22, life: 1.1, rise: 28, pop: 1 });
+      }
+      sfx('frost_hit', { vol: 1, rate: 0.6 });
+
+    } else if (d.wrecker) {
+      /* BREAKER. Slams the nearest defense outright, so a board it is allowed
+       * to sit in front of simply dissolves. The flippers are the one thing
+       * it cannot break, which is the point: pick it up and keep it moving. */
+      var best = null, bd = 260 * 260;
+      for (var w = 0; w < S.towers.length; w++) {
+        var dd = U.dist2(S.towers[w].x, S.towers[w].y, b.x, b.y);
+        if (dd < bd) { bd = dd; best = S.towers[w]; }
+      }
+      if (f2) {
+        f2.ring(b.x, b.y, { r0: b.r, r1: b.r + 130, color: C.amber, life: 0.45, width: 7 });
+        f2.shake(11, 0.3);
+      }
+      sfx('bumper_blast', { vol: 1, rate: 0.7 });
+      if (best) {
+        if (f2) {
+          f2.spark(best.x, best.y, { count: 16, color: C.amber, speed: 300, life: 0.5, size: 3, glow: 1 });
+          f2.text(best.x, best.y - 34, 'WRECKED', { color: C.amber, size: 20, life: 1.0, rise: 26 });
+        }
+        wearTower(best, d.wrecker);
+      }
+
+    } else if (d.dash) {
+      /* VECTOR. Dashes sideways across the table instead of surging down, so
+       * a static nest never gets a second contact. Has to be intercepted. */
+      b.vx = (b.x < U.VW / 2 ? 1 : -1) * d.dash;
+      b.vy = Math.min(b.vy, 120);
+      if (f2) {
+        f2.ring(b.x, b.y, { r0: b.r, r1: b.r + 70, color: C.green, life: 0.35, width: 5 });
+        f2.shake(6, 0.18);
+      }
+      sfx('warn', { vol: 0.8, rate: 1.4 });
+
+    } else {
+      b.vy += 300;
+      if (f2) {
+        f2.ring(b.x, b.y, { r0: b.r, r1: b.r + 90, color: tint, life: 0.4, width: 5 });
         f2.shake(6, 0.2);
       }
       sfx('warn', { vol: 0.7 });
-      if (S.balls.length < 12) {
-        for (var i = 0; i < 2; i++) {
-          S.balls.push(ENT.makeBall('fast', b.x + U.jit(60), b.y + 40, { vx: U.jit(200), vy: 120 }));
-        }
+    }
+
+    /* Escort. The concurrency ceiling rises with the run, so a late boss can
+     * actually bring a crowd instead of the flat dozen the old cap allowed. */
+    if (!d.mini && S.balls.length < ballCap() - 2) {
+      for (var i = 0; i < 2; i++) {
+        S.balls.push(ENT.makeBall('fast', b.x + U.jit(60), b.y + 40, { vx: U.jit(200), vy: 120 }));
       }
     }
   }
@@ -1485,6 +1852,10 @@
       return;
     }
 
+    /* Same contract for a notice: the table waits while it is on screen, so
+     * an explainer can never be the reason a wave got through. */
+    if (S.notice) { S.notice.t += dtReal; return; }
+
     /* --- time scaling ------------------------------------------------- */
     var ts = fx ? fx.timeScale() : 1;
     if (S.slowT > 0) {
@@ -1531,6 +1902,7 @@
       updateFlipper(S.flipR, restAngleR(), activeAngleR(), dtReal);
       updateTowers(dtReal * 0.35);
       S.buildHint = !S.placedThisPhase && S.energy >= ENT.TOWERS.bumper.cost;
+      if (S.towers.length) S.firstBuild = false;
       S.buildT -= dtReal;
       if (S.buildT <= 0) startWave();
       return;
@@ -1672,6 +2044,15 @@
     /* A card popout swallows the next touch anywhere on screen. */
     if (S.inspect) { closeInspect(); return; }
 
+    /* So does a notice — but a notice that is asking a QUESTION only listens
+     * to its own buttons, so a stray tap can never answer for the player. */
+    if (S.notice) {
+      var nb = global.DRAW && global.DRAW.hitNotice ? global.DRAW.hitNotice(p.x, p.y) : null;
+      if (nb) GAME.noticeAction(nb);
+      else if (S.notice.buttons.length < 2) GAME.noticeAction(S.notice.buttons[0].id);
+      return;
+    }
+
     pointers[id] = { x: p.x, y: p.y, role: null };
 
     if (S.mode !== 'wave' && S.mode !== 'build' && S.mode !== 'tutorial') return;
@@ -1798,6 +2179,8 @@
 
   GAME.clearPointers = function () {
     for (var k in pointers) delete pointers[k];
+    /* A notice is deliberately NOT cleared here: backgrounding the app must
+     * not silently answer a question the player has not read. */
     S.inspect = null;
     setFlipper('L', false);
     setFlipper('R', false);
@@ -1811,10 +2194,14 @@
     else if (code === 'Digit3') GAME.useCard(2);
     else if (code === 'Digit4') GAME.useCard(3);
     else if (code === 'Space' || code === 'Enter') {
-      if (S.mode === 'build' && code === 'Space') startWave();
+      if (S.mode === 'build') startWave();
       else if (S.mode === 'tutorial' && global.TUT) global.TUT.advance();
     }
-    else if (code === 'Escape') { if (S.inspect) closeInspect(); else GAME.togglePause(); }
+    else if (code === 'Escape') {
+      if (S.inspect) closeInspect();
+      else if (S.notice) GAME.noticeAction(S.notice.buttons[S.notice.buttons.length - 1].id);
+      else GAME.togglePause();
+    }
   };
 
   GAME.keyUp = function (code) {

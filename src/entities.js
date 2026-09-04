@@ -50,11 +50,81 @@
       name: 'Shard', r: 13, hp: 2, mass: 0.55, bounty: 6, lifeCost: 1,
       grav: 1.3, glyph: 'speed', outline: 4
     },
+    /* ---- Bosses -------------------------------------------------------
+     * One archetype per question about the board the player has built, so a
+     * boss is never just a Drone with more hit points:
+     *
+     *   Colossus — the plain wall. Everything works; bring enough of it.
+     *   Warden   — the campaign mini-boss. A Colossus you can actually kill
+     *              with a Level-3 board, so the real one is not a surprise.
+     *   Rimewall — frost slides off it, and it freezes the defenses it
+     *              passes, so a Frost-heavy board has to improvise.
+     *   Breaker  — the demolisher. Tears durability out of whatever it
+     *              touches, so the flippers (which it cannot break) fight it.
+     *   Vector   — speed. Outruns a bumper nest; has to be intercepted.
+     *   Prism    — only paddle-family damage lands on it.
+     *   Crucible — only bumper-family damage lands on it.
+     *
+     * `weakTo` is the lock, and it never blocks the empowered-ball chain or a
+     * card: the signature mechanic must always be an answer, or a lock turns
+     * into an unwinnable wave for a board that happens to be the wrong shape.
+     */
     boss: {
       name: 'Colossus', r: 46, hp: 240, mass: 7.0, bounty: 200, lifeCost: 3,
       grav: 0.7, glyph: 'crown', outline: 13,
       boss: true, phases: 3
+    },
+    bossWarden: {
+      name: 'Warden', r: 31, hp: 74, mass: 3.4, bounty: 90, lifeCost: 2,
+      grav: 0.88, glyph: 'crown', outline: 10,
+      boss: true, mini: true, phases: 2
+    },
+    bossRime: {
+      name: 'Rimewall', r: 44, hp: 300, mass: 7.4, bounty: 240, lifeCost: 3,
+      grav: 0.66, glyph: 'crown', outline: 13,
+      boss: true, phases: 3, tint: C.frost,
+      frostProof: true,
+      freezeR: 190, freezeDur: 3.2   // stuns defenses it drifts past
+    },
+    bossBreaker: {
+      name: 'Breaker', r: 48, hp: 265, mass: 8.0, bounty: 260, lifeCost: 3,
+      grav: 0.76, glyph: 'crown', outline: 14,
+      boss: true, phases: 3, tint: C.amber,
+      wrecker: 34                    // durability torn out per tower contact
+    },
+    bossVector: {
+      name: 'Vector', r: 33, hp: 205, mass: 3.0, bounty: 230, lifeCost: 3,
+      grav: 1.3, drag: 0.6, glyph: 'speed', outline: 10,
+      boss: true, phases: 3, tint: C.green,
+      dash: 780                      // sideways burst instead of a down-surge
+    },
+    bossPrism: {
+      name: 'Prism', r: 43, hp: 195, mass: 6.4, bounty: 280, lifeCost: 3,
+      grav: 0.72, glyph: 'plate', outline: 13,
+      boss: true, phases: 3, tint: C.cyan,
+      weakTo: 'paddle'
+    },
+    bossCrucible: {
+      name: 'Crucible', r: 44, hp: 205, mass: 7.0, bounty: 280, lifeCost: 3,
+      grav: 0.72, glyph: 'ring', outline: 13,
+      boss: true, phases: 3, tint: C.magenta,
+      weakTo: 'bumper'
     }
+  };
+
+  /* Which family a damage tag belongs to, for the `weakTo` lock. Anything
+   * not listed is NEUTRAL and always lands — see the note on the roster. */
+  var DMG_FAMILY = {
+    paddle: 'paddle',
+    bumper: 'bumper', blast: 'bumper', shock: 'bumper'
+  };
+  ENT.damageFamily = function (src) { return DMG_FAMILY[src] || null; };
+
+  /* Does this damage tag actually hurt this ball? */
+  ENT.damageLands = function (b, src) {
+    if (!b.def.weakTo) return true;
+    var fam = DMG_FAMILY[src];
+    return !fam || fam === b.def.weakTo;
   };
 
   var nextId = 1;
@@ -120,6 +190,12 @@
   ENT.damage = function (b, amount, src) {
     if (b.dead || amount <= 0) return 0;
 
+    /* A locked boss shrugs the wrong family off entirely. Reported as a
+     * refusal rather than a zero so the caller can say so on screen — a
+     * player who cannot tell "immune" from "missed" will just keep doing the
+     * thing that does not work. */
+    if (!ENT.damageLands(b, src)) { b.deflected = true; return 0; }
+
     var dealt = amount;
     if (b.armorHp > 0) {
       dealt = amount * (1 - b.armor);
@@ -140,6 +216,7 @@
    * hits, which is what makes the Frost line feel like crowd control rather
    * than a stat stick. */
   ENT.applySlow = function (b, dur, mul, contagion) {
+    if (b.def.frostProof) return;          // Rimewall: the chill is its own
     if (b.def.boss) { dur *= 0.45; mul = Math.min(1, mul + 0.25); }
     if (dur > b.slowT) b.slowT = dur;
     b.slowMul = Math.min(b.slowMul === 1 ? mul : Math.min(b.slowMul, mul), mul);
@@ -172,20 +249,31 @@
    *   Paddle  → physical redirection. Frost = crowd control, Power = offence.
    *   Bumper  → passive attrition.    Blast = clusters, Shock = chains,
    *                                   Launch = time (throws balls back up).
+   *
+   * DURABILITY (`dur`) is the throttle on both families. Every impact scuffs
+   * the defense that took it, by the striking ball's MASS — so a Hauler
+   * batters a bumper far harder than a Drone — and a defense with nothing
+   * left comes apart. A bumper nest is still the strongest thing on the
+   * table; it just cannot be the LAST thing you build.
+   *
+   * Bumpers are always on and register a hit per contact, so they wear fast.
+   * A paddle only wears on its own swing, and carries a bigger pool on top,
+   * which is what makes it the long-term investment. Every specialisation
+   * buys a bigger pool as well, so upgrading is also buying staying power.
    */
   ENT.TOWERS = {
     paddle: {
       name: 'Auto Paddle', family: 'paddle', tier: 1, cost: 55,
       blurb: 'Swings at anything nearby. Knocks it back up the table.',
       color: C.cyan,
-      range: 100, dmg: 2.2, cd: 0.62, force: 700,
+      range: 100, dmg: 2.05, cd: 0.68, force: 700, dur: 175,
       upgrades: ['frost', 'power']
     },
     frost: {
       name: 'Frost Paddle', family: 'paddle', tier: 2, cost: 85,
       blurb: 'Slows what it hits. The chill spreads on impact.',
       color: C.frost,
-      range: 106, dmg: 1.7, cd: 0.58, force: 560,
+      range: 106, dmg: 1.65, cd: 0.64, force: 560, dur: 235,
       slowDur: 2.6, slowMul: 0.42,
       upgrades: []
     },
@@ -193,39 +281,42 @@
       name: 'Power Paddle', family: 'paddle', tier: 2, cost: 110,
       blurb: 'Turns the ball it hits into a weapon for 4 seconds.',
       color: C.power,
-      range: 102, dmg: 3.2, cd: 0.95, force: 940,
+      range: 102, dmg: 3.05, cd: 1.0, force: 940, dur: 225,
       empowerDur: 4.0,
       upgrades: []
     },
 
+    /* The bumper's re-hit cooldown is its real balance number, not its
+     * damage: at 0.14s a ball rattling in a nest took seven damage instances
+     * a second and the board played itself. */
     bumper: {
       name: 'Bumper', family: 'bumper', tier: 1, cost: 40,
-      blurb: 'Always on. Damages and kicks whatever touches it.',
+      blurb: 'Always on. Damages and kicks whatever touches it. Wears fast.',
       color: C.cyan,
-      r: 30, dmg: 1.6, kick: 560, restitution: 1.28, hitCd: 0.14,
+      r: 30, dmg: 1.45, kick: 560, restitution: 1.2, hitCd: 0.2, dur: 120,
       upgrades: ['blast', 'shock', 'launch']
     },
     blast: {
       name: 'Blast Bumper', family: 'bumper', tier: 2, cost: 80,
       blurb: 'Detonates on hit. Hurts everything in the blast.',
       color: C.magenta,
-      r: 31, dmg: 1.4, kick: 520, restitution: 1.2, hitCd: 0.2,
-      blastR: 122, blastDmg: 3.4, blastCd: 2.6,
+      r: 31, dmg: 1.3, kick: 520, restitution: 1.16, hitCd: 0.22, dur: 155,
+      blastR: 116, blastDmg: 3.1, blastCd: 2.9,
       upgrades: []
     },
     shock: {
       name: 'Shock Bumper', family: 'bumper', tier: 2, cost: 75,
       blurb: 'Arcs lightning to nearby balls. Damage falls off per jump.',
       color: C.violet,
-      r: 30, dmg: 1.2, kick: 500, restitution: 1.22, hitCd: 0.18,
-      chainR: 175, chainDmg: 2.8, chainFalloff: 0.65, chainMax: 4, chainCd: 0.95,
+      r: 30, dmg: 1.1, kick: 500, restitution: 1.18, hitCd: 0.2, dur: 150,
+      chainR: 175, chainDmg: 2.5, chainFalloff: 0.62, chainMax: 4, chainCd: 1.15,
       upgrades: []
     },
     launch: {
       name: 'Launch Bumper', family: 'bumper', tier: 2, cost: 65,
       blurb: 'Hurls balls back to the top. Buys you time, not kills.',
       color: C.green,
-      r: 32, dmg: 0.5, kick: 1180, restitution: 1.05, hitCd: 0.3,
+      r: 32, dmg: 0.5, kick: 1180, restitution: 1.05, hitCd: 0.34, dur: 175,
       launchUp: 1080,
       upgrades: []
     }
@@ -251,7 +342,13 @@
       buildT: 0.4,        // pop-in animation
       hitFlash: 0,
       kills: 0,
-      hitCds: null        // per-ball cooldown map, lazily created
+      hitCds: null,       // per-ball cooldown map, lazily created
+
+      /* durability */
+      dur: d.dur, durMax: d.dur,
+      wearFlash: 0,       // sparks-and-smoke pip after a scuff
+      frozenT: 0,         // Rimewall stun: the tower is inert while this runs
+      broken: false
     };
 
     if (d.family === 'paddle') {
@@ -283,8 +380,66 @@
     return ENT.TOWERS[toType].cost;
   };
 
+  /* A worn-out tower refunds proportionally less: selling a wreck for the
+   * same price as a fresh one would make wear a rounding error. */
   ENT.sellValue = function (t) {
-    return Math.floor(t.def.cost * 0.55);
+    return Math.max(4, Math.floor(t.def.cost * 0.55 * (0.45 + 0.55 * ENT.condition(t))));
+  };
+
+  /* ---------------------------------------------------------------------- */
+  /* Wear                                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  /* 1 = factory fresh, 0 = about to come apart. */
+  ENT.condition = function (t) {
+    return t.durMax > 0 ? U.clamp(t.dur / t.durMax, 0, 1) : 1;
+  };
+
+  /* Four readable bands rather than a continuous number. The player needs to
+   * decide "repair now or ride it out", and that is a four-way choice, not a
+   * percentage: 0 fresh, 1 scuffed, 2 cracked, 3 failing. */
+  ENT.WEAR_BANDS = ['GOOD', 'WORN', 'CRACKED', 'FAILING'];
+  ENT.wearBand = function (t) {
+    var c = ENT.condition(t);
+    if (c > 0.66) return 0;
+    if (c > 0.36) return 1;
+    if (c > 0.15) return 2;
+    return 3;
+  };
+
+  /* A tired defense hits softer before it dies, so the decline is something
+   * the player feels rather than only reads. Never below 55%: a tower that
+   * stopped mattering long before it broke would just be dead weight taking
+   * up a slot. */
+  ENT.outputMul = function (t) {
+    return 0.55 + 0.45 * ENT.condition(t);
+  };
+
+  /* Scuff a tower. Returns true if this was the blow that broke it. */
+  ENT.wear = function (t, amount) {
+    if (t.broken || amount <= 0) return false;
+    var before = t.dur;
+    t.dur -= amount;
+    if (t.dur < 0) t.dur = 0;
+    /* Only flash on a band change, so the pip means "this got worse" instead
+     * of strobing on every single contact. */
+    if (ENT.wearBandOf(before, t.durMax) !== ENT.wearBand(t)) t.wearFlash = 0.5;
+    if (t.dur <= 0) { t.broken = true; return true; }
+    return false;
+  };
+
+  ENT.wearBandOf = function (dur, durMax) {
+    var c = durMax > 0 ? U.clamp(dur / durMax, 0, 1) : 1;
+    return c > 0.66 ? 0 : (c > 0.36 ? 1 : (c > 0.15 ? 2 : 3));
+  };
+
+  /* Repairing costs half of what the tower cost, scaled by how much is
+   * missing — so topping up a lightly scuffed bumper is pocket change and
+   * nursing a wreck is a real decision against just rebuilding it. */
+  ENT.repairCost = function (t) {
+    var missing = 1 - ENT.condition(t);
+    if (missing <= 0.001) return 0;
+    return Math.max(5, Math.round(t.def.cost * 0.5 * missing));
   };
 
   global.ENT = ENT;

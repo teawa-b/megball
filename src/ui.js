@@ -1314,7 +1314,7 @@
       dmdBox('dmdx'),
       '<div class="translite tall" style="background-image:' + artUrl('lvl_5') + '"><div class="tl-shade"></div>' +
         '<div class="tl-cap"><span class="kick" style="color:#ff7ac0">Endless mode</span><b class="nm">Survive the swarm</b>' +
-        '<span class="sub">The waves never stop and every one grows. Each tenth wave is a boss: clear it and take a life back.</span></div></div>',
+        '<span class="sub">The waves never stop and every one grows. Every fifth wave is a boss, each a different one: clear it and take a life back.</span></div></div>',
       '<div class="scard stats">',
       statRow('Best run', best ? 'Wave ' + best : 'None yet', 'amb'),
       statRow('Runs played', runs, ''),
