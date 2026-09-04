@@ -50,6 +50,24 @@
       name: 'Shard', r: 13, hp: 2, mass: 0.55, bounty: 6, lifeCost: 1,
       grav: 1.3, glyph: 'speed', outline: 4
     },
+    /* Boss hit points are set against MEASURED damage, not by feel. A built
+     * board lands about 1.5 damage per second on a boss, and that barely moves
+     * with tower count (5 towers 1.66, 14 towers 1.38): what limits it is how
+     * often the boss is in contact, not how much is on the table. At the old
+     * 240 the Colossus needed ~160s of unbroken contact, so in practice it
+     * never died - it drained, took three lives, and the wave cleared anyway.
+     * These values put a boss at roughly 40-60s of tower fire, less once
+     * chains and cards land. The two locked bosses are costed against the
+     * board their lock demands, not a mixed one: Prism takes paddle damage
+     * only (~1.1/s from a paddle board), Crucible bumper only (~2.7/s), so
+     * equal hit points would have meant wildly unequal fights. Each number
+     * below is set from a measured solo fight against the board its archetype
+     * asks for, aimed at 30-50s; the Warden is deliberately shorter (~20s)
+     * because it is the rehearsal for the real thing. Rimewall carries the
+     * lowest total of the full bosses because its freeze halves your output
+     * for the duration - at parity hit points it ran 78s against the
+     * Colossus's 44s.
+     */
     /* ---- Bosses -------------------------------------------------------
      * One archetype per question about the board the player has built, so a
      * boss is never just a Drone with more hit points:
@@ -70,42 +88,42 @@
      * into an unwinnable wave for a board that happens to be the wrong shape.
      */
     boss: {
-      name: 'Colossus', r: 46, hp: 240, mass: 7.0, bounty: 200, lifeCost: 3,
+      name: 'Colossus', r: 46, hp: 58, mass: 7.0, bounty: 200, lifeCost: 3,
       grav: 0.7, glyph: 'crown', outline: 13,
       boss: true, phases: 3
     },
     bossWarden: {
-      name: 'Warden', r: 31, hp: 74, mass: 3.4, bounty: 90, lifeCost: 2,
+      name: 'Warden', r: 31, hp: 30, mass: 3.4, bounty: 90, lifeCost: 2,
       grav: 0.88, glyph: 'crown', outline: 10,
       boss: true, mini: true, phases: 2
     },
     bossRime: {
-      name: 'Rimewall', r: 44, hp: 300, mass: 7.4, bounty: 240, lifeCost: 3,
+      name: 'Rimewall', r: 44, hp: 55, mass: 7.4, bounty: 240, lifeCost: 3,
       grav: 0.66, glyph: 'crown', outline: 13,
       boss: true, phases: 3, tint: C.frost,
       frostProof: true,
       freezeR: 190, freezeDur: 3.2   // stuns defenses it drifts past
     },
     bossBreaker: {
-      name: 'Breaker', r: 48, hp: 265, mass: 8.0, bounty: 260, lifeCost: 3,
+      name: 'Breaker', r: 48, hp: 55, mass: 8.0, bounty: 260, lifeCost: 3,
       grav: 0.76, glyph: 'crown', outline: 14,
       boss: true, phases: 3, tint: C.amber,
       wrecker: 34                    // durability torn out per tower contact
     },
     bossVector: {
-      name: 'Vector', r: 33, hp: 205, mass: 3.0, bounty: 230, lifeCost: 3,
+      name: 'Vector', r: 33, hp: 80, mass: 3.0, bounty: 230, lifeCost: 3,
       grav: 1.3, drag: 0.6, glyph: 'speed', outline: 10,
       boss: true, phases: 3, tint: C.green,
       dash: 780                      // sideways burst instead of a down-surge
     },
     bossPrism: {
-      name: 'Prism', r: 43, hp: 195, mass: 6.4, bounty: 280, lifeCost: 3,
+      name: 'Prism', r: 43, hp: 38, mass: 6.4, bounty: 280, lifeCost: 3,
       grav: 0.72, glyph: 'plate', outline: 13,
       boss: true, phases: 3, tint: C.cyan,
       weakTo: 'paddle'
     },
     bossCrucible: {
-      name: 'Crucible', r: 44, hp: 205, mass: 7.0, bounty: 280, lifeCost: 3,
+      name: 'Crucible', r: 44, hp: 75, mass: 7.0, bounty: 280, lifeCost: 3,
       grav: 0.72, glyph: 'ring', outline: 13,
       boss: true, phases: 3, tint: C.magenta,
       weakTo: 'bumper'

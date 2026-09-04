@@ -1,0 +1,4 @@
+node_modules/
+out/
+# 289 MB of captured gameplay frames; regenerate with the recipe in docs/BUILD_LOG.md section 7
+public/clips/

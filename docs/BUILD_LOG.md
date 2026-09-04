@@ -637,6 +637,43 @@ an Endless mode that rolls a fresh seed per run should have. Campaign over 6 run
 always cleared, L4 5/6, L5 2/6. Earlier single-run figures in this log were under-sampled;
 these are the honest ones.
 
+## 4u. Bosses that could not actually be killed
+
+- Report: a boss's health takes too long to deplete. Measuring it turned up two causes,
+  and the second was the real one.
+- **Damage economy.** A built board lands about 1.5 damage per second on a boss, and that
+  figure barely moves with tower count (5 towers 1.66/s, 14 towers 1.38/s) - the limit is
+  how often the boss is in contact, not how much is on the table. At 240 hit points the
+  Colossus needed roughly 160s of unbroken contact.
+- **The anti-stall backstop.** `updateBall` retires ANY ball still alive after 40s,
+  awarding the bounty and counting a kill. Its comment says "no ball in normal play lives
+  anywhere near this long", which is untrue of a boss - outlasting the board is a boss's
+  job. So the Colossus was always retired at about three-quarters health: the bar crawled,
+  then the boss simply vanished. Measured on the level-5 finale, it left the board with
+  247.7 of 312 hit points intact.
+- Fix, both halves: bosses now get their own timings (stall ramp at 70s, backstop at 150s)
+  so a long fight is allowed to finish while a genuine geometry trap still resolves; and
+  boss hit points were re-costed against the measured damage rate.
+
+  | Boss | Was | Now | Measured solo fight |
+  |---|---|---|---|
+  | Warden (mini) | 74 | 30 | 16-18s |
+  | Colossus | 240 | 58 | 28-39s |
+  | Rimewall | 300 | 55 | 48-62s |
+  | Breaker | 265 | 55 | 40-44s |
+  | Vector | 205 | 80 | 41-44s |
+  | Prism | 195 | 38 | 32-43s |
+  | Crucible | 205 | 75 | 38-42s |
+
+  The two locked bosses are costed against the board their lock demands, not a mixed one:
+  Prism takes paddle damage only (~1.0/s from a paddle board) against Crucible's bumper
+  damage (~2.2/s), so equal hit points meant wildly unequal fights. Rimewall carries the
+  lowest total of the full bosses because its freeze halves your output - at parity it ran
+  78s against the Colossus's 44s.
+- Verified: every boss now dies to damage rather than being retired, in a 16-62s band. Two
+  full level-5 playthroughs win with 5/5 lives and drive the boss to under 3 hit points,
+  where before it walked off the board at 79% health.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
@@ -671,3 +708,32 @@ Per image: one Impact headline with an ink stroke and hard shadow, one subline i
 game's own Kenney Pixel face on a black DMD slab, and at most one ring with a label —
 positioned from *source-shot* pixels through the crop mapping, not by eye. Speed lines
 and Ben-Day dots live only in the outer band so they never sit on the action.
+
+## 7. Trailer
+
+`video/` is a Remotion project (`npm install && npm run render`) that produces
+`docs/megaball-trailer.mp4`: 34 seconds, 1920x1080, 30 fps.
+
+**Footage is the real game, frame-accurate.** The trailer's six gameplay sections are JPEG
+frame sequences captured off the game's canvases at exactly 30 fps, the same way the
+gallery stills were taken but in a loop: `GAME.update(1/30)`, `DRAW.frame`, composite
+`#gl` over `#game`, POST the JPEG to a local frame server as `clips/<name>/0000.jpg`. A
+hook per clip drives the scene — towers dropping in every eleven frames then START, the
+Megaball card fired on frame 30, Flash Freeze on 35, Colossus ignited on 60. Frame N of a
+section shows frame N of its clip, so every burst and flash in the edit lands on the exact
+frame the game's own effect fires. 840 frames, 289 MB, gitignored.
+
+**Animation.** One `Section` component: the clip stands upright at 1000 px on a blurred,
+zoomed copy of itself; the headline slams in from the left on springs; a punch-in zoom
+targets the moment (the START button, the ignited ball, the boss); on the SFX frame there
+is a white flash, a screen shake that decays over ~7 frames, a Codex-drawn comic starburst
+(black background keyed to alpha) popping under Impact lettering, and Codex-drawn radial
+speed lines multiplied over the frame for a beat. Intro: the logo slams from 3.6x with a
+shake on the Codex title plate; outro: logo + "PLAY FREE IN YOUR BROWSER".
+
+**Music** is a 46-second ElevenLabs `music_v2` cue prompted as driving synthwave with a
+rise, a drop at eight seconds and a hard final stab, faded over the last 1.5 s.
+
+Fonts: Impact for the block lettering, the game's Kenney Pixel for sublines. The raw TTF
+fails Chrome's OTS check, so the WOFF the game itself ships is loaded through `FontFace`
+behind `delayRender`.

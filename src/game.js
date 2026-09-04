@@ -1564,8 +1564,16 @@
        * bottom). Leaning on gravity after 18 seconds pulls it down without
        * ever looking like the game cheated. */
       b.aliveT = (b.aliveT || 0) + dt;
-      if (b.aliveT > 18 && b.empowerT <= 0) {
-        b.grav = b.def.grav * Math.min(3.2, 1 + (b.aliveT - 18) * 0.12);
+      /* Bosses live on a much longer leash. The escalations below assume a
+       * ball that has got stuck, but surviving a long fight is a boss's whole
+       * job: on the old timings the Colossus was ALWAYS retired by the 40s
+       * backstop at about three-quarters health, so its bar visibly crawled
+       * and then it simply vanished. The backstop still exists for it, just
+       * far enough out that only a real trap can reach it. */
+      var stallT = b.def.boss ? 70 : 18;
+      var retireT = b.def.boss ? 150 : 40;
+      if (b.aliveT > stallT && b.empowerT <= 0) {
+        b.grav = b.def.grav * Math.min(3.2, 1 + (b.aliveT - stallT) * 0.12);
 
         /* Hard backstop. Gravity alone cannot free a ball that is orbiting a
          * pocket, because it keeps being handed its energy back. After 28
@@ -1577,7 +1585,7 @@
          * lives and gets the bounty, and the wave can always finish. This
          * should never fire — it exists so that a geometry bug can degrade
          * into a small oddity instead of an unwinnable level. */
-        if (b.aliveT > 40) {
+        if (b.aliveT > retireT) {
           b.dead = true;
           S.totalKills++;
           addEnergy(b.bounty, b.x, b.y, '+' + b.bounty);
@@ -1588,8 +1596,8 @@
           continue;
         }
 
-        if (b.aliveT > 28) {
-          var esc = U.clamp((b.aliveT - 28) / 10, 0, 1);
+        if (b.aliveT > stallT + 10) {
+          var esc = U.clamp((b.aliveT - (stallT + 10)) / 10, 0, 1);
           var tx = 360 - b.x, ty = BOARD.DRAIN_Y - b.y;
           var td = U.len(tx, ty) || 1;
           b.vx += (tx / td) * 1600 * esc * dt;
