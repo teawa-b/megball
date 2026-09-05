@@ -443,12 +443,14 @@
   }
 
   /* Energy paid per second of build countdown handed back by starting early.
-   * Climbs with the run so the offer stays worth taking once a wave clear is
-   * paying hundreds, but capped so late Endless cannot be farmed by rushing.
+   * Climbs with the run so the offer stays worth taking later on, but capped
+   * so late Endless cannot be farmed by rushing. Trimmed alongside the wave
+   * clear bonus: rushing every wave used to pay for most of a board on its
+   * own, which made the trade a no-brainer rather than a decision.
    * `S.waveIndex` is the last wave CLEARED during a build phase, so the wave
    * about to start is one on from it. */
   function earlyRate() {
-    return Math.min(12, 3 + Math.max(0, S.waveIndex + 1) * 0.7);
+    return Math.min(7, 2 + Math.max(0, S.waveIndex + 1) * 0.4);
   }
 
   /* What the player would be paid for pressing START right now. The renderer
@@ -654,10 +656,19 @@
   }
 
   function endWave() {
-    /* Endless caps the clear bonus: a linear reward against fixed tower
-     * prices would make wave 30 a free-build festival. */
-    var reward = 45 + S.waveIndex * 18;
-    if (S.level.endless) reward = Math.min(reward, 240);
+    /* The end-of-wave payout is the only income that is not earned by
+     * killing anything, so it is the one that quietly removes the economy
+     * as a constraint. At 45 + 18/wave a three-wave Level 1 handed over 189
+     * on top of 130 in bounty and a 135 purse: about ten paddles' worth for
+     * a board that wants three, so nothing ever had to be chosen over
+     * anything else. Halved, it is a helpful top-up rather than a windfall,
+     * and the bounty a player earns by actually defending is once again the
+     * main line on the ledger.
+     *
+     * Endless still caps it: a linear reward against fixed tower prices
+     * would make wave 30 a free-build festival. */
+    var reward = 22 + S.waveIndex * 9;
+    if (S.level.endless) reward = Math.min(reward, 130);
     addEnergy(reward, 360, 620, 'WAVE CLEAR  +' + reward);
     sfx('wave_clear');
     var f = global.FX;

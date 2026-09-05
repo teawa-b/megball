@@ -557,6 +557,33 @@
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .slots{margin-bottom:7px}',
     '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
     '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{font-size:10.5px;line-height:1.3;margin-top:4px}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
+    /* The tall sheets - results, the deck - ran past the viewport on a phone
+     * whose browser keeps a toolbar at the bottom, and the last row (LEVELS,
+     * or the HOME button) sat under the toolbar, unreachable. Every sub-sheet
+     * is now allowed to scroll, so whatever the viewport does the last row
+     * can be reached; and below ~800px the tall sheets pack tighter, so on
+     * most phones they still fit without scrolling at all. The globe keeps
+     * shrinking first, as before; plates, cards and grids hold their size. */
+    '#ui .sheet.sub{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;}',
+    '#ui .sheet.sub .scard,#ui .sheet.sub .plate,#ui .sheet.sub .dmd,#ui .sheet.sub .grid,#ui .sheet.sub .feat,#ui .sheet.sub .unlock,#ui .sheet.sub .cab,#ui .sheet.sub .pxbk{flex-shrink:0;}',
+    '@media(max-height:800px){',
+    '  #ui .sheet.sub .sc{min-height:36px;font-size:13.5px}#ui .sheet.sub .sc.stat .ct{font-size:14px}',
+    '  #ui .sheet.sub .obj{padding:5px 2px}#ui .sheet.sub .objs{margin-top:4px}#ui .sheet.sub .plate{padding:8px 12px}',
+    '  #ui .sheet.sub .starlamps{margin:6px 0 0}#ui .sheet.sub .starlamps i{width:18px;height:18px}',
+    '  #ui .sheet.sub .unlock{padding:7px 12px;margin:0 0 4px}#ui .sheet.sub .cab{min-height:52px;margin-top:6px}',
+    '  #ui .sheet.sub .spacer{min-height:2px}#ui .sheet.results-screen .copy{margin:6px 0 2px!important}',
+    '  #ui .sheet.sub .pc{aspect-ratio:1/1}#ui .sheet.sub .grid{gap:7px;margin-bottom:8px}',
+    '  #ui .sheet.sub .feat{margin:6px 0 6px;padding:8px}#ui .sheet.sub .slots{margin:4px 0 6px}#ui .sheet.sub .slot{height:40px}',
+    '  #ui .sheet.sub .pxbk{min-height:38px;margin-top:6px}',
+    '}',
+    /* The deck is the tallest of them all: a display, a featured card, the
+     * slot row and a 5-wide grid. One more notch below ~700px so it clears
+     * a browser toolbar on a small phone without needing the scroll. */
+    '@media(max-height:700px){',
+    '  #ui .sheet.sub .feat{margin:4px 0 5px;padding:7px}#ui .sheet.sub .feat-art{flex-basis:70px;height:70px}',
+    '  #ui .sheet.sub .grid{gap:6px;margin-bottom:6px}#ui .sheet.sub .slot{height:36px}#ui .sheet.sub .slots{margin:3px 0 5px}',
+    '  #ui .sheet.sub .dmd{padding:4px 6px}#ui .sheet.sub .hline{min-height:26px}',
+    '}',
     '@media(max-height:600px){#ui .sheet.sub{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#ui .attract{display:none}#ui .translite{height:98px;margin:5px 0 6px}#ui .insrow{margin:8px 0 8px}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
     '@media(prefers-reduced-motion:reduce){#ui *{animation:none!important;transition:none!important}}'
   ].join('\n');
