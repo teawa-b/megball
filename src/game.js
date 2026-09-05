@@ -223,6 +223,7 @@
      * GAME.startEndless, and every one of those lands here — so the tutorial
      * offer belongs here rather than on any single entry point. */
     else if (def.endless) offerEndlessTutorial();
+    else briefObjectives();
   };
 
   /* Called by the tutorial when it finishes or is skipped. Restores the normal
@@ -269,6 +270,9 @@
      * gate — the countdown runs, and building anything (or the wave arriving)
      * takes it away. */
     if (S.mode === 'build') { S.firstBuild = true; S.firstBuildTut = true; }
+    /* The lesson skipped the briefing on the way in — wave 1 is where the
+     * level's own three stars start counting, so it lands here instead. */
+    briefObjectives();
   };
 
   /* Drop a single ball anywhere — used by the tutorial for its demo balls. */
@@ -347,6 +351,33 @@
     }
     sfx('ui_back');
   };
+
+  /* The mission, stated before the first ball leaves the lane.
+   *
+   * The three objectives were already on the level-select plate and on the
+   * results verdict, and a tester still finished a stage without knowing
+   * there was anything to complete: a quiet row above a big PLAY button is
+   * a row nobody reads. So they get their own card, in the middle of the
+   * screen, with the countdown stopped behind it — the same treatment the
+   * game already gives a rule the player has not met before.
+   *
+   * Every start, retries included: the run you are about to make is the one
+   * these apply to, and on a retry it is a reminder of the star you just
+   * missed. One tap clears it. */
+  function briefObjectives() {
+    if (!S.level || S.level.endless || S.mode === 'tutorial' || S.pendingTutorial) return;
+    GAME.showNotice({
+      kicker: 'STAGE ' + S.level.id,
+      title: String(S.level.name).toUpperCase(),
+      color: C.amber,
+      glyph: 'brief',
+      w: 520, h: 492,
+      sub: 'THREE OBJECTIVES  -  ONE STAR EACH',
+      lines: [],
+      objs: LEVELS.objectives(S.level, null),
+      buttons: [{ id: 'ok', label: 'BUILD', tone: 'go' }]
+    });
+  }
 
   /* Shown once, ever, the first time anything on the board actually wears
    * down. Explaining it up front on a fresh board would be a rule about

@@ -245,8 +245,11 @@
     '#ui .title-big{font:900 30px/1 ' + F + ';letter-spacing:.08em;text-align:center;margin:0 0 4px;text-transform:uppercase;' + GLOW + '}',
     '#ui .verdict{display:block;width:max-content;margin:0 auto 12px;}',
     '#ui .stars{font-size:46px;letter-spacing:8px;text-align:center;margin:6px 0 4px;text-shadow:0 0 18px rgba(255,210,74,.6),0 3px 0 ' + INK + ';}',
-    '#ui .stars span{display:inline-block;opacity:0;transform:scale(.3);animation:pop .45s cubic-bezier(.2,1.6,.4,1) forwards;}',
-    '@keyframes pop{to{opacity:1;transform:scale(1);}}',
+    '#ui .stars span{display:inline-block;animation:pop .45s cubic-bezier(.2,1.6,.4,1) both;}',
+    /* The entry state lives in the keyframe, not on the element: parked at
+       opacity:0 in the base rule, these vanished entirely for anyone with
+       prefers-reduced-motion, which switches every animation off. */
+    '@keyframes pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:scale(1);}}',
     '#ui .stats{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:12px 0;}',
     '#ui .stat{padding:11px 13px;background:' + DIM_EDGE + ';clip-path:' + oct(11) + ';}#ui .stat::before{clip-path:' + oct(10) + ';}',
     '#ui .stat b{display:block;font:900 22px/1 ' + F + ';text-shadow:0 2px 0 ' + INK + ';}',
@@ -532,6 +535,30 @@
     '#ui .obj .mk{flex:0 0 9px;width:9px;height:9px;border-radius:50%;border:0;background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);font-size:0;line-height:0;color:transparent;}',
     '#ui .obj.met{background:none;border-left:0;color:#fff;}#ui .obj.met .mk{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
     '#ui .obj.failed{opacity:.6;border-left:0;}#ui .obj.failed .mk{background:#ff2e88;box-shadow:0 0 8px #ff2e88;border:0;}',
+    /* The verdict variant. A promise row is a quiet line under a PLAY
+       button and can afford to be quiet; the row that tells you whether
+       you got the star cannot, so it trades the 9px lamp for a real
+       drawn star, states EARNED or MISSED in words, and deals in after
+       the lamps have finished popping. */
+    '#ui .objplate{padding:10px 14px 12px;}',
+    '#ui .objhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 1px 7px;',
+    '  border-bottom:1px solid rgba(63,224,255,.22);}',
+    '#ui .objhead .ttl{font:13px/1 ' + PX + ';letter-spacing:.13em;text-transform:uppercase;color:#8fe8ff;text-shadow:0 0 10px rgba(63,224,255,.45);}',
+    '#ui .objhead .tally{font:15px/1 ' + PX + ';color:#ffd24a;text-shadow:0 0 12px rgba(255,210,74,.7);}',
+    '#ui .objs.res{margin-top:2px;}',
+    '#ui .objs.res .obj{padding:9px 1px;gap:11px;font-size:12.5px;color:rgba(255,255,255,.6);',
+    '  animation:objIn .4s cubic-bezier(.2,.8,.2,1) both;}',
+    '#ui .objs.res .obj .tx{flex:1;min-width:0;}',
+    '#ui .objs.res .obj .mk{flex:0 0 20px;width:20px;height:20px;border-radius:0;background:none;box-shadow:none;',
+    '  font:15px/20px ' + F + ';text-align:center;color:rgba(255,255,255,.22);}',
+    '#ui .objs.res .obj .st{flex:0 0 auto;font:9px/1 ' + PX + ';letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.3);}',
+    '#ui .objs.res .obj.met{color:#fff;}',
+    '#ui .objs.res .obj.met .mk{background:none;box-shadow:none;color:#ffd24a;text-shadow:0 0 12px rgba(255,210,74,.95),0 0 3px #fff;}',
+    '#ui .objs.res .obj.met .st{color:#ffd24a;text-shadow:0 0 8px rgba(255,210,74,.6);}',
+    '#ui .objs.res .obj.failed{opacity:1;color:rgba(255,255,255,.5);}',
+    '#ui .objs.res .obj.failed .mk{background:none;box-shadow:none;color:#ff2e88;text-shadow:0 0 10px rgba(255,46,136,.7);}',
+    '#ui .objs.res .obj.failed .st{color:#ff7ac0;}',
+    '@keyframes objIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:none}}',
     /* Power cards: sockets and art tiles. */
     '#ui .slots{display:flex;gap:8px;margin:6px 0 10px;flex:0 0 auto;}',
     '#ui .slot{flex:1;height:46px;box-sizing:border-box;border:1px dashed rgba(63,224,255,.3);border-radius:9px;clip-path:none;background:rgba(3,5,10,.6);',
@@ -576,7 +603,7 @@
     '@keyframes popIn{from{transform:scale(.86)}to{transform:none}}',
     /* Results: three star lamps. */
     '#ui .starlamps{display:flex;justify-content:center;gap:16px;margin:12px 0 4px;flex:0 0 auto;}',
-    '#ui .starlamps i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);opacity:0;transform:scale(.4);animation:pop .45s cubic-bezier(.2,1.6,.4,1) forwards;}',
+    '#ui .starlamps i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);animation:pop .45s cubic-bezier(.2,1.6,.4,1) both;}',
     '#ui .starlamps i.on{background:radial-gradient(circle at 40% 35%,#fff6d0,#ffd24a 55%,#e09a00);box-shadow:0 0 18px rgba(255,210,74,.8),0 0 4px #fff;}',
     /* Globe pins as readout plates. */
     '#ui .gpin{clip-path:none;padding:7px 12px;border-radius:8px;background:rgba(3,5,10,.9);isolation:auto;box-shadow:inset 0 0 0 1px rgba(63,224,255,.6),0 0 14px rgba(63,224,255,.25);}',
@@ -643,6 +670,7 @@
     '@media(max-height:800px){',
     '  #ui .sheet.sub .sc{min-height:36px;font-size:13.5px}#ui .sheet.sub .sc.stat .ct{font-size:14px}',
     '  #ui .sheet.sub .obj{padding:5px 2px}#ui .sheet.sub .objs{margin-top:4px}#ui .sheet.sub .plate{padding:8px 12px}',
+    '  #ui .sheet.sub .objs.res .obj{padding:6px 1px}#ui .sheet.sub .objplate{padding:8px 12px 9px}',
     '  #ui .sheet.sub .starlamps{margin:6px 0 0}#ui .sheet.sub .starlamps i{width:18px;height:18px}',
     '  #ui .sheet.sub .unlock{padding:7px 12px;margin:0 0 4px}#ui .sheet.sub .cab{min-height:52px;margin-top:6px}',
     '  #ui .sheet.sub .spacer{min-height:2px}#ui .sheet.results-screen .copy{margin:6px 0 2px!important}',
@@ -1281,7 +1309,12 @@
     /* The three objectives of the current level, stated up front. A "use no
        more than N defenses" ask is unplayable as a surprise at the results
        screen: the player has to know the constraint before they spend. */
-    var objList = cur ? objectiveRows(LEVELS.objectives(cur, null), false) : '';
+    function objBlock(L) {
+      if (!L) return '';
+      return objectiveHead(GAME.progress.stars[L.id] || 0, 3) +
+        objectiveRows(LEVELS.objectives(L, null), false);
+    }
+    var objList = objBlock(cur);
 
     var sheet = shell([
       hline('', starsRd(total)),
@@ -1289,7 +1322,7 @@
       '<div class="translite" id="lart" style="background-image:' + artUrl('lvl_' + curId) + '"><div class="tl-shade"></div>' +
         '<div class="tl-cap" id="lcap">' + (cur ? capFor(cur) : '') + '</div></div>',
       '<div class="insrow">' + tiles + '</div>',
-      '<div class="plate slim" id="objs">' + objList + '</div>',
+      '<div class="plate objplate" id="objs">' + objList + '</div>',
       '<div class="spacer"></div>',
       cab('launch', 'Play stage ' + curId, cur ? cur.name : ''),
       '<div class="scard tight">' + scRow('deck', 'Power cards', '', 'mag') + '</div>',
@@ -1319,7 +1352,7 @@
       var cap = sheet.querySelector('#lcap');
       if (cap) cap.innerHTML = capFor(L);
       var ob = sheet.querySelector('#objs');
-      if (ob) ob.innerHTML = objectiveRows(LEVELS.objectives(L, null), false);
+      if (ob) ob.innerHTML = objBlock(L);
       var launch = sheet.querySelector('#launch');
       if (launch) launch.innerHTML = '<b>Play stage ' + L.id + '</b><small>' + L.name + '</small>';
       if (dmd) dmd.set(msgsFor(L));
@@ -1594,21 +1627,46 @@
   }
 
   /* Render a set of LEVELS.objectives rows. `resolved` false renders every
-     row as a plain promise (level select), true renders the verdict. */
+     row as a plain promise (level select), true renders the verdict.
+
+     The verdict rows are deliberately louder than the promise rows. A
+     tester cleared a stage without ever noticing there was anything to
+     complete, so the screen that hands out the stars now says in as many
+     words which of the three were earned and which were missed. */
   function objectiveRows(objs, resolved) {
     var out = '';
     for (var i = 0; i < objs.length; i++) {
       var o = objs[i];
       var cls = 'obj';
       var mark = '★';
+      var status = 'Missed';
       if (resolved) {
-        if (o.met) cls += ' met';
+        if (o.met) { cls += ' met'; status = 'Earned'; }
         else if (o.failed) { cls += ' failed'; mark = '✕'; }
+        else mark = '☆';
       }
-      out += '<div class="' + cls + '"><span class="mk">' + mark + '</span>' +
-        '<span>' + o.text + '</span></div>';
+      out += '<div class="' + cls + '" style="animation-delay:' + (0.44 + i * 0.15) + 's">' +
+        '<span class="mk">' + mark + '</span>' +
+        '<span class="tx">' + o.text + '</span>' +
+        (resolved ? '<span class="st">' + status + '</span>' : '') +
+        '</div>';
     }
-    return '<div class="objs">' + out + '</div>';
+    return '<div class="objs' + (resolved ? ' res' : '') + '">' + out + '</div>';
+  }
+
+  /* The verdict: a marquee and a running tally over the three rows, so the
+     objectives are a headline on the results sheet rather than a footnote
+     under the star lamps. */
+  function objectiveVerdict(objs, stars) {
+    return objectiveHead(stars, objs.length) + objectiveRows(objs, true);
+  }
+
+  /* The same marquee on the level-select plate. Three unlabelled lines
+     above a PLAY button read as flavour text; "OBJECTIVES 1/3" reads as
+     something with a score attached to it, which is what they are. */
+  function objectiveHead(got, total) {
+    return '<div class="objhead"><span class="ttl">Objectives</span>' +
+      '<span class="tally">' + got + ' / ' + total + '</span></div>';
   }
 
   function screenResults(d) {
@@ -1636,7 +1694,8 @@
       dmdBox('dmdr'),
       d.win ? '<div class="starlamps">' + lamps + '</div>'
         : '<p class="copy" style="text-align:center;max-width:none;margin:12px 0 4px">Reached wave ' + (d.wave || 1) + ' of ' + (d.waves || '?') + '</p>',
-      d.objectives ? '<div class="plate">' + objectiveRows(d.objectives, true) + '</div>' : '',
+      d.objectives ? '<div class="plate objplate">' +
+        objectiveVerdict(d.objectives, d.stars || 0) + '</div>' : '',
       '<div class="scard stats">',
       statRow('Lives left', d.lives + '/' + d.livesMax, 'mag'),
       statRow('Destroyed', d.kills, ''),

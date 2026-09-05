@@ -1733,6 +1733,15 @@
     return s;
   }
 
+  /* The width ptext will actually PAINT. measureText leaves letter spacing
+   * out, so any holder sized from it comes up short by spacing * (len - 1)
+   * and the line hangs out of both ends of its own pill. Always size a
+   * plate around this, never around the raw measurement. */
+  function pxWidth(ctx, str, size, spacing) {
+    ctx.font = size + 'px ' + PXF;
+    return ctx.measureText(str).width + (spacing || 0) * Math.max(0, str.length - 1);
+  }
+
   function cardLayout(R, big) {
     var pad = R.w * 0.055;
     var artW = R.w - pad * 2;
@@ -2554,13 +2563,16 @@
     ctx.strokeStyle = U.rgba(col, failed ? 0.45 : (met ? 0.8 : 0.22));
     ctx.stroke();
 
-    /* Lamp for the state, then the label. */
-    ctx.beginPath(); ctx.arc(x + 14, y + 13, 4, 0, TAU);
-    ctx.fillStyle = met ? C.amber : (failed ? C.magenta : 'rgba(255,255,255,0.12)');
-    ctx.fill();
-    if (!met && !failed) { ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.stroke(); }
-    ptext(ctx, label, x + w / 2 + 8, y + 14, 11, U.rgba(col, a), 'center', 0.6);
-
+    /* A STAR, not a lamp: the briefing card that opened the stage put this
+     * same mark beside the same words, and a plain dot here would break
+     * that thread — the chip has to read as "one of your three stars",
+     * not as another status light. Filled once it is earned, outlined
+     * while it is still open. */
+    starMark(ctx, x + 15, y + 13, 6.5, met ? C.amber : (failed ? C.magenta : 'rgba(255,255,255,0.45)'),
+      met, met ? 10 : 0);
+    /* Centred in what is left of the chip after the star. */
+    var cfs = fitPx(ctx, label, w - 42, 11, 0.6);
+    ptext(ctx, label, x + w / 2 + 10, y + 14, cfs, U.rgba(col, a), 'center', 0.6);
   }
 
   /* ---------------------------------------------------------------------- */
@@ -2582,18 +2594,21 @@
   var noticeHits = [];
   var NOTICE = { w: 456, h: 470, cy: 660 };
 
+  /* A card may size itself with n.w / n.h — the briefing carries three
+   * objective rows instead of paragraphs and wants a different shape. */
   function noticeLayout(n) {
-    var x = (VW - NOTICE.w) / 2, y = NOTICE.cy - NOTICE.h / 2;
+    var W = n.w || NOTICE.w, H = n.h || NOTICE.h;
+    var x = (VW - W) / 2, y = NOTICE.cy - H / 2;
     var btns = [], k = n.buttons.length;
-    var bw = k > 1 ? (NOTICE.w - 44 - 14 * (k - 1)) / k : 236;
+    var bw = k > 1 ? (W - 44 - 14 * (k - 1)) / k : 236;
     var bx = k > 1 ? x + 22 : VW / 2 - bw / 2;
     for (var i = 0; i < k; i++) {
       btns.push({
-        x: bx + i * (bw + 14), y: y + NOTICE.h - 92, w: bw, h: 70,
+        x: bx + i * (bw + 14), y: y + H - 92, w: bw, h: 70,
         id: n.buttons[i].id, label: n.buttons[i].label, tone: n.buttons[i].tone
       });
     }
-    return { x: x, y: y, w: NOTICE.w, h: NOTICE.h, btns: btns };
+    return { x: x, y: y, w: W, h: H, btns: btns };
   }
 
   DRAW.hitNotice = function (x, y) {
@@ -2603,8 +2618,35 @@
     return null;
   };
 
-  /* The small mark on the card's header. Two so far: a cracked plate for the
-   * wear lesson, a mortarboard-ish chevron for the tutorial offer. */
+  /* A five-pointed star, the mark this game uses for "objective" wherever
+   * one appears: the briefing rows, the live tracker chip, the results
+   * verdict. `fill` paints it solid (earned), otherwise it is drawn as an
+   * outline (still open). */
+  function starMark(ctx, cx, cy, r, col, fill, glow) {
+    ctx.save();
+    ctx.beginPath();
+    for (var i = 0; i < 10; i++) {
+      var rad = i % 2 ? r * 0.44 : r;
+      var an = -Math.PI / 2 + i * Math.PI / 5;
+      var px = cx + Math.cos(an) * rad, py = cy + Math.sin(an) * rad;
+      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+    if (glow) { ctx.shadowColor = col; ctx.shadowBlur = glow; }
+    if (fill) { ctx.fillStyle = col; ctx.fill(); }
+    else {
+      ctx.lineWidth = Math.max(1.2, r * 0.22);
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = col;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+  DRAW.starMark = starMark;
+
+  /* The small mark on the card's header. Three so far: a cracked plate for
+   * the wear lesson, a star in its ring for the mission briefing, and a
+   * mortarboard-ish chevron for the tutorial offer. */
   function noticeGlyph(ctx, kind, cx, cy, col) {
     ctx.save();
     ctx.strokeStyle = col;
@@ -2612,6 +2654,12 @@
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = col; ctx.shadowBlur = 11;
+    if (kind === 'brief') {
+      ctx.beginPath(); ctx.arc(cx, cy, 21, 0, TAU); ctx.stroke();
+      ctx.restore();
+      starMark(ctx, cx, cy, 13, col, true, 12);
+      return;
+    }
     if (kind === 'wear') {
       /* A shell splitting: the same thing the towers do on the table, so the
        * card is a picture of the mark the player is about to start seeing. */
@@ -2675,11 +2723,38 @@
 
     noticeGlyph(ctx, n.glyph, L.x + 62, L.y + 66, col);
     ptext(ctx, n.kicker, L.x + 108, L.y + 46, 12, U.rgba(col, 0.85), 'left', 3);
-    ptext(ctx, n.title, L.x + 108, L.y + 76, 24, col, 'left', 1);
+    ptext(ctx, n.title, L.x + 108, L.y + 76,
+      fitPx(ctx, n.title, L.w - 138, 24, 1), col, 'left', 1);
 
     var ty = L.y + 168;
+    /* One framing line under the marquee, in the cabinet's own type. */
+    if (n.sub) {
+      ptext(ctx, n.sub, L.x + L.w / 2, L.y + 158, 12, U.rgba(col, 0.8), 'center', 2.4);
+      ty = L.y + 186;
+    }
     for (var i = 0; i < n.lines.length; i++) {
       ty += noticeParagraph(ctx, n.lines[i], L.x + 30, ty, L.w - 60, col);
+    }
+    /* Objective rows, when the card is a briefing. Each is its own star, so
+     * each gets its own lit row rather than a bullet in a paragraph — this
+     * is the one screen that has to make "there are three of these and they
+     * are the point" impossible to miss. */
+    if (n.objs) {
+      ty += 4;
+      /* One size for all three, chosen by the longest: three rows set at
+       * three different sizes read as three unrelated notes rather than as
+       * one list of what the stage is asking for. */
+      var ofs = 15;
+      for (var m = 0; m < n.objs.length; m++) {
+        ofs = Math.min(ofs, fitPx(ctx, String(n.objs[m].text).toUpperCase(),
+          L.w - 128, 15, 1.2));
+      }
+      for (var o = 0; o < n.objs.length; o++) {
+        /* Rows deal in one at a time, a beat apart, so the eye is walked
+         * down them instead of handed a block. */
+        var ra = U.clamp((n.t - 0.18 - o * 0.13) / 0.26, 0, 1);
+        ty += noticeObjective(ctx, n.objs[o], L.x + 28, ty, L.w - 56, col, ra, ofs);
+      }
     }
 
     for (var k = 0; k < L.btns.length; k++) {
@@ -2717,6 +2792,36 @@
     ctx.fillStyle = 'rgba(255,255,255,0.82)';
     for (var k = 0; k < lines.length; k++) ctx.fillText(lines[k], x + 18, y + k * 20);
     return lines.length * 20 + 14;
+  }
+
+  /* One objective on the briefing card: a star in a dark socket, then the
+   * ask in pixel caps. Returns the height used, so the caller can stack
+   * them. `a` runs 0..1 for the row's own deal-in. */
+  function noticeObjective(ctx, o, x, y, w, col, a, fs) {
+    var H = 56, GAP = 9;
+    if (a <= 0) return H + GAP;
+    var text = String(o.text).toUpperCase();
+
+    ctx.save();
+    ctx.globalAlpha *= a;
+    ctx.translate((1 - U.ease.outCubic(a)) * 26, 0);
+
+    /* A dark socket on the lit card, so the rows read as three separate
+     * readouts rather than one amber block. */
+    rr(ctx, x, y, w, H, 12);
+    ctx.fillStyle = 'rgba(4,7,15,0.72)'; ctx.fill();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(col, 0.45);
+    ctx.stroke();
+    /* A lit spine on the left edge — the same tell the results rows use. */
+    ctx.fillStyle = U.rgba(col, 0.9);
+    rr(ctx, x + 1, y + 11, 3.5, H - 22, 2); ctx.fill();
+
+    starMark(ctx, x + 34, y + H / 2 - 1, 12, col, true, 14);
+
+    ptext(ctx, text, x + 58, y + H / 2, fs, 'rgba(255,255,255,0.95)', 'left', 1.2);
+    ctx.restore();
+    return H + GAP;
   }
 
   /* ---------------------------------------------------------------------- */
@@ -2841,8 +2946,13 @@
     var line = 'ENERGY BANKED  ' + Math.floor(S.energy) + '  -  MORE PADDLES AND BUMPERS BELOW';
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.font = '13px ' + PXF;
-    var w = Math.min(VW - 80, ctx.measureText(line).width + 64);
+    /* PAD is the lamp plus the breathing room on both ends; the pill is
+     * sized around the SPACED width, and the line shrinks first if the
+     * pill would run wider than the table. Sizing off measureText alone
+     * left the first and last letters sitting on top of the border. */
+    var maxW = VW - 72, PAD = 58;
+    var fs = fitPx(ctx, line, maxW - PAD, 13, 1.5);
+    var w = Math.min(maxW, pxWidth(ctx, line, fs, 1.5) + PAD);
     var x = VW / 2 - w / 2, y = 762, h = 44;
     ctx.shadowColor = U.rgba(C.amber, 0.25 + 0.2 * pulse);
     ctx.shadowBlur = 18;
@@ -2855,7 +2965,8 @@
     /* A lamp on the left, the same dot the toast carries, in amber. */
     ctx.beginPath(); ctx.arc(x + 22, y + h / 2, 4.5, 0, TAU);
     ctx.fillStyle = U.rgba(C.amber, 0.7 + 0.3 * pulse); ctx.fill();
-    ptext(ctx, line, VW / 2 + 10, y + h / 2 + 1, 13, U.rgba(C.amber, 0.95), 'center', 1.5);
+    /* Centred in what is left AFTER the lamp, not in the pill. */
+    ptext(ctx, line, x + w / 2 + 11, y + h / 2 + 1, fs, U.rgba(C.amber, 0.95), 'center', 1.5);
     ctx.restore();
   }
 
@@ -2898,15 +3009,19 @@
     var a = U.clamp(S.toastT / 0.5, 0, 1);
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.font = '15px ' + PXF;
-    var w = ctx.measureText(S.toastText).width + 60;
+    /* Same rule as the build pill: fit the line, then wrap the holder
+     * around it. Teach lines are authored copy and one of them will always
+     * end up being the long one. */
+    var tmax = VW - 60, tpad = 58;
+    var tfs = fitPx(ctx, S.toastText, tmax - tpad, 15, 0);
+    var w = Math.min(tmax, ctx.measureText(S.toastText).width + tpad);
     var x = VW / 2 - w / 2, y = 1080;
     rr(ctx, x, y, w, 42, 21);
     ctx.fillStyle = 'rgba(3,5,10,0.92)'; ctx.fill();
     ctx.lineWidth = 1.5; ctx.strokeStyle = U.rgba(C.cyan, 0.6); ctx.stroke();
     ctx.beginPath(); ctx.arc(x + 20, y + 21, 4.5, 0, TAU);
     ctx.fillStyle = C.cyan; ctx.fill();
-    ptext(ctx, S.toastText, VW / 2 + 8, y + 22, 15, C.white, 'center');
+    ptext(ctx, S.toastText, x + w / 2 + 10, y + 22, tfs, C.white, 'center');
     ctx.restore();
   }
 
