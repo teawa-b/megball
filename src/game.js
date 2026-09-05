@@ -368,9 +368,14 @@
     GAME.showNotice({
       kicker: 'STAGE ' + S.level.id,
       title: String(S.level.name).toUpperCase(),
+      tag: S.level.subtitle || '',
+      /* The stage's own translite, the same picture the level-select
+       * screen shows for it, and the stars already banked on it. */
+      art: 'lvl_' + S.level.id,
+      stars: PROG.stars[S.level.id] || 0,
       color: C.amber,
       glyph: 'brief',
-      w: 520, h: 492,
+      w: 520, h: 560,
       sub: 'THREE OBJECTIVES  -  ONE STAR EACH',
       lines: [],
       objs: LEVELS.objectives(S.level, null),
@@ -603,14 +608,17 @@
     if (S.mode !== 'wave' || !S.waveTimeline) return null;
     var total = S.waveTimeline.length;
     if (!total) return null;
-    var alive = 0, boss = false;
+    var alive = 0, bossAlive = 0;
     for (var i = 0; i < S.balls.length; i++) {
       var b = S.balls[i];
       if (b.dead) continue;
       alive++;
-      if (b.def.boss) boss = true;
+      if (b.def.boss) bossAlive++;
     }
-    return { total: total, unspawned: total - S.waveCursor, alive: alive, boss: boss };
+    return {
+      total: total, unspawned: total - S.waveCursor,
+      alive: alive, boss: bossAlive > 0, bossAlive: bossAlive
+    };
   };
 
   /* May the player call the next wave in right now?
@@ -636,8 +644,34 @@
     if (!S.level || S.mode !== 'wave') return false;
     if (S.inspect || S.notice || S.selectedTower || S.buildPick) return false;
     var t = GAME.waveTail();
-    if (!t || t.boss || t.unspawned > 0) return false;
-    return t.alive > 0 && t.alive <= Math.max(1, Math.ceil(t.total * GAME.EARLY_TAIL));
+    if (!t || t.unspawned > 0) return false;
+    if (t.alive <= 0) return false;
+
+    /* A boss IS the wave, so in the campaign a boss wave can never be called
+     * in early: its last wave ending IS the level ending, and skipping it
+     * would hand out the clear without the fight.
+     *
+     * Endless is a different animal. There is no clear condition to cheat —
+     * the waves simply keep coming — and the boss is CARRIED OVER like any
+     * other straggler, so calling the next wave in on top of it buys the
+     * player nothing and costs them the wave they now have to fight around
+     * it. Left as it was, a boss the board could not quite finish held the
+     * whole run hostage: one measured Endless boss wave ran for over two
+     * minutes with this offer suppressed for 150 seconds of it.
+     *
+     * So in Endless the tail is judged by the ESCORT and the boss is left
+     * out of the count. A boss soaks damage for minutes after its escort is
+     * dead, and counting it among "what is left" is exactly what kept the
+     * button hidden through the dullest stretch of the run. */
+    if (t.boss) {
+      if (!S.level.endless) return false;
+      var w = S.level.waves[S.waveIndex];
+      var bosses = w && w.bosses ? w.bosses.length : t.bossAlive;
+      var escort = t.alive - t.bossAlive;
+      var escortTotal = Math.max(1, t.total - bosses);
+      return escort <= Math.max(1, Math.ceil(escortTotal * GAME.EARLY_TAIL));
+    }
+    return t.alive <= Math.max(1, Math.ceil(t.total * GAME.EARLY_TAIL));
   };
 
   GAME.endWaveEarly = function () {
@@ -730,10 +764,18 @@
     if (S.level.endless) {
       var cleared = S.waveIndex + 1;
       if (cleared > (PROG.endlessBest || 0)) { PROG.endlessBest = cleared; saveProgress(); }
-      /* Boss down: one life back and the battle theme returns. */
+      /* Boss DOWN: one life back and the battle theme returns. The reward
+       * is for killing it, so a boss wave called in early while the boss is
+       * still bouncing pays nothing — that is the price of moving on, and
+       * without this check calling the next wave in would have been a way
+       * to farm lives off a boss nobody ever beat. */
       if (S.level.waves[S.waveIndex].boss) {
         var s = global.SFX; if (s) s.music('battle');
-        if (S.lives < S.livesMax) {
+        var stillUp = false;
+        for (var bi = 0; bi < S.balls.length; bi++) {
+          if (!S.balls[bi].dead && S.balls[bi].def.boss) { stillUp = true; break; }
+        }
+        if (!stillUp && S.lives < S.livesMax) {
           S.lives++;
           if (f) f.text(360, 500, 'LIFE RESTORED', { color: C.magenta, size: 30, life: 1.4, rise: 34, pop: 1 });
         }

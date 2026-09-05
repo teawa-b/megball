@@ -2439,8 +2439,11 @@
     /* Slightly transparent: it lives over the playfield, and a stray ball
      * bouncing up here must never be hidden by a button. */
     ctx.globalAlpha = 0.92;
+    /* On a lone boss the count is technically "1 LEFT", which reads as a
+     * straggler you are dismissing. Say what actually happens instead: the
+     * boss is not swept up, it comes with you into the next wave. */
     cabinetButton(ctx, rb, 'NEXT WAVE',
-      tail.alive + (tail.alive === 1 ? ' LEFT' : ' LEFT'), pulse);
+      tail.bossAlive > 0 ? 'BOSS STAYS' : tail.alive + ' LEFT', pulse);
     ctx.restore();
   }
 
@@ -2712,25 +2715,34 @@
     ctx.fillStyle = U.rgba(col, 0.09); ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(col, 0.9); ctx.stroke();
 
-    /* Header band, so the card has a marquee like everything else. */
-    ctx.save();
-    rr(ctx, L.x, L.y, L.w, L.h, 24); ctx.clip();
-    ctx.fillStyle = U.rgba(col, 0.18);
-    ctx.fillRect(L.x, L.y, L.w, 132);
-    ctx.fillStyle = U.rgba(col, 0.5);
-    ctx.fillRect(L.x, L.y + 132, L.w, 2);
-    ctx.restore();
+    var ty;
+    if (n.art) {
+      /* The mission card gets the stage's own translite instead of a flat
+       * colour band — it is the picture the level-select screen already
+       * uses for this stage, so arriving here reads as walking up to that
+       * machine rather than as a dialog opening. */
+      ty = noticeMarquee(ctx, n, L, col);
+    } else {
+      /* Header band, so the card has a marquee like everything else. */
+      ctx.save();
+      rr(ctx, L.x, L.y, L.w, L.h, 24); ctx.clip();
+      ctx.fillStyle = U.rgba(col, 0.18);
+      ctx.fillRect(L.x, L.y, L.w, 132);
+      ctx.fillStyle = U.rgba(col, 0.5);
+      ctx.fillRect(L.x, L.y + 132, L.w, 2);
+      ctx.restore();
 
-    noticeGlyph(ctx, n.glyph, L.x + 62, L.y + 66, col);
-    ptext(ctx, n.kicker, L.x + 108, L.y + 46, 12, U.rgba(col, 0.85), 'left', 3);
-    ptext(ctx, n.title, L.x + 108, L.y + 76,
-      fitPx(ctx, n.title, L.w - 138, 24, 1), col, 'left', 1);
+      noticeGlyph(ctx, n.glyph, L.x + 62, L.y + 66, col);
+      ptext(ctx, n.kicker, L.x + 108, L.y + 46, 12, U.rgba(col, 0.85), 'left', 3);
+      ptext(ctx, n.title, L.x + 108, L.y + 76,
+        fitPx(ctx, n.title, L.w - 138, 24, 1), col, 'left', 1);
 
-    var ty = L.y + 168;
-    /* One framing line under the marquee, in the cabinet's own type. */
-    if (n.sub) {
-      ptext(ctx, n.sub, L.x + L.w / 2, L.y + 158, 12, U.rgba(col, 0.8), 'center', 2.4);
-      ty = L.y + 186;
+      ty = L.y + 168;
+      /* One framing line under the marquee, in the cabinet's own type. */
+      if (n.sub) {
+        ptext(ctx, n.sub, L.x + L.w / 2, L.y + 158, 12, U.rgba(col, 0.8), 'center', 2.4);
+        ty = L.y + 186;
+      }
     }
     for (var i = 0; i < n.lines.length; i++) {
       ty += noticeParagraph(ctx, n.lines[i], L.x + 30, ty, L.w - 60, col);
@@ -2794,6 +2806,87 @@
     return lines.length * 20 + 14;
   }
 
+  /* The illustrated marquee at the top of a mission card: the stage's
+   * translite behind a darkening wash, the three star lamps for what is
+   * already banked on it, and the stage's own name and subtitle over the
+   * foot of the picture. Returns the y the body starts at.
+   *
+   * The art is drawn to COVER the panel and clipped to the card, so a
+   * missing or still-decoding image simply leaves the tinted panel behind
+   * it — nothing here is allowed to be load-bearing. */
+  var NOTICE_ART_H = 176;
+  function noticeMarquee(ctx, n, L, col) {
+    var img = global.ART && global.ART.get ? global.ART.get(n.art) : null;
+    var H = NOTICE_ART_H;
+
+    ctx.save();
+    /* Two clips, intersected: the card's rounded corners, then the band
+     * itself — without the second one a tall cover-fit image runs on down
+     * the card and paints over the objectives. */
+    rr(ctx, L.x, L.y, L.w, L.h, 24);
+    ctx.clip();
+    ctx.beginPath();
+    ctx.rect(L.x, L.y, L.w, H);
+    ctx.clip();
+
+    ctx.fillStyle = U.rgba(col, 0.16);
+    ctx.fillRect(L.x, L.y, L.w, H);
+    if (img) {
+      var sc = Math.max(L.w / img.width, H / img.height);
+      var dw = img.width * sc, dh = img.height * sc;
+      ctx.drawImage(img, L.x + (L.w - dw) / 2, L.y + (H - dh) * 0.34, dw, dh);
+    }
+
+    /* Dark to the foot, so the name sits on ink rather than on picture. */
+    var g = ctx.createLinearGradient(0, L.y, 0, L.y + H);
+    g.addColorStop(0, 'rgba(5,8,16,0.30)');
+    g.addColorStop(0.46, 'rgba(5,8,16,0.52)');
+    g.addColorStop(1, 'rgba(5,8,16,0.95)');
+    ctx.fillStyle = g;
+    ctx.fillRect(L.x, L.y, L.w, H);
+
+    /* Scanlines: the same texture the level-select translite carries. */
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    for (var sy = L.y; sy < L.y + H; sy += 3) ctx.fillRect(L.x, sy, L.w, 1);
+    ctx.restore();
+
+    ctx.fillStyle = U.rgba(col, 0.6);
+    ctx.fillRect(L.x, L.y + H, L.w, 2);
+
+    /* What is already banked on this stage, as three lamps. Somebody
+     * replaying for the last star should see which one is missing before
+     * they read a word. */
+    if (n.stars !== undefined) {
+      var sx = L.x + L.w - 106;
+      /* On their own dark plate: three lamps loose over a busy translite
+         read as part of the picture, and the two UNLIT ones vanish. */
+      rr(ctx, sx - 22, L.y + 14, 96, 32, 16);
+      ctx.fillStyle = 'rgba(5,8,16,0.62)'; ctx.fill();
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = U.rgba(col, 0.35); ctx.stroke();
+      for (var i = 0; i < 3; i++) {
+        var got = i < n.stars;
+        starMark(ctx, sx + i * 31, L.y + 30, 11,
+          got ? C.amber : 'rgba(255,255,255,0.30)', got, got ? 13 : 0);
+      }
+    }
+
+    ptext(ctx, n.kicker, L.x + 28, L.y + H - 72, 12, U.rgba(col, 0.95), 'left', 3);
+    ptext(ctx, n.title, L.x + 28, L.y + H - 42,
+      fitPx(ctx, n.title, L.w - 56, 27, 1), C.white, 'left', 1);
+    if (n.tag) {
+      ptext(ctx, n.tag, L.x + 29, L.y + H - 17, 11,
+        'rgba(255,255,255,0.62)', 'left', 1.6);
+    }
+
+    var ty = L.y + H + 34;
+    if (n.sub) {
+      ptext(ctx, n.sub, L.x + L.w / 2, ty, 12, U.rgba(col, 0.85), 'center', 2.4);
+      ty += 26;
+    }
+    return ty;
+  }
+
   /* One objective on the briefing card: a star in a dark socket, then the
    * ask in pixel caps. Returns the height used, so the caller can stack
    * them. `a` runs 0..1 for the row's own deal-in. */
@@ -2807,9 +2900,14 @@
     ctx.translate((1 - U.ease.outCubic(a)) * 26, 0);
 
     /* A dark socket on the lit card, so the rows read as three separate
-     * readouts rather than one amber block. */
+     * readouts rather than one amber block. Lit from the left, where the
+     * star is, so the row has somewhere to look. */
     rr(ctx, x, y, w, H, 12);
-    ctx.fillStyle = 'rgba(4,7,15,0.72)'; ctx.fill();
+    var gr = ctx.createLinearGradient(x, 0, x + w, 0);
+    gr.addColorStop(0, U.rgba(col, 0.17));
+    gr.addColorStop(0.34, 'rgba(4,7,15,0.78)');
+    gr.addColorStop(1, 'rgba(4,7,15,0.66)');
+    ctx.fillStyle = gr; ctx.fill();
     ctx.lineWidth = 1.5;
     ctx.strokeStyle = U.rgba(col, 0.45);
     ctx.stroke();
@@ -2817,6 +2915,12 @@
     ctx.fillStyle = U.rgba(col, 0.9);
     rr(ctx, x + 1, y + 11, 3.5, H - 22, 2); ctx.fill();
 
+    /* The star sits in its own socket, the way the tray sits its cards. */
+    ctx.beginPath();
+    ctx.arc(x + 34, y + H / 2 - 1, 16, 0, TAU);
+    ctx.fillStyle = U.rgba(col, 0.13); ctx.fill();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = U.rgba(col, 0.3); ctx.stroke();
     starMark(ctx, x + 34, y + H / 2 - 1, 12, col, true, 14);
 
     ptext(ctx, text, x + 58, y + H / 2, fs, 'rgba(255,255,255,0.95)', 'left', 1.2);
