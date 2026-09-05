@@ -24,10 +24,10 @@
   #gl { z-index: 0; } #game { z-index: 1; }
 
   /* Boot splash: also the gesture that unlocks Web Audio on mobile. It is
-     the machine powering up: the logo's round core emblem as a spinning
-     dial, the name on a dot-matrix display, and a chase of attract lamps. Only transform
-     and opacity animate, so the compositor keeps them moving while the main
-     thread compiles shaders behind it. */
+     the machine powering up: the logo's round core emblem as a loading dial
+     and the name on a dot-matrix display. Only transform and opacity animate,
+     so the compositor keeps them moving while the main thread compiles
+     shaders behind it. */
   #boot {
     position: fixed; inset: 0; z-index: 40; display: flex;
     flex-direction: column; align-items: center; justify-content: center;
@@ -36,9 +36,7 @@
   }
   #boot::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background:
-      radial-gradient(60% 40% at 50% 42%, rgba(63,224,255,.10), transparent 70%),
-      radial-gradient(circle, rgba(63,224,255,.10) 1px, transparent 1.6px) 0 0 / 14px 14px;
+    background: radial-gradient(62% 42% at 50% 43%, rgba(63,224,255,.14), transparent 72%);
   }
   #boot::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -48,74 +46,69 @@
   }
   #boot.gone { opacity: 0; pointer-events: none; }
   /* The emblem: the round core badge from the MegaBall logo, blown up to a
-     loading dial. A dark bezel with a cyan rim, a glowing core that breathes,
-     and two arcs (magenta and amber, the logo's accent lamps) orbiting in
-     opposite directions. Only transform and opacity animate. */
-  #boot .emblem { position: relative; width: 156px; height: 156px; z-index: 1; }
+     loading dial. One idea, one motion — a lit core breathing inside a dark
+     bezel while a single magenta lamp sweeps the track around it. An earlier
+     pass stacked tick marks, a dashed ring and two counter-rotating arcs in
+     the same 150px, which at this size reads as clutter rather than detail.
+     Only transform and opacity animate. */
+  #boot .emblem { position: relative; width: 150px; height: 150px; z-index: 1; }
+  /* The bezel: a dark well, lit at the rim and black at the centre, so the
+     core burns out of a pit instead of sitting on a lit surface. */
   #boot .emblem::before {
     content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background: radial-gradient(circle at 50% 40%, #12234a 0%, #08122c 55%, #04070f 100%);
-    box-shadow: 0 0 0 3px #05060d, 0 0 0 5px rgba(63,224,255,.45), inset 0 0 0 1px rgba(143,232,255,.25),
-      inset 0 -18px 30px rgba(0,0,0,.7), 0 0 34px rgba(63,224,255,.22), 0 18px 40px rgba(0,0,0,.7);
+    background: radial-gradient(circle at 50% 50%, #01030a 0%, #04091a 46%, #0a1734 78%, #14274f 100%);
+    box-shadow: 0 0 0 1px rgba(143,232,255,.28), inset 0 0 26px rgba(0,0,0,.9),
+      inset 0 2px 0 rgba(143,232,255,.16), 0 0 46px rgba(63,224,255,.16), 0 20px 44px rgba(0,0,0,.7);
   }
-  /* Tick marks around the bezel, like the dial engraving on the logo. */
-  #boot .emblem::after {
-    content: ""; position: absolute; inset: 12px; border-radius: 50%; pointer-events: none;
-    background: repeating-conic-gradient(from -2deg, rgba(143,232,255,.55) 0 4deg, transparent 4deg 30deg);
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
-    opacity: .8;
+  /* The unlit track the lamp runs in, clear of the bezel so nothing clips. */
+  #boot .track {
+    position: absolute; inset: -13px; border-radius: 50%;
+    border: 2px solid rgba(63,224,255,.13);
   }
+  /* The lamp: a bulb at 0deg with a tail ramping up behind it, so head and
+     tail travel as one comet. The tail is masked to the track's width and the
+     bulb is not — masking the whole element would clip the bulb into a flat
+     chip — so the ring carries them on one rotation. */
   #boot .orbit {
-    position: absolute; border-radius: 50%; pointer-events: none;
-    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
-    will-change: transform;
+    position: absolute; inset: -13px; border-radius: 50%; pointer-events: none;
+    will-change: transform; animation: spin 2.1s linear infinite;
   }
-  /* Magenta arc on the outer track, sweeping clockwise with a fading tail. */
-  #boot .orbit.a {
-    inset: -16px;
-    background: conic-gradient(from 0deg, rgba(255,46,136,0) 0deg, rgba(255,46,136,.35) 60deg, #ff2e88 100deg, #ff9ccf 106deg, transparent 108deg 360deg);
-    filter: drop-shadow(0 0 8px rgba(255,46,136,.8));
-    animation: spin 2.4s linear infinite;
+  #boot .orbit::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
+    background: conic-gradient(from 0deg, transparent 0deg 248deg, rgba(255,46,136,0) 248deg, #ff2e88 356deg, #ffd9ec 360deg);
+    filter: drop-shadow(0 0 7px rgba(255,46,136,.75));
   }
-  /* Amber arc on the inner track, running the other way. */
-  #boot .orbit.b {
-    inset: -6px;
-    background: conic-gradient(from 180deg, rgba(255,210,74,0) 0deg, rgba(255,210,74,.35) 60deg, #ffd24a 100deg, #fff1bf 106deg, transparent 108deg 360deg);
-    filter: drop-shadow(0 0 8px rgba(255,210,74,.8));
-    animation: spin 1.7s linear infinite reverse;
-  }
-  /* Small lamps riding each track's leading edge. */
   #boot .orbit::after {
-    content: ""; position: absolute; left: 50%; top: 0; width: 9px; height: 9px; margin: -2px 0 0 -4.5px;
-    border-radius: 50%; background: #fff;
+    content: ""; position: absolute; left: 50%; top: 0; width: 7px; height: 7px; margin: -1.5px 0 0 -3.5px;
+    border-radius: 50%; background: #fff; box-shadow: 0 0 11px #ff2e88, 0 0 4px #fff;
   }
-  #boot .orbit.a::after { box-shadow: 0 0 10px #ff2e88, 0 0 3px #fff; }
-  #boot .orbit.b::after { box-shadow: 0 0 10px #ffd24a, 0 0 3px #fff; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  /* The core: the lit ball at the heart of the logo. */
+  /* The core: a light source, not an object. Lit from its own centre with no
+     specular highlight and no rim, falling off to nothing so it bleeds into
+     the well — a highlight and a dark edge are what made the earlier version
+     read as a glossy plastic marble. */
   #boot .core {
-    position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%;
-    background: radial-gradient(circle at 42% 36%, #fff 0%, #cdf6ff 22%, #3fe0ff 48%, #1a7fd6 72%, #0a2f6c 100%);
-    box-shadow: 0 0 0 2px rgba(0,0,0,.6), 0 0 22px rgba(63,224,255,.9), 0 0 60px rgba(63,224,255,.45);
-    animation: corePulse 1.7s ease-in-out infinite;
+    position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%,
+      #fff 0%, #eafdff 9%, #8feaff 19%, #3fe0ff 31%, rgba(41,167,235,.55) 48%,
+      rgba(20,90,180,.22) 66%, rgba(10,40,100,0) 80%);
+    animation: corePulse 2.4s ease-in-out infinite;
   }
+  /* The containment field: the core's one hard edge, brightest where the
+     field is struck from above. */
   #boot .core::before {
-    content: ""; position: absolute; inset: -13px; border-radius: 50%;
-    border: 2px dashed rgba(143,232,255,.45);
-    animation: spin 9s linear infinite;
-  }
-  #boot .core::after {
-    content: ""; position: absolute; left: 22%; top: 10%; width: 40%; height: 26%; border-radius: 50%;
-    background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,0));
+    content: ""; position: absolute; inset: 4px; border-radius: 50%;
+    border: 1px solid rgba(180,242,255,.75);
+    box-shadow: 0 0 10px rgba(63,224,255,.6);
   }
   @keyframes corePulse {
-    0%, 100% { transform: scale(1); opacity: 1; }
-    50%      { transform: scale(1.07); opacity: .88; }
+    0%, 100% { transform: scale(1); opacity: .95; }
+    50%      { transform: scale(1.06); opacity: 1; }
   }
   #boot .disp {
-    position: relative; z-index: 1; margin-top: 18px; padding: 15px 30px 14px;
+    position: relative; z-index: 1; margin-top: 26px; padding: 15px 30px 14px;
     background: #03050a; border: 1px solid rgba(63,224,255,.3);
     box-shadow: inset 0 0 0 2px #000, inset 0 6px 22px rgba(0,0,0,.9), 0 0 26px rgba(63,224,255,.12);
   }
@@ -132,25 +125,8 @@
     opacity: 0; transition: opacity .25s;
   }
   #boot.font .t { opacity: 1; }
-  #boot .lamps { position: relative; z-index: 1; display: flex; gap: 11px; margin-top: 24px; }
-  #boot .lamps i {
-    position: relative; width: 9px; height: 9px; border-radius: 50%;
-    background: rgba(255,255,255,.08); box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
-  }
-  #boot .lamps i::after {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background: #ffd24a; box-shadow: 0 0 10px #ffd24a, 0 0 2px #fff;
-    opacity: 0; animation: chase 1.3s linear infinite;
-  }
-  #boot .lamps i:nth-child(2)::after { animation-delay: .13s; }
-  #boot .lamps i:nth-child(3)::after { animation-delay: .26s; }
-  #boot .lamps i:nth-child(4)::after { animation-delay: .39s; }
-  #boot .lamps i:nth-child(5)::after { animation-delay: .52s; }
-  #boot .lamps i:nth-child(6)::after { animation-delay: .65s; }
-  #boot .lamps i:nth-child(7)::after { animation-delay: .78s; }
-  @keyframes chase { 0%, 8% { opacity: 1; } 34%, 100% { opacity: 0; } }
   #boot .s {
-    position: relative; z-index: 1; margin-top: 18px; font: 10px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif;
+    position: relative; z-index: 1; margin-top: 22px; font: 10px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif;
     letter-spacing: .16em; color: rgba(143,232,255,.6); text-transform: uppercase;
   }
   @media (prefers-reduced-motion: reduce) { #boot * { animation: none !important; } }
@@ -180,9 +156,8 @@
 <div id="stage"><canvas id="gl"></canvas><canvas id="game"></canvas></div>
 
 <div id="boot">
-  <div class="emblem" aria-hidden="true"><i class="orbit a"></i><i class="orbit b"></i><div class="core"></div></div>
+  <div class="emblem" aria-hidden="true"><i class="track"></i><i class="orbit"></i><div class="core"></div></div>
   <div class="disp"><div class="t">Megaball</div></div>
-  <div class="lamps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="s" id="bootmsg">Loading</div>
 </div>
 
