@@ -365,9 +365,15 @@
     '#ui .start b{position:relative;z-index:1;display:block;margin-top:2px;font:italic 900 34px/1 ' + F + ';letter-spacing:.04em;text-transform:uppercase;',
     '  color:#fff;background:linear-gradient(180deg,#fff 30%,#fff2b8 60%,#ffcf4a 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;',
     '  filter:drop-shadow(0 2px 0 #6a2a00) drop-shadow(0 0 1px #5a2000) drop-shadow(0 0 8px rgba(255,120,0,.55));}',
-    '#ui .start small{position:relative;z-index:1;display:inline-block;margin-top:8px;padding:5px 9px 4px;border-radius:999px;',
+    /* The label is set in the SYSTEM stack, so its width is not ours to
+     * predict: the same string measures wider on iOS than on Windows, which is
+     * how "START HERE" fitted on desktop and wrapped to two lines on a phone.
+     * nowrap plus a max-width tied to the cap makes the failure impossible
+     * rather than font-dependent, and the tighter tracking buys the room. */
+    '#ui .start small{position:relative;z-index:1;display:inline-block;margin-top:7px;padding:4px 8px 3px;border-radius:999px;',
+    '  white-space:nowrap;max-width:80%;box-sizing:border-box;overflow:hidden;text-overflow:clip;',
     '  background:rgba(60,20,0,.62);box-shadow:inset 0 1px 0 rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.35);',
-    '  font:800 9px/1 ' + F + ';color:#ffe9a8;letter-spacing:.24em;text-transform:uppercase;text-shadow:0 1px 0 rgba(0,0,0,.6);}',
+    '  font:800 9px/1 ' + F + ';color:#ffe9a8;letter-spacing:.11em;text-transform:uppercase;text-shadow:0 1px 0 rgba(0,0,0,.6);}',
     '#ui .start:hover{filter:brightness(1.08);}#ui .start:active{transform:scale(.94);filter:brightness(1.18);}',
     '#ui .start:active .ring{animation-duration:.8s;}',
     '#ui .scard{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}',
@@ -624,7 +630,7 @@
     '  #ui .btn.play{min-height:76px}#ui .btn.play b{font-size:28px}#ui .btn.card{min-height:64px}',
     '  #ui .obj{padding:7px 10px}#ui .objs{gap:4px;margin-top:6px}#ui .slots{margin-bottom:7px}',
     '  #ui .pc{aspect-ratio:1.05}#ui .pc .nm{font-size:8px}#ui .cardgrid{gap:6px;margin-bottom:7px}',
-    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{font-size:10.5px;line-height:1.3;margin-top:4px}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
+    '  #ui .brand{width:min(84%,340px)}#ui .translite{height:118px;margin:6px 0 8px}#ui .translite.tall{height:130px}#ui .feat-art{flex-basis:78px;height:78px}#ui .feat{margin:6px 0 8px;padding:8px}#ui .feat-txt .sub{font-size:10.5px;line-height:1.3;margin-top:4px}#ui .pxh{font-size:19px}#ui .cab{min-height:56px}#ui .cab b{font-size:18px}#ui .ins b{font-size:22px}#ui .sheet.sub .globe{min-height:190px}#ui .sheet.home .brand{width:min(96%,420px)}#ui .start{flex-basis:98px;width:98px;height:98px}#ui .start b{font-size:26px}#ui .start small{font-size:8px;letter-spacing:.07em;padding:3px 6px 2px;margin-top:5px}#ui .sc{min-height:40px;font-size:14px}#ui .dmd{padding:5px 6px}#ui .attract{margin-top:8px}#ui .sheet.home .spacer{min-height:0}#ui .tagpanel{min-height:54px;padding:8px 14px}#ui .panel{padding:11px 13px}#ui .globe{min-height:200px}#ui .pxbk{min-height:40px;font-size:13px;margin-top:8px}#ui .hline.sub{min-height:22px}}',
     /* The tall sheets - results, the deck - ran past the viewport on a phone
      * whose browser keeps a toolbar at the bottom, and the last row (LEVELS,
      * or the HOME button) sat under the toolbar, unreachable. Every sub-sheet
@@ -652,7 +658,7 @@
     '  #ui .sheet.sub .grid{gap:6px;margin-bottom:6px}#ui .sheet.sub .slot{height:36px}#ui .sheet.sub .slots{margin:3px 0 5px}',
     '  #ui .sheet.sub .dmd{padding:4px 6px}#ui .sheet.sub .hline{min-height:26px}',
     '}',
-    '@media(max-height:600px){#ui .sheet.sub{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#ui .attract{display:none}#ui .translite{height:98px;margin:5px 0 6px}#ui .insrow{margin:8px 0 8px}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .sc{min-height:36px}}',
+    '@media(max-height:600px){#ui .sheet.sub{padding-bottom:calc(14px + env(safe-area-inset-bottom))}#ui .attract{display:none}#ui .translite{height:98px;margin:5px 0 6px}#ui .insrow{margin:8px 0 8px}#ui .pxbk{min-height:36px;font-size:12px;margin-top:6px}#ui .sheet.home .brand{width:min(88%,380px)}#ui .start{flex-basis:88px;width:88px;height:88px}#ui .start small{font-size:7.5px;letter-spacing:.05em;padding:3px 5px 2px;margin-top:4px}#ui .sc{min-height:36px}}',
     '@media(prefers-reduced-motion:reduce){#ui *{animation:none!important;transition:none!important}}'
   ].join('\n');
 
