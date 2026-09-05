@@ -24,8 +24,8 @@
   #gl { z-index: 0; } #game { z-index: 1; }
 
   /* Boot splash: also the gesture that unlocks Web Audio on mobile. It is
-     the machine powering up: a ball and two flippers under glass, the name
-     on a dot-matrix display, and a chase of attract lamps. Only transform
+     the machine powering up: the logo's round core emblem as a spinning
+     dial, the name on a dot-matrix display, and a chase of attract lamps. Only transform
      and opacity animate, so the compositor keeps them moving while the main
      thread compiles shaders behind it. */
   #boot {
@@ -47,36 +47,72 @@
       radial-gradient(80% 70% at 50% 50%, transparent 55%, rgba(0,0,0,.8) 100%);
   }
   #boot.gone { opacity: 0; pointer-events: none; }
-  /* Height is load-bearing: the ball's drop keyframe lands exactly on the
-     flipper faces, so changing it opens a gap between them. */
-  #boot .play { position: relative; width: min(62vw, 236px); height: 150px; z-index: 1; }
-  #boot .flip {
-    position: absolute; bottom: 30px; width: 78px; height: 18px; border-radius: 9px;
-    background: linear-gradient(180deg, #8fe8ff, #3fe0ff 55%, #0a7ea4);
-    box-shadow: 0 0 0 4px #05060d, 0 0 0 6px rgba(63,224,255,.35), 0 0 18px rgba(63,224,255,.55);
+  /* The emblem: the round core badge from the MegaBall logo, blown up to a
+     loading dial. A dark bezel with a cyan rim, a glowing core that breathes,
+     and two arcs (magenta and amber, the logo's accent lamps) orbiting in
+     opposite directions. Only transform and opacity animate. */
+  #boot .emblem { position: relative; width: 156px; height: 156px; z-index: 1; }
+  #boot .emblem::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, #12234a 0%, #08122c 55%, #04070f 100%);
+    box-shadow: 0 0 0 3px #05060d, 0 0 0 5px rgba(63,224,255,.45), inset 0 0 0 1px rgba(143,232,255,.25),
+      inset 0 -18px 30px rgba(0,0,0,.7), 0 0 34px rgba(63,224,255,.22), 0 18px 40px rgba(0,0,0,.7);
   }
-  #boot .flip::before {
-    content: ""; position: absolute; top: 3px; width: 12px; height: 12px; border-radius: 50%;
-    background: #05060d; box-shadow: inset 0 0 0 2px #3fe0ff;
+  /* Tick marks around the bezel, like the dial engraving on the logo. */
+  #boot .emblem::after {
+    content: ""; position: absolute; inset: 12px; border-radius: 50%; pointer-events: none;
+    background: repeating-conic-gradient(from -2deg, rgba(143,232,255,.55) 0 4deg, transparent 4deg 30deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+    opacity: .8;
   }
-  #boot .flip.l { left: 22px; transform-origin: 9px 9px; transform: rotate(24deg); animation: flipL 1.3s cubic-bezier(.4,0,.3,1) infinite; }
-  #boot .flip.l::before { left: 3px; }
-  #boot .flip.r { right: 22px; transform-origin: calc(100% - 9px) 9px; transform: rotate(-24deg); animation: flipR 1.3s cubic-bezier(.4,0,.3,1) infinite; }
-  #boot .flip.r::before { right: 3px; }
-  @keyframes flipL { 0%, 48%, 100% { transform: rotate(24deg); } 58%, 66% { transform: rotate(-14deg); } }
-  @keyframes flipR { 0%, 48%, 100% { transform: rotate(-24deg); } 58%, 66% { transform: rotate(14deg); } }
-  #boot .ball {
-    position: absolute; left: 50%; top: 10px; width: 52px; height: 52px; margin-left: -26px; border-radius: 50%;
-    background: radial-gradient(circle at 36% 30%, #fff 0%, #e8f6ff 45%, #b8d8ee 100%);
-    border: 7px solid #000; box-sizing: border-box;
-    box-shadow: 0 0 34px rgba(63,224,255,.55);
-    animation: drop 1.3s cubic-bezier(.45,0,.35,1) infinite;
+  #boot .orbit {
+    position: absolute; border-radius: 50%; pointer-events: none;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+    will-change: transform;
   }
-  @keyframes drop {
-    0%   { transform: translateY(-14px) scale(1,1); }
-    52%  { transform: translateY(50px)  scale(1.12,.88); }
-    64%  { transform: translateY(46px)  scale(.94,1.08); }
-    100% { transform: translateY(-14px) scale(1,1); }
+  /* Magenta arc on the outer track, sweeping clockwise with a fading tail. */
+  #boot .orbit.a {
+    inset: -16px;
+    background: conic-gradient(from 0deg, rgba(255,46,136,0) 0deg, rgba(255,46,136,.35) 60deg, #ff2e88 100deg, #ff9ccf 106deg, transparent 108deg 360deg);
+    filter: drop-shadow(0 0 8px rgba(255,46,136,.8));
+    animation: spin 2.4s linear infinite;
+  }
+  /* Amber arc on the inner track, running the other way. */
+  #boot .orbit.b {
+    inset: -6px;
+    background: conic-gradient(from 180deg, rgba(255,210,74,0) 0deg, rgba(255,210,74,.35) 60deg, #ffd24a 100deg, #fff1bf 106deg, transparent 108deg 360deg);
+    filter: drop-shadow(0 0 8px rgba(255,210,74,.8));
+    animation: spin 1.7s linear infinite reverse;
+  }
+  /* Small lamps riding each track's leading edge. */
+  #boot .orbit::after {
+    content: ""; position: absolute; left: 50%; top: 0; width: 9px; height: 9px; margin: -2px 0 0 -4.5px;
+    border-radius: 50%; background: #fff;
+  }
+  #boot .orbit.a::after { box-shadow: 0 0 10px #ff2e88, 0 0 3px #fff; }
+  #boot .orbit.b::after { box-shadow: 0 0 10px #ffd24a, 0 0 3px #fff; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* The core: the lit ball at the heart of the logo. */
+  #boot .core {
+    position: absolute; left: 50%; top: 50%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%;
+    background: radial-gradient(circle at 42% 36%, #fff 0%, #cdf6ff 22%, #3fe0ff 48%, #1a7fd6 72%, #0a2f6c 100%);
+    box-shadow: 0 0 0 2px rgba(0,0,0,.6), 0 0 22px rgba(63,224,255,.9), 0 0 60px rgba(63,224,255,.45);
+    animation: corePulse 1.7s ease-in-out infinite;
+  }
+  #boot .core::before {
+    content: ""; position: absolute; inset: -13px; border-radius: 50%;
+    border: 2px dashed rgba(143,232,255,.45);
+    animation: spin 9s linear infinite;
+  }
+  #boot .core::after {
+    content: ""; position: absolute; left: 22%; top: 10%; width: 40%; height: 26%; border-radius: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,.85), rgba(255,255,255,0));
+  }
+  @keyframes corePulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50%      { transform: scale(1.07); opacity: .88; }
   }
   #boot .disp {
     position: relative; z-index: 1; margin-top: 18px; padding: 15px 30px 14px;
@@ -144,7 +180,7 @@
 <div id="stage"><canvas id="gl"></canvas><canvas id="game"></canvas></div>
 
 <div id="boot">
-  <div class="play"><div class="flip l"></div><div class="flip r"></div><div class="ball"></div></div>
+  <div class="emblem" aria-hidden="true"><i class="orbit a"></i><i class="orbit b"></i><div class="core"></div></div>
   <div class="disp"><div class="t">Megaball</div></div>
   <div class="lamps"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
   <div class="s" id="bootmsg">Loading</div>
