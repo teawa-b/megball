@@ -1020,6 +1020,144 @@ dirty dotted field around the words, and dropping the grille loses the display e
 This is the one string on the splash that has to be readable, because the panel carries the
 boot state. The in-game DMD does not use this mask, so nothing else was affected.
 
+## 4kk. The lesson said HOLD, and never said where
+
+`GAME.pointerDown` calls `setFlipper(role, true)` on the press, so the flip has already fired
+by the time a hold begins; holding only keeps the arm raised afterwards. The lesson was
+teaching a gesture the player does not need to make the shot. Only the flipper copy changed —
+the paddle and card lessons are real holds and still say so.
+
+Worse, nothing said WHERE to press. Mid-wave the flipper is picked on nothing but
+`p.x < VW / 2`, so each half of the table is a button and the split is invisible; "tap that
+side" means nothing to a first-timer. Both halves are now drawn during the flipper steps,
+labelled LEFT and RIGHT with a dashed split, the half the ball is falling into lit amber and
+carrying the animated fingertip. They stop above the flippers rather than spanning the
+playfield, because that is where a thumb goes — a press higher up still works, so the hint
+under-promises rather than over-promises.
+
+`TUT.VERSION` 5 → 6, so a save that saw the old lesson gets this one.
+
+## 4ll. START HERE wrapped on iOS
+
+The label is set in `U.FONT`, the system stack, so its width is not ours to predict: the same
+string measures wider on iOS than on Windows. With no white-space rule and .24em of tracking
+on a ten-character label, it wrapped to two lines inside a 128px cap on a phone while looking
+correct on every desktop — which is exactly why it only showed up on device.
+
+`nowrap` plus a max-width tied to the cap makes the failure impossible rather than
+font-dependent, and tighter tracking buys the room: 81px of a 128px button, one line. The
+short-screen media queries had been shrinking the button to 98px and 88px without ever
+shrinking the label; they scale it now too.
+
+## 4mm. Three objectives nobody saw, and a line that would not stay in its holder
+
+A tester finished a stage without knowing there was anything to complete. The three
+objectives were already on the level-select plate and in the results verdict, but a quiet row
+above a big PLAY button is a row nobody reads.
+
+They now get their own card before the first ball: the stage name, the three objectives as
+lit star rows, a BUILD button. It reuses the notice machinery, so the build countdown stops
+behind it and one tap clears it. Not shown in Endless, and on a first visit to Stage 1 it
+waits for the lesson to hand over — the objectives it would state do not start counting until
+Wave 1. It shows on retries too, because a retry is exactly when a player wants reminding of
+the star they just missed.
+
+The live challenge chip under START now carries the same drawn star as the briefing rows, so
+the tracker reads as "one of your three stars" rather than as another status light. The
+results verdict became a headline rather than a footnote: a marquee with a running tally, a
+star per row, and EARNED or MISSED in words. The level-select plate got the same marquee,
+showing the stars already banked.
+
+One real bug fell out of it. The results star lamps were parked at `opacity:0` in their base
+rule and relied on their entry animation to bring them back — so under
+`prefers-reduced-motion`, which switches every animation off, they never appeared at all. The
+entry state moved into the keyframe, where a disabled animation leaves the element visible.
+
+Separately, and from the same report: the ENERGY BANKED pill in the build field had its first
+and last letters sitting on top of its own border on a phone. The pill was sized from
+`ctx.measureText(line).width`, but the line is painted by `ptext` with 1.5px of letter
+spacing, which `measureText` does not account for. At 53 characters that is 78px of width the
+holder never knew about — 526.5px of text inside a 512.5px pill. It is now sized from the
+width `ptext` actually paints, centred in what is left after the lamp rather than in the pill,
+and shrinks before it can outgrow the table. Checked from 0 to 99999 energy: 9px clear of the
+lamp, 18px on the right, every time. The toast at the foot of the table had the same class of
+bug latent in it and got the same treatment.
+
+## 4nn. Juice that piled up instead of punctuating
+
+The report was precise: the feel of an individual hit was right, but past a certain number of
+balls "the machine is just all shaky, and it's hard to keep up with".
+
+Two compounding faults. Shake was purely additive with a hard ceiling, and its decay constant
+could only ever grow, never shrink — a fresh shake could lengthen the ring-down but never
+shorten it. So one boss death set a half-second decay that every bumper tap for the rest of
+the wave then inherited, and with every contact, kill, blast and chain calling `shake()`, the
+amplitude climbed faster than it fell. Past roughly 25 impacts a second — about a dozen balls
+working a board full of bumpers — it pinned near the ceiling and stayed. Measured over a
+synthetic late wave: above the rotation threshold for 98% of frames, above 14 units for 89%.
+At that point the cabinet has stopped punctuating anything and is simply vibrating.
+
+Hitstop had the same shape of problem and a worse cost, because a freeze is the only effect
+that takes the player's input away. A superheated board full of blast bumpers spent 68% of
+each second frozen, which is most of what "hard to keep up with" actually was.
+
+Both are now metered by leaky buckets that drain in about a second, so ordinary play never
+touches them:
+
+- Shake earns its full authored magnitude while the bucket is empty and progressively less as
+  it fills. The amplitude rule fades from "old value + this hit" toward "just this hit", and
+  the decay constant fades from the longest-wins ratchet toward an amplitude-weighted blend.
+  Neither can ever shorten a big ring-down already running — the guarantee the ratchet existed
+  to protect is kept without the constant sticking.
+- Freezes get a hard 12% duty cycle instead of a gap, so the rule holds at any event rate.
+- A slowmo can only be interrupted by a deeper one, so chains past x4 stop chain-extending
+  slow motion into being the game's speed.
+
+The knee is squared rather than linear, which is what keeps an ordinary wave untouched and
+only bites once the table is genuinely crowded. Tuning was done against measured event
+streams rather than by eye, sweeping the knee and the drain constant across light, mid and
+heavy wave profiles; the knee turned out to matter far less than the decay-constant fix, which
+is worth recording because it was not the expected answer.
+
+Verified by pushing the same event stream through both versions. Every ordinary moment comes
+out numerically identical: a bumper tap 3.000 against 3.000, two quick paddle hits 6.633
+against 6.637, a x4 chain 17.91 against 17.92, a life lost 10.0, a boss death 20.0. At 4
+impacts a second the two are indistinguishable. At 30 and 45 a second, time spent rotating
+falls from 100% to 3% and 2% while the peak stays at 19 — the big moments still land and the
+noise between them is gone. Freeze time at 20 blasts a second: 68% to 13%, and unchanged at
+ordinary rates. `FX.juice()` reports the governor state for future tuning, and `shakeBudget`,
+an earlier unused attempt at the same idea, came out of game state.
+
+## 4oo. A boss wave you could not leave, and a mission card worth looking at
+
+NEXT WAVE never appeared on an Endless boss wave. The offer was gated on no boss being alive,
+which is right for the campaign — the last wave ending IS the level ending, so skipping it
+would hand out the clear without the fight. Endless has no clear condition to cheat: the waves
+keep coming, and stragglers are carried over rather than swept up, so calling the next wave in
+on top of a boss costs the player rather than saving them. Left as it was, a boss the board
+could not quite finish held the whole run hostage. Instrumented over an Endless run, one boss
+wave lasted 184 seconds with the button offered for ten of them.
+
+The tail of a boss wave is now judged by the ESCORT, with the boss left out of the count. A
+boss soaks damage for minutes after its escort is dead, and counting it among "what is left"
+is exactly what kept the button hidden through the dullest stretch of the run. Boss waves now
+offer it 75% of the time; campaign boss waves still never do (3465 frames with a boss up, zero
+offers). The button reads BOSS STAYS rather than a straggler count, because that is what
+happens — it is a decision, not a skip. The life-back for clearing a boss wave now checks the
+boss actually died, or calling the wave in early would have been a way to farm lives off a
+boss nobody ever beat.
+
+The mission card from 4mm was a flat amber panel; the note was that it "could look more
+appealing". It now opens on the stage's own translite — the same picture the level-select
+screen already uses for that stage — under a darkening wash and the same scanline texture,
+with the stage name and subtitle across the foot and three lamps for the stars already banked
+on it. A player replaying for the last star can see which one is missing before reading a
+word. The objective rows got a socket for the star and light from the left instead of sitting
+flat. Two clips are intersected for the art panel, the card's rounded corners and the band
+itself; without the second one a tall cover-fit image runs on down the card and paints over
+the objectives, which is what the first attempt did. Checked at 375x812 and 375x667. The wear
+and tutorial cards take the old plain header and are untouched.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
