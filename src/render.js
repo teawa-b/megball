@@ -3118,6 +3118,40 @@
         ctx.arc(t.x, t.y, (t.family === 'bumper' ? t.r : 22) + 10, 0, TAU);
         ctx.stroke();
       }
+      /* Paddle recharge. The arm's whole rhythm is swing, wait, swing, and
+       * the wait was invisible from across the table: a paddle standing
+       * still over a ball read as a paddle that had missed. An arc fills
+       * around the hub while it reloads, in the same language as the bumper
+       * ability arc below, and a ring pops off it the instant it is ready. */
+      if (t.family === 'paddle') {
+        var was = t.cdWas || 0;
+        if (was > 0 && t.cd <= 0 && t.frozenT <= 0) t.readyFlash = 0.28;
+        t.cdWas = t.cd;
+        if (t.cd > 0 && t.frozenT <= 0) {
+          var rf = 1 - U.clamp(t.cd / d.cd, 0, 1);
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 24, -Math.PI / 2, -Math.PI / 2 + TAU * rf);
+          ctx.lineWidth = 3.5;
+          ctx.strokeStyle = U.rgba(d.color, 0.3 + 0.6 * rf);
+          ctx.stroke();
+          /* The unfilled remainder, faint, so the arc reads as a gauge and
+           * not as a loose bracket. */
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 24, -Math.PI / 2 + TAU * rf, -Math.PI / 2 + TAU);
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = U.rgba(C.white, 0.12);
+          ctx.stroke();
+        }
+        if (t.readyFlash > 0) {
+          var k = t.readyFlash / 0.28;
+          ctx.beginPath();
+          ctx.arc(t.x, t.y, 24 + (1 - k) * 22, 0, TAU);
+          ctx.lineWidth = 2 + k * 3;
+          ctx.strokeStyle = U.rgba(d.color, k * 0.9);
+          ctx.stroke();
+          t.readyFlash -= S.dtDraw || 1 / 60;
+        }
+      }
       var max = d.blastCd || d.chainCd;
       if (max && t.abilityCd > 0) {
         ctx.beginPath();

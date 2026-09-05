@@ -416,6 +416,23 @@
     '  box-shadow:0 0 0 3px #0a0d18,0 0 0 5px rgba(255,176,32,.35),0 10px 22px rgba(0,0,0,.55),0 0 26px rgba(255,176,32,.25);',
     '  transition:transform .08s,filter .12s;animation:cabOn .45s cubic-bezier(.2,1.2,.4,1) .2s both;}',
     '@keyframes cabOn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}',
+    /* The results screen's one button keeps asking. A real cabinet does this
+     * with a flashing START lamp; here the whole cap hops on a short loop and
+     * a ring of light breathes under it, so "go again" is never a row the eye
+     * has to find. */
+    '#ui .cab.bounce{animation:cabOn .45s cubic-bezier(.2,1.2,.4,1) .2s both,cabHop 1.5s cubic-bezier(.34,1.56,.64,1) .9s 3;}',
+    /* Three hops to catch the eye, then it settles into a slow breathing
+     * rim so it keeps asking without nagging while the stats are read. The
+     * glow lives INSIDE the cap: the sheet clips anything past the button's
+     * box, so an outer halo and a scaled-up hop both lost their edges. */
+    '#ui .cab.bounce::before{content:"";position:absolute;inset:3px;border-radius:11px;pointer-events:none;',
+    '  box-shadow:inset 0 0 0 2px rgba(255,255,255,.55),inset 0 0 22px rgba(255,236,160,.75);animation:cabGlow 1.5s ease-in-out .9s 3,cabBreathe 2.6s ease-in-out 5.4s infinite;}',
+    '#ui .cab.bounce:active{animation-play-state:paused;}',
+    '@keyframes cabHop{0%,100%{transform:none}14%{transform:translateY(-7px)}28%{transform:translateY(0) scaleY(.97)}40%{transform:translateY(-3px)}52%{transform:none}}',
+    '@keyframes cabGlow{0%,100%{opacity:.25}14%{opacity:1}52%{opacity:.4}}',
+    '@keyframes cabBreathe{0%,100%{opacity:.25}50%{opacity:.7}}',
+    '#ui .sc.stat.pow i{background:#ff8a2a;box-shadow:0 0 8px #ff8a2a;}#ui .sc.stat .ct.pow{color:#ffb070;}',
+    '@keyframes cabHop{0%,100%{transform:none}14%{transform:translateY(-6px) scale(1.05)}28%{transform:translateY(0) scale(.98,1.02)}40%{transform:translateY(-3px) scale(1.02)}52%{transform:none}}',
     '#ui .cab::after{content:"";position:absolute;left:10%;top:6px;width:80%;height:30%;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.5),rgba(255,255,255,0));pointer-events:none;}',
     '#ui .cab b{position:relative;z-index:1;font:20px/1 ' + PX + ';text-transform:uppercase;letter-spacing:.04em;text-shadow:0 1px 0 rgba(255,255,255,.35);}',
     '#ui .cab small{position:relative;z-index:1;margin-top:5px;font:10px/1 ' + PX + ';letter-spacing:.08em;text-transform:uppercase;color:#5a2600;}',
@@ -908,6 +925,7 @@
     var logo = global.ART && global.ART.get ? global.ART.get('logo_megaball') : null;
     var total = GAME ? GAME.totalStars() : 0;
     var best = GAME ? (GAME.progress.endlessBest || 0) : 0;
+    var firstRun = !!(GAME && global.TUT && GAME.progress.tutorialV !== global.TUT.VERSION);
     var rank = total >= 15 ? 'Legend' : total >= 10 ? 'Ace' : total >= 6 ? 'Veteran' : total >= 3 ? 'Defender' : 'Rookie';
     var owned = LEVELS && LEVELS.ownedAt ? LEVELS.ownedAt(total) : { cards: [] };
     var cardsMax = CARDS && CARDS.UNLOCK_ORDER ? CARDS.UNLOCK_ORDER.length : 0;
@@ -949,9 +967,9 @@
        * "ENDLESS" does not. The action stays on the cap and the destination
        * rides underneath it, which is also how a real cabinet is labelled. */
       '<div class="ctl">',
-      '<button class="start" id="endless" aria-label="Play Endless mode' +
-        (best ? ', best wave ' + best : '') + '"><span class="halo" aria-hidden="true"></span>' +
-        '<b>Play</b><small>Endless</small></button>',
+      '<button class="start" id="endless" aria-label="' + (firstRun ? 'Play: start the first stage' : 'Play Endless mode' +
+        (best ? ', best wave ' + best : '')) + '"><span class="halo" aria-hidden="true"></span>' +
+        '<b>Play</b><small>' + (firstRun ? 'Start here' : 'Endless') + '</small></button>',
       '<div class="scard">',
       '<button class="sc amb" id="play"><i></i><span class="lb">Campaign</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
       '<button class="sc" id="lvls"><i></i><span class="lb">Levels</span><span class="ld"></span><span class="ct">Stage ' + curId + '</span></button>',
@@ -966,7 +984,15 @@
 
     on('#play', function () { sfx('ui_tap'); UI.showScreen('world'); }, sheet);
     on('#lvls', function () { sfx('ui_tap'); UI.showScreen('levelSelect'); }, sheet);
-    on('#endless', function () { sfx('ui_tap'); UI.showScreen('endless'); }, sheet);
+    /* A first-timer's PLAY goes to the lesson, not to Endless: the lesson
+     * is where they build, ignite and chain inside three minutes, which is
+     * the game's strongest three minutes. Once it has been seen (or skipped)
+     * the cabinet button is Endless again, as labelled. */
+    on('#endless', function () {
+      sfx('ui_tap');
+      if (firstRun && hooks.onStartLevel) hooks.onStartLevel(1);
+      else UI.showScreen('endless');
+    }, sheet);
     on('#deck', function () { sfx('ui_tap'); UI.showScreen('loadout', { back: 'title' }); }, sheet);
     /* Replays the Level 1 tutorial on demand. */
     on('#howto', function () {
@@ -1430,14 +1456,15 @@
       statRow('Destroyed', d.kills, ''),
       statRow('Energy earned', d.earned, 'amb'),
       statRow('Leaks', d.leaks, 'mag'),
+      d.bestChain >= 2 ? statRow('Best chain', 'x' + d.bestChain, 'pow') : '',
       '</div>',
       unl,
       d.win && !d.hasNext ? '<div class="unlock good">All levels cleared · ★' + d.totalStars + ' total</div>' : '',
       '<div class="spacer"></div>',
       d.win && d.hasNext
         ? cab('next', 'Continue',
-            viaDeck ? 'Pick your cards first' : 'Stage ' + nextId)
-        : (d.win ? '' : cab('retry', 'Try again', d.level.name)),
+            viaDeck ? 'Pick your cards first' : 'Stage ' + nextId, 'bounce')
+        : (d.win ? '' : cab('retry', 'Try again', 'Get past wave ' + (d.wave || 1), 'bounce')),
       '<div class="scard">',
       d.win ? scRow('retry', 'Replay', '') : '',
       scRow('menu', 'Levels', ''),
@@ -1471,10 +1498,12 @@
       statRow('Best run', d.best || 0, 'amb'),
       statRow('Destroyed', d.kills, ''),
       statRow('Leaks', d.leaks, 'mag'),
+      d.bestChain >= 2 ? statRow('Best chain', 'x' + d.bestChain, 'pow') : '',
       '</div>',
       d.newBest ? '<div class="unlock">New best · wave ' + d.wave + '</div>' : '',
       '<div class="spacer"></div>',
-      cab('retry', 'Go again', 'Endless'),
+      cab('retry', 'Go again',
+        d.newBest ? 'Beat wave ' + d.wave : (d.best ? 'Beat wave ' + d.best : 'Set a record'), 'bounce'),
       '<div class="scard">' + scRow('menu', 'Home', '') + '</div>'
     ].join(''), true);
     mark(sheet, 'sub');

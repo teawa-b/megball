@@ -206,12 +206,19 @@
 
   /* LED material per colour — emissive plastic that reads through ACES. */
   function led(hex, intensity) {
-    var key = hex + ':' + (intensity || 1);
+    /* Intensity is QUANTISED to 0.1 steps before it becomes a cache key.
+     * sync* feeds this continuous values (wear dimming, bumper pulse), and an
+     * unrounded float minted a new material on nearly every hit of every
+     * tower — 18,000 of them by endless wave 10 on a full board, which is
+     * what made Edge on Android drop the tab for memory. A tenth of a stop is
+     * well below what the eye picks up through ACES. */
+    var q = Math.round((intensity || 1) * 10) / 10;
+    var key = hex + ':' + q;
     var m = ledCache[key];
     if (!m) {
       m = new THREE.MeshStandardMaterial({
         color: col(hex).multiplyScalar(0.25),
-        emissive: col(hex), emissiveIntensity: intensity || 1,
+        emissive: col(hex), emissiveIntensity: q,
         roughness: 0.4, metalness: 0
       });
       ledCache[key] = m;
@@ -1004,6 +1011,11 @@
        * still the magenta one. */
       var fade = global.DRAW && global.DRAW.wearFade
         ? global.DRAW.wearFade(cond) : (1 - cond);
+      /* Snap the fade to eighths: it drives both the mixed colour string and
+       * the dim factor, and both are material cache keys (see led / glow).
+       * Continuous wear meant a fresh colour, hence a fresh material, on
+       * every point of durability lost. */
+      fade = Math.round(fade * 8) / 8;
       var c = frozen ? C.frost : U.mixHex(t.def.color, C.steel, fade * 0.62);
       var dim = frozen ? 0.32 : 1 - 0.68 * fade;
       if (ud.kind === 'paddle') {
@@ -1011,12 +1023,17 @@
         var hot = t.swingT > 0 && !frozen;
         var ready = t.cd <= 0 && !frozen;
         var oc = S.overchargeT > 0;
-        ud.ring.material = led(c, (ready ? (oc ? 2.4 : 1.4) : 0.3) * dim);
+        /* The hub ring brightens as the paddle reloads, in eighths so the
+         * material cache sees at most eight keys per colour (see led). */
+        var rf = frozen ? 0 : Math.round((1 - Math.min(1, Math.max(0, t.cd / t.def.cd))) * 8) / 8;
+        ud.ring.material = led(c, (ready ? (oc ? 2.4 : 1.4) : 0.3 + 0.9 * rf) * dim);
         ud.strip.material = led(c, (hot ? 3.2 : (ready ? 0.9 : 0.2)) * dim);
         ud.glow.material = glow(c, (ready ? (oc ? 0.9 : 0.5) : 0.15) * dim);
         ud.armGlow.material = glow(c, (hot ? 0.8 : (ready ? 0.18 : 0.05)) * dim, true);
       } else {
-        var pulse = t.pulse > 0 ? t.pulse / 0.28 : 0;
+        /* Pulse in sixths, for the same reason as the fade above: a raw
+         * 0.28 s ramp produced ~17 unique brightness keys per bumper hit. */
+        var pulse = t.pulse > 0 ? Math.round(t.pulse / 0.28 * 6) / 6 : 0;
         var sh = S.superheatT > 0 && !frozen;
         node.scale.z = pop * (1 - pulse * 0.18);
         ud.core.material = pulse > 0.15 ? led(C.white, (1.5 + pulse * 2) * dim)
@@ -1273,7 +1290,11 @@
   SCENE3D.stats = function () {
     if (!renderer) return null;
     var r = renderer.info.render, m = renderer.info.memory;
-    return { calls: r.calls, triangles: r.triangles, geometries: m.geometries, textures: m.textures };
+    var nl = 0, ng = 0, k;
+    for (k in ledCache) nl++;
+    for (k in glowCache) ng++;
+    return { calls: r.calls, triangles: r.triangles, geometries: m.geometries, textures: m.textures,
+      ledMaterials: nl, glowMaterials: ng };
   };
 
   global.SCENE3D = SCENE3D;

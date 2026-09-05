@@ -241,9 +241,17 @@
     PROG.tutorialDone = true;
     PROG.tutorialV = global.TUT ? global.TUT.VERSION : 2;
     saveProgress();
+    /* Nothing that happened in the lesson counts against the level: the
+     * chain the player landed there is not the level's chain, and the
+     * defenses they were handed are a gift, not a purchase. Wave 1 starts
+     * with the level's own purse on top of them. */
+    S.bestChain = 0;
+    S.comboT = 0;
     if (completed) {
-      /* The bumper built during the lesson is a gift, not a purchase. */
-      addEnergy(ENT.TOWERS.bumper.cost, 360, 560, 'ON THE HOUSE  +' + ENT.TOWERS.bumper.cost);
+      var purse = S.level ? S.level.startEnergy : 0;
+      var top = Math.max(0, purse - S.energy);
+      if (top > 0) addEnergy(top, 360, 560, 'ON THE HOUSE  +' + top);
+      else if (global.FX) global.FX.text(360, 560, 'ON THE HOUSE', { color: C.amber, size: 30, life: 0.9, rise: 34, pop: 1 });
       sfx('wave_clear');
     }
     S.pendingTutorial = false;
@@ -558,16 +566,21 @@
    * around while the player waits for a counter to reach zero. Every tower
    * defense lets you skip that, so this one does too.
    *
-   *   ENDLESS ONLY — the campaign's authored pacing and its leak-budget stars
-   *     both assume a wave is fought out to the end.
    *   FULLY SPAWNED — the gates have to be quiet, both because "the wave is
    *     nearly over" is not true while it is still arriving, and because the
    *     button sits in the spawn zone and must never cover an incoming ball.
    *   NO BOSS — a boss IS the wave, not its tail.
-   *   A TAIL, not a wave: at most 30% of the wave still breathing. */
-  GAME.EARLY_TAIL = 0.3;
+   *   A TAIL, not a wave: at most half of the wave still breathing.
+   *
+   * It used to be Endless-only and wait for the last 30%, on the theory that
+   * the campaign's pacing and leak-budget stars assumed a wave fought to the
+   * end. But the stragglers are carried over and still cost lives, so the
+   * budget is never dodged — and a first-time player sitting through the
+   * last four Drones of every campaign wave was the single dullest stretch
+   * of the opening. Offered from the halfway mark, everywhere. */
+  GAME.EARLY_TAIL = 0.5;
   GAME.canEndWaveEarly = function () {
-    if (!S.level || !S.level.endless || S.mode !== 'wave') return false;
+    if (!S.level || S.mode !== 'wave') return false;
     if (S.inspect || S.notice || S.selectedTower || S.buildPick) return false;
     var t = GAME.waveTail();
     if (!t || t.boss || t.unspawned > 0) return false;
@@ -705,7 +718,7 @@
         win: true, level: S.level, stars: stars, prevStars: prev,
         objectives: objectives,
         lives: S.lives, livesMax: S.livesMax, kills: S.totalKills,
-        earned: S.earned, leaks: S.leaks, unlocks: newUnlocks,
+        earned: S.earned, leaks: S.leaks, unlocks: newUnlocks, bestChain: S.bestChain,
         totalStars: after, hasNext: !!LEVELS.byId(S.level.id + 1)
       });
     }
@@ -728,7 +741,7 @@
         global.UI.showScreen('results', {
           win: false, endless: true, level: S.level, stars: 0, objectives: null,
           lives: 0, livesMax: S.livesMax, kills: S.totalKills,
-          earned: S.earned, leaks: S.leaks, unlocks: [],
+          earned: S.earned, leaks: S.leaks, unlocks: [], bestChain: S.bestChain,
           totalStars: GAME.totalStars(), hasNext: false,
           wave: survived, best: PROG.endlessBest || 0, newBest: newBest
         });
@@ -739,7 +752,7 @@
       global.UI.showScreen('results', {
         win: false, level: S.level, stars: 0,
         objectives: LEVELS.objectives(S.level, runSummary(false, true)),
-        lives: 0, livesMax: S.livesMax, kills: S.totalKills,
+        lives: 0, livesMax: S.livesMax, kills: S.totalKills, bestChain: S.bestChain,
         earned: S.earned, leaks: S.leaks, unlocks: [],
         totalStars: GAME.totalStars(), hasNext: false,
         wave: S.waveIndex + 1, waves: S.level.waves.length

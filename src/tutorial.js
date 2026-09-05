@@ -253,51 +253,6 @@
       spot([{ kind: 'rect', x: U.WALL_L, y: 1176, w: U.WALL_R - U.WALL_L, h: 60, r: 12 }]);
       point('arrow', VW / 2, 1150, { dir: 'down', label: 'THE DRAIN' });
     },
-    next: 'flipL'
-  };
-
-  STEPS.flipL = {
-    enter: function () {
-      say('YOUR FLIPPERS', 'Hold the LEFT side of the table to raise the left flipper.', { tap: false });
-      spot([{ kind: 'rect', x: U.WALL_L, y: 720, w: 320, h: 480, r: 24 }]);
-      point('hold', 200, 960, { label: 'HOLD' });
-    },
-    update: function () {
-      if (S.flipL.on && !T.flag) { T.flag = true; T.wait = 0.55; floatText(BOARD.FLIP.lx + 40, BOARD.FLIP.y - 50, 'LEFT!'); }
-      if (T.flag) { T.wait -= T.dt; if (T.wait <= 0) return 'flipR'; }
-    }
-  };
-
-  STEPS.flipR = {
-    enter: function () {
-      say('YOUR FLIPPERS', 'Now hold the RIGHT side for the right flipper.', { tap: false });
-      spot([{ kind: 'rect', x: 360, y: 720, w: 320, h: 480, r: 24 }]);
-      point('hold', 520, 960, { label: 'HOLD' });
-    },
-    update: function () {
-      if (S.flipR.on && !T.flag) { T.flag = true; T.wait = 0.55; floatText(BOARD.FLIP.rx - 40, BOARD.FLIP.y - 50, 'RIGHT!'); }
-      if (T.flag) { T.wait -= T.dt; if (T.wait <= 0) return 'both'; }
-    }
-  };
-
-  STEPS.both = {
-    enter: function () {
-      say('BOTH AT ONCE', 'Hold BOTH sides at the same time. Go on, try it.', { tap: false });
-      spot([{ kind: 'rect', x: U.WALL_L, y: 720, w: U.WALL_R - U.WALL_L, h: 480, r: 24 }]);
-      point('hold', 200, 960, { label: 'HOLD' });
-      T.pointer2 = { kind: 'hold', x: 520, y: 960, label: 'HOLD' };
-    },
-    update: function () {
-      if (S.flipL.on && S.flipR.on && !T.flag) { T.flag = true; T.wait = 0.9; floatText(VW / 2, BOARD.FLIP.y - 70, 'BOTH!', C.amber, 34); }
-      if (T.flag) { T.wait -= T.dt; if (T.wait <= 0) return 'bothJoke'; }
-    },
-    exit: function () { T.pointer2 = null; }
-  };
-
-  STEPS.bothJoke = {
-    enter: function () {
-      say('...YEP.', 'You can keep them up as long as you like. It parks a ball for a moment. It will not win you the level.', { pos: 'top' });
-    },
     next: 'spawn'
   };
 
@@ -331,7 +286,10 @@
     enter: function () {
       slow(1, 0.12);
       zoom(1);
-      say('FLIP IT', 'Let it fall. When it reaches a flipper, HOLD that side to knock it back up.', { tap: false });
+      /* The flippers are taught here, on a live ball, rather than in a dry
+       * hold-left / hold-right drill beforehand: the cue under the ball says
+       * which side, and the hit is its own reward. */
+      say('FLIP IT', 'Let it fall. When it reaches a flipper, HOLD that side of the table to raise the flipper and knock it back up.', { tap: false });
       point('arrow', 0, 0, { dir: 'down', ball: T.ball, board: true });
       T.flag = false;
     },
@@ -349,7 +307,7 @@
       if (ev === 'flipHit') return 'hit';
       if (ev === 'drain') {
         T.misses++;
-        say('MISSED', 'Here comes another one. Wait until it is ON the flipper, then hold that side.', { tap: false });
+        say('MISSED', 'Here comes another one. Wait until it is ON the flipper, then hold that side of the table.', { tap: false });
         point('arrow', 0, 0, { dir: 'down', ball: null, board: true });
         var nb = spawnBall(CLEAR_X[T.misses % CLEAR_X.length], S.table.spawnY, { vx: 0, vy: 70 });
         T.pointer.ball = nb;
@@ -501,12 +459,59 @@
     next: 'paddle'
   };
 
+  /* ---------------------------------------------------------------------- */
+  /* The chain                                                              */
+  /*                                                                        */
+  /* The game's signature play, done by the player's own hand inside the    */
+  /* lesson instead of discovered on Level 4 or never. They buy the paddle, */
+  /* they buy POWER, and the first ball it ignites is sent through a crowd. */
+  /* Every kill in that crowd is theirs.                                    */
+  /* ---------------------------------------------------------------------- */
+
   STEPS.paddle = {
     enter: function () {
-      say('PADDLES', 'The other defense: a robot flipper that swings at anything in reach. Mix bumpers and paddles. You will build one later.', { pos: 'top' });
-      point('arrow', 0, 0, { dir: 'down', tray: 'paddle', label: 'PADDLE' });
+      if (S.energy < ENT.TOWERS.paddle.cost) S.energy = ENT.TOWERS.paddle.cost;
+      say('PADDLES', 'The other defense: a robot flipper that swings at anything in reach. Tap PADDLE in the tray.', { tap: false, pos: 'top' });
+      point('tap', 0, 0, { tray: 'paddle' });
     },
-    next: 'upgradeOpen'
+    allow: function (x, y) {
+      var r = buildCell('paddle');
+      return !!(r && inRect(x, y, r));
+    },
+    update: function () { if (S.buildPick === 'paddle') return 'placePaddle'; }
+  };
+
+  /* An outer slot by preference: the paddle then swings in toward the
+   * bumper, which is the pairing the level is about to reward. */
+  function pickPaddleSlot() {
+    var list = safeSlots();
+    for (var i = 0; i < list.length; i++) if (list[i].x !== 360) return list[i];
+    return list[0] || null;
+  }
+
+  STEPS.placePaddle = {
+    enter: function () {
+      var list = safeSlots(), holes = [];
+      T.slot = pickPaddleSlot();
+      say('PLACE IT', 'Tap a GLOWING slot. Paddles swing up and in, toward the middle of the table.', { tap: false, pos: 'top' });
+      if (T.slot) point('tap', T.slot.x, T.slot.y, { board: true });
+      for (var i = 0; i < list.length; i++) {
+        holes.push({ kind: 'circle', x: list[i].x, y: list[i].y, r: 52 });
+      }
+      spot(holes);
+    },
+    allow: function (x, y) {
+      if (S.buildPick !== 'paddle') return false;
+      return isSafeSlot(BOARD.slotAt(S.table, x, y, 52));
+    },
+    deny: function (x, y) {
+      if (y > U.BAND.hud && y < U.BAND.trayTop) {
+        sfx('ui_error');
+        nudgeText(x, y - 30, 'USE A GLOWING SLOT', C.magenta);
+      }
+    },
+    update: function () { if (S.buildPick !== 'paddle') return 'paddle'; },
+    on: function (ev, t) { if (ev === 'place') { T.paddle = t; return 'upgradeOpen'; } }
   };
 
   /* The lesson makes the player HOLD, not tap, because that is the gesture
@@ -518,130 +523,246 @@
   STEPS.upgradeOpen = {
     enter: function () {
       say('UPGRADES',
-        'Defenses can be upgraded. HOLD your bumper for a moment to open it — during a wave a tap works the flippers, so holding is how you reach a defense.',
+        'Defenses can be upgraded. HOLD your paddle for a moment to open it — during a wave a tap works the flippers, so holding is how you reach a defense.',
         { tap: false, pos: 'top' });
-      point('hold', T.tower.x, T.tower.y, { board: true, label: 'HOLD' });
+      point('hold', T.paddle.x, T.paddle.y, { board: true, label: 'HOLD' });
     },
     allow: function (x, y) {
       var G = global.GAME;
-      return !!(G && G.towerAt && G.towerAt(x, y) === T.tower);
+      return !!(G && G.towerAt && G.towerAt(x, y) === T.paddle);
     },
     deny: function (x, y) {
       if (y > U.BAND.hud && y < U.BAND.trayTop) {
         sfx('ui_error');
-        nudgeText(T.tower.x, T.tower.y - 60, 'HOLD YOUR BUMPER', C.cyan);
+        nudgeText(T.paddle.x, T.paddle.y - 60, 'HOLD YOUR PADDLE', C.cyan);
       }
     },
-    update: function () { if (S.selectedTower === T.tower) return 'upgBlast'; }
+    update: function () { if (S.selectedTower === T.paddle) return 'upgPower'; }
   };
 
-  function upgStep(to, title, body, next) {
-    return {
-      enter: function () {
-        /* The pick's cards fill mid-screen; the lesson reads from under them.
-         * This is a tour, not a purchase: the card is dimmed-around and
-         * labelled, never offered with a tap cue. */
-        say(title, body, { pos: 'low' });
-        T.spotTray = to;
-        point('arrow', 0, 0, { dir: 'down', tray: to === 'sell' ? 'sell' : 'up:' + to, label: title });
-      },
-      exit: function () { T.spotTray = null; },
-      next: next
-    };
-  }
-  STEPS.upgBlast = upgStep('blast', 'BLAST BUMPER', 'Detonates on every hit. Hurts everything nearby. Built for crowds.', 'upgShock');
-  STEPS.upgShock = upgStep('shock', 'SHOCK BUMPER', 'Arcs lightning from ball to ball. Great when they bunch up.', 'upgLaunch');
-  STEPS.upgLaunch = upgStep('launch', 'LAUNCH BUMPER', 'Hurls balls back to the top. Buys you time, not kills.', 'upgSell');
-  STEPS.upgSell = upgStep('sell', 'SELL', 'Changed your mind? Selling refunds part of the cost. Paddles upgrade too: FROST slows, POWER turns a ball into a weapon.', 'cards');
-
-  /* Which card the lesson points at. SLOW TIME by preference: everyone starts
-   * with it, and it is the one card whose effect can be DEMONSTRATED rather
-   * than described — the table visibly changes speed. Falls back to the first
-   * card for anyone replaying the lesson with a different deck. */
-  function lessonCardIndex() {
-    for (var i = 0; i < S.cards.length; i++) {
-      if (S.cards[i].def.id === 'slowtime') return i;
-    }
-    return 0;
-  }
-
-  /* Keep a couple of balls falling down the safe columns, so there is always
-   * something on the table for the card to act on. The step used to run on an
-   * empty board: the player tapped SLOW TIME, nothing moved because nothing
-   * was moving, and the one card they own stayed an abstraction. */
-  function dropCardBall() {
-    var live = 0;
-    for (var i = 0; i < S.balls.length; i++) if (!S.balls[i].dead) live++;
-    if (live >= 3) return;
-    var b = spawnBall(CLEAR_X[T.misses++ % CLEAR_X.length], S.table.spawnY,
-      { vx: 0, vy: 60 });
-    /* Not a fight: these are here to be watched, and a bumper kill mid-demo
-     * would empty the table exactly as the player reaches for the card. */
-    if (b) { b.hp = 999; b.maxHp = 999; }
-    T.ball = null;              // no single ball is "the" ball in this step
-  }
-
-  STEPS.cards = {
+  /* A purchase this time, not a tour: the pointer is a TAP cue on POWER and
+   * the energy is put in the bank first. FROST is named so the choice reads
+   * as a choice, and denied so the lesson stays on its rails. */
+  STEPS.upgPower = {
     enter: function () {
-      S.selectedTower = null;
-      zoom(1);
-      /* Full speed on purpose: the tutorial's own bullet time would mask the
-       * very thing this card exists to show. */
-      slow(1, 0.5);
-      T.misses = 0;
-      T.flag = false;
-      T.wait = 0;
-      dropCardBall();
-      var ci = lessonCardIndex();
-      var isSlow = S.cards[ci] && S.cards[ci].def.id === 'slowtime';
-      say(isSlow ? 'SLOW TIME' : 'CARDS',
-        isSlow
-          ? 'Cards are one-tap powers on a cooldown. HOLD one to read it. This one drags every ball on the table into slow motion — TAP it and watch.'
-          : 'Cards are one-tap powers on a cooldown. HOLD one to read what it does, then TAP it to fire.',
-        { tap: false, pos: 'top' });
-      point('tap', 0, 0, { tray: 'card' + ci });
+      var d = ENT.TOWERS.power;
+      if (S.energy < d.cost) S.energy = d.cost;
+      say('POWER PADDLE',
+        'Two upgrades. FROST slows what it hits. POWER turns the ball it hits into a WEAPON. Tap POWER — this one is on the house.',
+        { tap: false, pos: 'low' });
+      T.spotTray = 'power';
+      point('tap', 0, 0, { tray: 'up:power' });
     },
-    /* The pointed-at card takes the press, and so does the lower field, so the
-     * player can flip at the demo balls while they watch. Tower taps are
-     * deliberately NOT let through: an upgrade panel here would bury the one
-     * thing this step exists to show. */
     allow: function (x, y) {
-      var r = cardCell(lessonCardIndex());
-      if (r && inRect(x, y, r)) return true;
-      return y > 960 && y < U.BAND.trayTop;
+      var r = upgradeRect('power');
+      return !!(r && inRect(x, y, r));
+    },
+    deny: function (x, y) {
+      var r = upgradeRect('frost');
+      if (r && inRect(x, y, r)) { sfx('ui_error'); nudgeText(VW / 2, 500, 'POWER, THIS TIME', C.power); }
     },
     update: function () {
-      var c = S.cards[lessonCardIndex()];
-      if (!c) return 'stars';
-      if (!T.flag) {
-        if (c.uses > 0) {
-          /* Fired. Hold the step open so the slow motion is actually SEEN —
-           * cutting away the instant it is tapped would teach the button and
-           * hide the effect. */
-          T.flag = true;
-          T.wait = 3.4;
-          hush();
-          floatText(VW / 2, 620, 'SLOW MOTION', C.frost, 34);
-        } else {
-          dropCardBall();
-        }
-      } else {
-        T.wait -= T.dt;
-        if (T.wait <= 0) return 'stars';
-      }
-    }
+      var occ = T.paddle && T.paddle.slot ? T.paddle.slot.occupant : null;
+      if (occ && occ.type === 'power') { T.paddle = occ; return 'ignite'; }
+      /* The pick was closed by a stray tap on the HUD or tray: ask for the
+       * hold again rather than leave the player facing a closed panel. */
+      if (S.selectedTower !== T.paddle) return 'upgradeOpen';
+    },
+    exit: function () { T.spotTray = null; }
   };
 
-  /* Where the rest of the deck comes from. The card the player has just fired
-   * is one of seven, and nothing anywhere told them how to get the others —
-   * so a player could finish the campaign never knowing that the second and
-   * third objectives on every level are what buys them. Said right after
-   * firing a card, while "I want more of these" is the live thought. */
-  STEPS.stars = {
+  /* The paddle ignites the ball; the PLAYER fires it. Once lit, the crowd
+   * appears and the weapon is left to the table until it comes down to the
+   * flippers, where the lesson drops into bullet time and asks for one hold
+   * on the right side. That flip is the trigger: only after it does the
+   * assisted steering take the wheel and carry the ball through all four.
+   * The payoff cannot miss, and it is the player's. */
+  STEPS.ignite = {
     enter: function () {
-      say('STARS BUY CARDS',
-        'Every level is worth THREE stars: clear it, stay inside its leak budget, and beat its own challenge. Stars unlock new cards and extra card slots, so going back for a missed one is how your deck grows. All three are listed before you start a level.',
-        { pos: 'mid' });
+      S.selectedTower = null;
+      hush();
+      zoom(1.4, { x: T.paddle.x, y: T.paddle.y - 80 });
+      slow(1, 0.4);
+      T.wait = 0.7;
+      T.flag = false;     // a ball has been dropped
+      T.lit = false;      // ignition seen, crowd out
+      T.flipped = false;  // the player's flip landed
+      T.tries = 0;
+      T.demoT = 0;
+      T.clearT = 0;
+      T.lowT = 0;
+    },
+    update: function () {
+      T.demoT += T.dt;
+      var b = T.ball;
+      if (!T.flag) {
+        T.wait -= T.dt;
+        if (T.wait <= 0) {
+          T.flag = true;
+          dropPaddleBall();
+          say('WATCH THE PADDLE', 'Here comes one. The paddle does the rest.', { tap: false, pos: 'top' });
+        }
+        return;
+      }
+      if (!T.lit) {
+        if (b && !b.dead && b.empowerT > 0) { T.lit = true; T.demoT = 0; spawnCrowd(b); return; }
+        /* Missed, drained or wedged: try again rather than strand the player. */
+        if (!b || b.dead || T.demoT > 5) {
+          if (b && !b.dead) retireBall(b);
+          if (++T.tries > 3) return 'chainDone';
+          T.demoT = 0;
+          dropPaddleBall();
+        }
+        return;
+      }
+      /* The survivors hang dead still until they are hit: the anti-stall
+       * ramp in game.js would otherwise lean on them, and a drone that sank
+       * onto the bumper died to the bumper and never counted. */
+      holdCrowd();
+      if (!T.flipped) {
+        /* Waiting on the player. The weapon stays lit for as long as that
+         * takes, and comes back from the top if it drains or wanders. */
+        if (!b || b.dead || T.demoT > 9) {
+          if (b && !b.dead) retireBall(b);
+          T.demoT = 0;
+          b = relightBall();
+        }
+        b.empowerT = Math.max(b.empowerT, 2);
+        var low = b.y > 930 && b.vy > 0;
+        if (low && !T.lowT) {
+          slow(0.26, 0.35);
+          sfx('slowmo_in', { vol: 0.6 });
+          say('YOUR SHOT', 'It is burning. HOLD the ' + (b.x < VW / 2 ? 'LEFT' : 'RIGHT') + ' side when it lands and send it into the crowd.', { tap: false, pos: 'top' });
+        }
+        if (T.lowT && b.vy < -260 && b.y > 900 && (S.flipL.on || S.flipR.on)) { playerFlipped(b); return; }
+        if (low) T.lowT += T.dt; else if (T.lowT && (b.y < 880 || b.vy < 0)) { T.lowT = 0; slow(1, 0.2); }
+        T.flipCue = low && b.y > 960;
+        zoom(low ? 1.25 : 1, null, low ? b : null);
+        return;
+      }
+      /* Flipped: the lesson steers it at the nearest survivor. Every kill
+       * deflects and slows a weapon, so left to physics it took two and
+       * drifted past the rest. This is the one place the weapon homes, and
+       * it is a demonstration the player has already triggered. */
+      var crowd = 0, near = null, nd = Infinity;
+      for (var i = 0; i < S.balls.length; i++) {
+        var o = S.balls[i];
+        if (o.dead || o === b) continue;
+        crowd++;
+        var dd = U.dist2(o.x, o.y, b.x, b.y);
+        if (dd < nd) { nd = dd; near = o; }
+      }
+      if (near && b && !b.dead) {
+        b.empowerT = Math.max(b.empowerT, 2);
+        var dx = near.x - b.x, dy = near.y - b.y, dl = U.len(dx, dy) || 1;
+        var sp = nd > 200 * 200 ? 1100 : 720;   // fast on the climb, readable in the crowd
+        b.vx = dx / dl * sp; b.vy = dy / dl * sp;
+        b.aliveT = 0;
+      }
+      /* Hold on the last kill so its CHAIN text is read, not glimpsed. */
+      if (!crowd) { T.clearT += T.dt; if (T.clearT > 0.9) return 'chainDone'; }
+      if (T.demoT > 8) return 'chainDone';
+    },
+    on: function (ev, b) {
+      if (ev === 'flipHit' && T.lit && !T.flipped && b === T.ball) playerFlipped(b);
+      if (ev === 'drain' && T.lit && !T.flipped && b === T.ball) {
+        T.misses++;
+        say('MISSED', 'Here it comes again. Wait until it is ON the flipper, then hold that side.', { tap: false, pos: 'top' });
+        T.demoT = 0;
+        relightBall();
+        slow(1, 0.3);
+      }
+    },
+    exit: function () { T.flipCue = false; }
+  };
+
+  function playerFlipped(b) {
+    T.flipped = true;
+    T.demoT = 0;
+    T.flipCue = false;
+    hush();
+    sfx('warn', { vol: 0.6 });
+    slow(0.3, 0.6);
+    zoom(1.5, null, b);
+    floatText(b.x, b.y - 70, 'INTO THE CROWD', C.power, 30);
+  }
+
+  function dropPaddleBall() {
+    var t = T.paddle;
+    /* Just off the pivot on the arm's side, so the ball lands on the arm
+     * itself and not on the hinge. Every such column (x = slot +/- 30)
+     * clears the peg row above it by 30 units against the 26 a Drone needs. */
+    var x = t.x + 30 * t.dir;
+    var y = Math.max(BOARD.CEIL + 40, t.y - DROP_H);
+    var b = spawnBall(x, y, { vx: 0, vy: 40 });
+    if (b) { b.hp = 999; b.maxHp = 999; }   // the weapon has to survive the swing
+    slow(0.6, 0.3);
+    zoom(1.4, { x: t.x, y: t.y - 80 });
+  }
+
+  function holdCrowd() {
+    for (var h = 0; h < S.balls.length; h++) {
+      var o = S.balls[h];
+      if (!o.lessonHover || o.dead) continue;
+      o.aliveT = 0; o.grav = 0; o.vx = 0; o.vy = 0;
+      o.x = o.hx; o.y = o.hy;
+    }
+  }
+
+  /* A fresh weapon from the top of a clear column, already burning. */
+  function relightBall() {
+    var b = spawnBall(CLEAR_X[T.misses % CLEAR_X.length], S.table.spawnY, { vx: 0, vy: 120 });
+    if (b) { b.hp = 999; b.maxHp = 999; ENT.empower(b, 4); }
+    T.lowT = 0;
+    return b;
+  }
+
+  /* The crowd is not a clump: four Drones hang in a path that climbs and
+   * crosses the upper table, each about 130 units from the last, so the
+   * weapon is seen to HUNT - swerve, hit, swerve, hit - rather than burst a
+   * pile. They hover on a fraction of gravity while they wait, which in the
+   * lesson's slow motion reads as a crowd frozen in the headlights. Both
+   * paths are hand-checked against the peg lattice (every point sits 35+
+   * from the nearest peg, against the 26 a Drone needs) and mirror each
+   * other, so the run goes toward the far side of the table whichever slot
+   * the paddle took. */
+  var CROWD_PATH = [[262, 440], [360, 385], [470, 300], [560, 400]];
+
+  function spawnCrowd(b) {
+    var mirror = b.x >= VW / 2;
+    var G = global.GAME;
+    for (var i = 0; i < CROWD_PATH.length; i++) {
+      var px = mirror ? VW - CROWD_PATH[i][0] : CROWD_PATH[i][0];
+      var py = CROWD_PATH[i][1];
+      var e = G.spawnBallAt('basic', px, py, { vx: 0, vy: 20 });
+      if (e) { e.hp = 1; e.maxHp = 1; e.grav = 0; e.lessonHover = true; e.hx = px; e.hy = py; }
+    }
+    T.ball = b;
+    T.misses = 0;
+    sfx('warn', { vol: 0.6 });
+    slow(1, 0.4);
+    zoom(1);
+    say('IGNITED', 'The paddle lit it. A crowd is waiting up top. Now flip it in there yourself.', { tap: false, pos: 'top' });
+    floatText(mirror ? VW - 360 : 360, 300, 'THE CROWD', C.power, 30);
+  }
+
+  STEPS.chainDone = {
+    enter: function () {
+      slow(0.15, 0.5);
+      T.wait = 0.6;
+      T.flag = false;
+    },
+    update: function () {
+      T.wait -= T.dt;
+      if (T.wait <= 0 && !T.flag) {
+        T.flag = true;
+        slow(1, 0.25);
+        zoom(1);
+        var n = S.bestChain;
+        say(n >= 2 ? 'CHAIN x' + n + '!' : 'CHAIN REACTION',
+          'An IGNITED ball destroys whatever it touches for four seconds, and every kill keeps it burning. Feed balls to your Power Paddle, then flip the burning one into a crowd. That is the big play.',
+          { pos: 'top' });   // top, so the two defenses it is about stay in view
+      }
     },
     next: 'end'
   };
@@ -651,7 +772,7 @@
       /* The last thing said before the build banner appears, so it is also
        * the right moment to point at the START button on it — the early-start
        * bonus is invisible as a mechanic until somebody says it is there. */
-      say('THAT IS THE GAME', 'Keep the bumper, it is on the house. Built early? Tap START on the banner to send the wave now — you are paid for every second you hand back. Good luck!', { pos: 'mid' });
+      say('THAT IS THE GAME', 'Keep both defenses, they are on the house. Cards in the tray are one-tap powers: HOLD one to read it. Built early? Tap START on the banner to send the wave now — you are paid for every second you hand back. Good luck!', { pos: 'mid' });
     },
     next: null
   };
@@ -703,7 +824,7 @@
    * version has not seen THIS tutorial, so World 1 Level 1 teaches it again —
    * which is also what re-arms it for anyone whose flag was set by an earlier
    * build. */
-  TUT.VERSION = 3;
+  TUT.VERSION = 5;
 
   TUT.shouldRun = function (def, prog) {
     if (!def || def.id !== 1) return false;
@@ -719,7 +840,8 @@
       ts: 1, tsTarget: 1, tsRate: 0.3,
       zoomTarget: 1, focus: null, follow: null,
       msg: null, pointer: null, pointer2: null, spot: null, spotTray: null,
-      ball: null, tower: null, slot: null, misses: 0, flag: false, wait: 0,
+      ball: null, tower: null, paddle: null, slot: null, misses: 0, flag: false, wait: 0,
+      lit: false, flipped: false, tries: 0, demoT: 0, clearT: 0, lowT: 0,
       time: 0, flipCue: false,
       stuckT: 0, sampleT: 0, lastX: 0, lastY: 0
     };
@@ -832,6 +954,9 @@
       }
       if (!r) return null;
       var c = rectCenter(r);
+      /* An upgrade card is tall and titled at the top: the cue sits on its
+       * art instead, where the label has room. */
+      if (p.tray.indexOf('up:') === 0) return { x: c.x, y: r.y + r.h * 0.42, r: r };
       return { x: c.x, y: r.y - 6, r: r };
     }
     if (p.ball) {
