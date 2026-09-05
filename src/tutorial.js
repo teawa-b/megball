@@ -572,11 +572,16 @@
   };
 
   /* The paddle ignites the ball; the PLAYER fires it. Once lit, the crowd
-   * appears and the weapon is left to the table until it comes down to the
-   * flippers, where the lesson drops into bullet time and asks for one hold
-   * on the right side. That flip is the trigger: only after it does the
-   * assisted steering take the wheel and carry the ball through all four.
-   * The payoff cannot miss, and it is the player's. */
+   * appears, and a beat later the burning ball is sitting on the flipper on
+   * the paddle's side with time all but stopped, waiting for one hold. That
+   * hold is the trigger: the flipper launches it, and only then does the
+   * assisted steering take the wheel and carry it through all four.
+   *
+   * It used to be left to the table to bring the lit ball down to the
+   * flippers on its own. A lit ball is exempt from the anti-stall shove, and
+   * a bumper can keep one airborne indefinitely, so a player sat through a
+   * ball ricocheting for a minute with nothing to do. Parking it removes the
+   * journey entirely: the payoff cannot miss, and it is the player's. */
   STEPS.ignite = {
     enter: function () {
       S.selectedTower = null;
@@ -586,11 +591,13 @@
       T.wait = 0.7;
       T.flag = false;     // a ball has been dropped
       T.lit = false;      // ignition seen, crowd out
+      T.parked = false;   // the weapon is on the flipper
       T.flipped = false;  // the player's flip landed
       T.tries = 0;
       T.demoT = 0;
       T.clearT = 0;
-      T.lowT = 0;
+      T.pressT = 0;
+      T.side = T.paddle.dir > 0 ? 'L' : 'R';
     },
     update: function () {
       T.demoT += T.dt;
@@ -619,25 +626,33 @@
        * ramp in game.js would otherwise lean on them, and a drone that sank
        * onto the bumper died to the bumper and never counted. */
       holdCrowd();
+      if (!T.parked) {
+        /* A beat to see the ignition and the crowd, then the weapon comes
+         * to the player's hand. */
+        if (T.demoT > 1.1) parkBall();
+        return;
+      }
       if (!T.flipped) {
-        /* Waiting on the player. The weapon stays lit for as long as that
-         * takes, and comes back from the top if it drains or wanders. */
-        if (!b || b.dead || T.demoT > 9) {
-          if (b && !b.dead) retireBall(b);
-          T.demoT = 0;
-          b = relightBall();
-        }
+        var fl = T.side === 'L' ? S.flipL : S.flipR;
+        var wrong = T.side === 'L' ? S.flipR : S.flipL;
+        if (!b || b.dead) { parkBall(); return; }
         b.empowerT = Math.max(b.empowerT, 2);
-        var low = b.y > 930 && b.vy > 0;
-        if (low && !T.lowT) {
-          slow(0.26, 0.35);
-          sfx('slowmo_in', { vol: 0.6 });
-          say('YOUR SHOT', 'It is burning. HOLD the ' + (b.x < VW / 2 ? 'LEFT' : 'RIGHT') + ' side when it lands and send it into the crowd.', { tap: false, pos: 'top' });
+        if (fl.on) {
+          /* Time comes back so the swing can connect. */
+          T.pressT += T.dt;
+          slow(0.3, 0.6);
+          if (b.vy < -260) { playerFlipped(b); return; }
+          /* Held, but the ball got away from the arm: put it back. */
+          if (T.pressT > 1.6) { T.pressT = 0; parkBall(); }
+        } else {
+          T.pressT = 0;
+          /* Pinned to its seat on the arm until the hold comes. */
+          var p = parkPoint();
+          b.x = p.x; b.y = p.y; b.vx = 0; b.vy = 0; b.aliveT = 0;
+          slow(0.04, 0.5);
+          if (wrong.on && !T.wrongT) { T.wrongT = 1; nudgeText(b.x, b.y - 70, 'OTHER SIDE', C.amber); }
+          if (!wrong.on) T.wrongT = 0;
         }
-        if (T.lowT && b.vy < -260 && b.y > 900 && (S.flipL.on || S.flipR.on)) { playerFlipped(b); return; }
-        if (low) T.lowT += T.dt; else if (T.lowT && (b.y < 880 || b.vy < 0)) { T.lowT = 0; slow(1, 0.2); }
-        T.flipCue = low && b.y > 960;
-        zoom(low ? 1.25 : 1, null, low ? b : null);
         return;
       }
       /* Flipped: the lesson steers it at the nearest survivor. Every kill
@@ -658,20 +673,14 @@
         var sp = nd > 200 * 200 ? 1100 : 720;   // fast on the climb, readable in the crowd
         b.vx = dx / dl * sp; b.vy = dy / dl * sp;
         b.aliveT = 0;
+        b.ghostT = Math.max(b.ghostT || 0, 0.1);   // shoulders through pegs and posts on the way
       }
       /* Hold on the last kill so its CHAIN text is read, not glimpsed. */
       if (!crowd) { T.clearT += T.dt; if (T.clearT > 0.9) return 'chainDone'; }
       if (T.demoT > 8) return 'chainDone';
     },
     on: function (ev, b) {
-      if (ev === 'flipHit' && T.lit && !T.flipped && b === T.ball) playerFlipped(b);
-      if (ev === 'drain' && T.lit && !T.flipped && b === T.ball) {
-        T.misses++;
-        say('MISSED', 'Here it comes again. Wait until it is ON the flipper, then hold that side.', { tap: false, pos: 'top' });
-        T.demoT = 0;
-        relightBall();
-        slow(1, 0.3);
-      }
+      if (ev === 'flipHit' && T.parked && !T.flipped && b === T.ball) playerFlipped(b);
     },
     exit: function () { T.flipCue = false; }
   };
@@ -700,6 +709,36 @@
     zoom(1.4, { x: t.x, y: t.y - 80 });
   }
 
+  /* The seat on the flipper: 62% of the way along the resting arm, lifted
+   * clear of it by the two radii, so the ball sits ON the face and the
+   * swing meets it square. Mirrored for the right side. */
+  function parkPoint() {
+    var F = BOARD.FLIP;
+    var rest = F.restDeg * Math.PI / 180;
+    var along = F.len * 0.62, lift = F.rad + 17 + 1;
+    var ax = Math.cos(rest) * along, ay = Math.sin(rest) * along;
+    var nx = Math.sin(rest) * lift, ny = -Math.cos(rest) * lift;
+    if (T.side === 'L') return { x: F.lx + ax + nx, y: F.y + ay + ny };
+    return { x: F.rx - ax - nx, y: F.y + ay + ny };
+  }
+
+  /* Retire whatever the weapon is doing and seat a fresh one, lit. */
+  function parkBall() {
+    if (T.ball && !T.ball.dead) retireBall(T.ball);
+    var p = parkPoint();
+    var b = spawnBall(p.x, p.y, { vx: 0, vy: 0 });
+    if (b) { b.hp = 999; b.maxHp = 999; ENT.empower(b, 4); }
+    T.parked = true;
+    T.pressT = 0;
+    T.wrongT = 0;
+    slow(0.04, 0.5);
+    zoom(1.35, { x: VW / 2, y: 980 });
+    T.flipCue = true;
+    var side = T.side === 'L' ? 'LEFT' : 'RIGHT';
+    say('YOUR SHOT', 'It is burning, and it is sitting on your ' + side + ' flipper. HOLD the ' + side + ' side to fire it into the crowd.', { tap: false, pos: 'top' });
+    return b;
+  }
+
   function holdCrowd() {
     for (var h = 0; h < S.balls.length; h++) {
       var o = S.balls[h];
@@ -707,14 +746,6 @@
       o.aliveT = 0; o.grav = 0; o.vx = 0; o.vy = 0;
       o.x = o.hx; o.y = o.hy;
     }
-  }
-
-  /* A fresh weapon from the top of a clear column, already burning. */
-  function relightBall() {
-    var b = spawnBall(CLEAR_X[T.misses % CLEAR_X.length], S.table.spawnY, { vx: 0, vy: 120 });
-    if (b) { b.hp = 999; b.maxHp = 999; ENT.empower(b, 4); }
-    T.lowT = 0;
-    return b;
   }
 
   /* The crowd is not a clump: four Drones hang in a path that climbs and
@@ -742,7 +773,7 @@
     sfx('warn', { vol: 0.6 });
     slow(1, 0.4);
     zoom(1);
-    say('IGNITED', 'The paddle lit it. A crowd is waiting up top. Now flip it in there yourself.', { tap: false, pos: 'top' });
+    say('IGNITED', 'The paddle lit it. A crowd is waiting up top. Now it is coming to your flipper.', { tap: false, pos: 'top' });
     floatText(mirror ? VW - 360 : 360, 300, 'THE CROWD', C.power, 30);
   }
 
@@ -841,7 +872,7 @@
       zoomTarget: 1, focus: null, follow: null,
       msg: null, pointer: null, pointer2: null, spot: null, spotTray: null,
       ball: null, tower: null, paddle: null, slot: null, misses: 0, flag: false, wait: 0,
-      lit: false, flipped: false, tries: 0, demoT: 0, clearT: 0, lowT: 0,
+      lit: false, parked: false, flipped: false, tries: 0, demoT: 0, clearT: 0, pressT: 0, wrongT: 0, side: 'L',
       time: 0, flipCue: false,
       stuckT: 0, sampleT: 0, lastX: 0, lastY: 0
     };
