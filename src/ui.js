@@ -303,16 +303,27 @@
     '#ui .dmd .screw{position:absolute;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#1c2740;box-shadow:inset 0 0 0 1px rgba(143,232,255,.35);}',
     '#ui .dmd .screw.l{left:2px;}#ui .dmd .screw.r{right:2px;}',
     /* Controls: the cabinet START button beside a scorecard of modes. */
-    '#ui .ctl{display:flex;align-items:center;gap:16px;flex:0 0 auto;margin-top:10px;}',
-    /* The cabinet START button. A deep bezel, a lit amber cap in the same
-     * glossy toy finish as the logo's "Defense" lettering, and a thin
-     * magenta/amber arc orbiting the rim (the same dial as the boot splash,
-     * so the machine reads as one object from power-up to play). */
+    '#ui .ctl{display:flex;align-items:center;gap:12px;flex:0 0 auto;margin-top:10px;}',
+    /* The scorecard shares this row with a 128px button, so it gets about
+     * 200px on a 375px screen. At the full 15px row size the longest label
+     * (POWER CARDS) plus its count does not fit and spills off the right
+     * edge, so the home rows run a step smaller than elsewhere. */
+    '#ui .ctl .sc{font-size:13px;gap:7px;}',
+    '#ui .ctl .sc .ct{font-size:11px;}',
+    /* The cabinet START button: a LIT button, not a moulded one. The light
+     * comes from under the cap rather than off it, so there is no specular
+     * highlight and no dark plastic rim to read as a glossy toy — the same
+     * correction the boot splash's core needed. A machined bezel holds it,
+     * and the one magenta lamp from the splash sweeps its groove, so the
+     * machine reads as one object from power-up to play.
+     *
+     * It stays the only warm thing on a cyan screen, which is what makes it
+     * read as the way in without needing to be the largest element. */
     '#ui .start{flex:0 0 128px;width:128px;height:128px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
-    '  background:radial-gradient(circle at 50% 34%,#fff4c8 0%,#ffd75a 22%,#ffab1e 50%,#e2680c 78%,#7a3204 100%);',
-    '  box-shadow:0 0 0 4px #05060d,0 0 0 6px rgba(255,176,32,.35),0 0 0 11px #0a0d18,0 0 0 12px rgba(63,224,255,.28),',
-    '    inset 0 3px 0 rgba(255,255,255,.55),inset 0 -10px 18px rgba(120,40,0,.55),inset 0 0 22px rgba(255,140,0,.35),',
-    '    0 16px 34px rgba(0,0,0,.65),0 0 34px rgba(255,176,32,.35);',
+    '  background:radial-gradient(circle at 50% 46%,#fff3c4 0%,#ffd257 19%,#ffab24 43%,#e97a0d 67%,#9c3a04 88%,#4e1e02 100%);',
+    '  box-shadow:0 0 0 4px #0a0d18,0 0 0 5px rgba(255,176,32,.26),0 0 0 10px #05070f,0 0 0 11px rgba(63,224,255,.22),',
+    '    inset 0 0 0 2px rgba(255,242,196,.5),inset 0 -14px 26px rgba(110,36,0,.42),inset 0 10px 28px rgba(255,214,110,.28),',
+    '    0 14px 30px rgba(0,0,0,.7),0 0 30px rgba(255,176,32,.26);',
     '  transition:transform .08s,filter .12s;}',
     '#ui .sheet.home.boot .start{animation:startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;}',
     '@keyframes startOn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}',
@@ -320,23 +331,35 @@
      * repaints a large area every frame for as long as the menu is open. The
      * same glow now lives on its own halo element and animates only opacity
      * and transform, so the compositor carries it and the paint cost is nil. */
-    '#ui .start .halo{position:absolute;inset:-22px;border-radius:50%;pointer-events:none;z-index:0;',
-    '  background:radial-gradient(circle,rgba(255,196,60,.45) 38%,rgba(255,176,32,.14) 62%,rgba(255,176,32,0) 76%);',
+    /* Inset is load-bearing: the sheet has 16px of side padding, so a halo
+     * reaching further than that is cut flat by the viewport edge. */
+    '#ui .start .halo{position:absolute;inset:-14px;border-radius:50%;pointer-events:none;z-index:0;',
+    '  background:radial-gradient(circle,rgba(255,196,60,.42) 40%,rgba(255,176,32,.13) 64%,rgba(255,176,32,0) 78%);',
     '  animation:haloPulse 1.9s ease-in-out infinite;will-change:opacity,transform;}',
     '@keyframes haloPulse{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}',
-    /* Orbiting arcs in the bezel groove: magenta clockwise, amber counter. */
-    '#ui .start .ring{position:absolute;inset:-11px;border-radius:50%;pointer-events:none;z-index:0;will-change:transform;',
+    /* One lamp sweeping the groove, the same comet the boot splash runs. Two
+     * arcs in two colours turned the rim into a barber pole at this size.
+     * The tail is masked to the groove and the bulb is not, or the mask
+     * clips the bulb into a flat chip. */
+    '#ui .start .ring{position:absolute;inset:-9px;border-radius:50%;pointer-events:none;z-index:0;',
+    '  will-change:transform;animation:ringSpin 2.8s linear infinite;}',
+    '#ui .start .ring::before{content:"";position:absolute;inset:0;border-radius:50%;',
     '  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));',
     '  mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));',
-    '  background:conic-gradient(from 0deg,rgba(255,46,136,0) 0deg,rgba(255,46,136,.4) 50deg,#ff2e88 90deg,#ffb0d8 96deg,transparent 98deg 180deg,',
-    '    rgba(255,210,74,0) 180deg,rgba(255,210,74,.4) 230deg,#ffd24a 270deg,#fff1bf 276deg,transparent 278deg 360deg);',
-    '  filter:drop-shadow(0 0 5px rgba(255,46,136,.7)) drop-shadow(0 0 5px rgba(255,210,74,.6));animation:ringSpin 3.2s linear infinite;}',
+    '  background:conic-gradient(from 0deg,transparent 0deg 254deg,rgba(255,46,136,0) 254deg,#ff2e88 356deg,#ffd9ec 360deg);',
+    '  filter:drop-shadow(0 0 6px rgba(255,46,136,.7));}',
+    '#ui .start .ring::after{content:"";position:absolute;left:50%;top:0;width:6px;height:6px;margin:-1.5px 0 0 -3px;',
+    '  border-radius:50%;background:#fff;box-shadow:0 0 9px #ff2e88,0 0 3px #fff;}',
     '@keyframes ringSpin{to{transform:rotate(360deg)}}',
-    /* Inner rim and the cap's gloss. */
-    '#ui .start::before{content:"";position:absolute;inset:8px;border-radius:50%;pointer-events:none;',
-    '  border:2px solid rgba(255,255,255,.35);border-bottom-color:rgba(110,45,0,.5);box-shadow:inset 0 0 0 1px rgba(120,45,0,.25);}',
-    '#ui .start::after{content:"";position:absolute;left:20%;top:7%;width:60%;height:30%;border-radius:50%;pointer-events:none;',
-    '  background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,0));}',
+    /* The rim light: the cap's one hard edge, and what sells the cap as lit
+     * from within rather than shined from above. */
+    '#ui .start::before{content:"";position:absolute;inset:9px;border-radius:50%;pointer-events:none;',
+    '  border:1px solid rgba(255,244,205,.45);box-shadow:0 0 10px rgba(255,190,70,.4),inset 0 0 18px rgba(255,180,60,.2);}',
+    /* Diffuse sheen through the cap. Broad and edgeless on purpose: a small
+     * hard ellipse up here is a specular highlight, and a specular highlight
+     * is exactly what made this read as moulded plastic. */
+    '#ui .start::after{content:"";position:absolute;inset:7px;border-radius:50%;pointer-events:none;',
+    '  background:radial-gradient(125% 72% at 50% -14%,rgba(255,255,255,.3),rgba(255,255,255,0) 62%);}',
     /* Lettering: heavy italic in the logo's face, white lit from below into
      * gold, with a hard dark rim so it pops off the amber cap. */
     '#ui .start b{position:relative;z-index:1;display:block;margin-top:2px;font:italic 900 34px/1 ' + F + ';letter-spacing:.04em;text-transform:uppercase;',
@@ -361,7 +384,10 @@
     '#ui .sc i{position:relative;flex:0 0 8px;width:8px;height:8px;border-radius:50%;background:#3fe0ff;box-shadow:0 0 8px #3fe0ff,0 0 2px #fff;transition:background .1s,box-shadow .1s;}',
     '#ui .sc.mag i{background:#ff2e88;box-shadow:0 0 8px #ff2e88,0 0 2px #fff;}',
     '#ui .sc.amb i{background:#ffd24a;box-shadow:0 0 8px #ffd24a,0 0 2px #fff;}',
-    '#ui .sc .lb{flex:0 0 auto;text-shadow:0 0 10px rgba(63,224,255,.35);}',
+    /* Shrinkable with an ellipsis as a backstop: a label that cannot shrink
+     * overflows its column silently rather than showing that it did. */
+    '#ui .sc .lb{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;',
+    '  text-shadow:0 0 10px rgba(63,224,255,.35);}',
     '#ui .sc .ld{flex:1 1 auto;min-width:10px;height:2px;margin:0 2px;background:radial-gradient(circle,rgba(143,232,255,.5) 0.8px,transparent 1.3px) 0 0/6px 2px repeat-x;}',
     '#ui .sc .ct{flex:0 0 auto;font-size:12px;color:#ffd24a;text-shadow:0 0 8px rgba(255,210,74,.4);}',
     '#ui .sc:hover{background:rgba(63,224,255,.05);}#ui .sc:active{background:rgba(63,224,255,.10);}',
