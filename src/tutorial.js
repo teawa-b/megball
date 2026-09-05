@@ -509,10 +509,18 @@
     next: 'upgradeOpen'
   };
 
+  /* The lesson makes the player HOLD, not tap, because that is the gesture
+   * that works when it matters. Mid-wave the whole playfield is the flipper
+   * surface, so a tap there flips and only a hold reaches a defense; teaching
+   * the tap would teach something that stops working the moment the first
+   * wave starts. The ring that fills under the finger is the game's own
+   * affordance, so the lesson is really just pointing at it. */
   STEPS.upgradeOpen = {
     enter: function () {
-      say('UPGRADES', 'Defenses can be upgraded. Tap your bumper.', { tap: false, pos: 'top' });
-      point('tap', T.tower.x, T.tower.y, { board: true });
+      say('UPGRADES',
+        'Defenses can be upgraded. HOLD your bumper for a moment to open it — during a wave a tap works the flippers, so holding is how you reach a defense.',
+        { tap: false, pos: 'top' });
+      point('hold', T.tower.x, T.tower.y, { board: true, label: 'HOLD' });
     },
     allow: function (x, y) {
       var G = global.GAME;
@@ -521,7 +529,7 @@
     deny: function (x, y) {
       if (y > U.BAND.hud && y < U.BAND.trayTop) {
         sfx('ui_error');
-        nudgeText(T.tower.x, T.tower.y - 60, 'TAP YOUR BUMPER', C.cyan);
+        nudgeText(T.tower.x, T.tower.y - 60, 'HOLD YOUR BUMPER', C.cyan);
       }
     },
     update: function () { if (S.selectedTower === T.tower) return 'upgBlast'; }

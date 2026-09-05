@@ -723,9 +723,11 @@ moments they are wanted overlap almost completely.
 They are separated by GESTURE now instead. During a WAVE:
 
 - A tap flips. It never selects a tower, so the original accident is impossible.
-- A HOLD of 0.3s on a defense opens its panel — the same press-and-hold the tray already
-  uses to read a card, so the vocabulary was already taught. Slightly longer than the card's
-  0.2s, because a stray touch on the playfield is far likelier than one on a tray cell.
+- A HOLD of 0.22s on a defense opens its panel — near enough the tray's 0.2s card hold that
+  it reads as one gesture rather than two. It started at 0.3s and felt sluggish in play. It
+  cannot go much lower: press-and-hold is also how a flipper is kept RAISED to trap a ball,
+  so every millisecond shaved makes it likelier that a deliberate trap held over a defense
+  turns into an upgrade panel instead.
 - The press still flips immediately either way, so the gesture never costs a flip; the
   flipper is only released at the moment the panel actually opens.
 - Sliding off the defense cancels it — that was a swipe, not a hold.
@@ -737,6 +739,16 @@ They are separated by GESTURE now instead. During a WAVE:
 A BUILD phase is untouched — nothing else wants the tap there, so a plain tap still opens the
 panel. Verified all four: tap-with-a-ball-low flips and hints, hold opens and releases the
 flipper, slide-off cancels, build-phase tap opens.
+
+The tutorial teaches the hold, and REQUIRES it. Instant tap-selection is now a build-phase
+affordance only, so the lesson's upgrade step asks the player to hold their bumper and will
+not accept a tap — teaching the tap would teach a gesture that stops working the moment the
+first wave starts. The step's pointer switched to the hold marker the tutorial already had,
+and its copy says why: "HOLD your bumper for a moment to open it — during a wave a tap works
+the flippers, so holding is how you reach a defense." The ring that fills under the finger is
+the game's own affordance, so the lesson is really just pointing at it. Verified the whole
+lesson still runs end to end with a real hold driving that step, and that a tap there no
+longer advances it.
 
 ## 4bb. The opening defense is no longer optional
 
@@ -830,6 +842,15 @@ The Rimewall took four passes to land, and the wrong turns are the interesting p
 4. **More was not more.** Tower destruction saturates near four towers however hard the
    pulse bites, while the boss's own survival falls off as the board thins: 14 killed it in
    2 of 3 runs, 22 in 1, 30 in none. So 22 and 30 bought no extra damage and cost the fight.
+
+**Correction to the Rimewall numbers above.** They were tuned against a fixed 60-second
+window, and that instrument read backwards: harder settings looked like they stopped the
+boss dying, when they were only pushing the kill past the end of the window. Measured to the
+END of the fight instead, with lives live, the ordering reverses — 26 x 3 destroys nearly
+twice the towers of 14 x 2 (6.7 of 16 against 3.7) AND kills the boss more often (2 runs of 3
+against 1), in the same ~67s, with a couple of lives to spare. Shipped at 26 x 3. Three
+towers and not the whole ring still stands: spreading it walks the entire nest to zero in
+lockstep and the board's output falls off a cliff mid-fight.
 
 Also checked and NOT changed: energy does not carry between campaign levels. Every route —
 next level, direct start, restart, and Endless — resets to the level's own `startEnergy`

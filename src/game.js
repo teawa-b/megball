@@ -2185,9 +2185,12 @@
   /* Advances every held tray press and returns the card index currently under
    * a finger, so the tray can lift it. */
   /* How long a finger must rest on a defense mid-wave before its panel opens.
-   * A little longer than the tray's card hold: a stray touch on the playfield
-   * is far likelier than one on a tray cell. */
-  var TOWER_HOLD = 0.3;
+   * Close to the tray's 0.2s card hold, so the gesture feels like one gesture
+   * rather than two. It cannot go much below this: pressing and holding is
+   * also how a flipper is kept RAISED to trap a ball, and every millisecond
+   * shaved off here makes it likelier that a deliberate trap held over a
+   * defense turns into an upgrade panel instead. */
+  var TOWER_HOLD = 0.22;
 
   function updateTowerHolds(dt) {
     S.towerHold = null;
@@ -2348,8 +2351,12 @@
      * a HOLD opens the panel. Same press-and-hold the tray already uses to
      * read a card, and a ring fills on the tower while you hold it, so it is
      * never a surprise and never a race. */
+    /* Instant selection is a BUILD-phase affordance only. The tutorial holds
+     * too, deliberately: the lesson has to teach the gesture the player will
+     * actually need mid-wave, not an easier one that works only while the
+     * table is stopped. */
     var t = towerAt(p.x, p.y);
-    if (t && S.mode !== 'wave') {
+    if (t && S.mode === 'build') {
       pointers[id].role = 'ui';
       S.selectedTower = (S.selectedTower === t) ? null : t;
       sfx('ui_tap');

@@ -110,13 +110,16 @@
        * putting the damage there made it a stray-bounce lottery that quietly
        * dissolved the whole board; on the pulse it is a visible, answerable
        * bill on two named towers. */
-      /* 14 x 2, from a measured sweep. Tower destruction saturates around
-       * four towers however hard the pulse bites — the two nearest die, then
-       * the next two — but the boss's own survival falls off as the board
-       * thins, so anything above this buys no extra damage and costs the
-       * fight: 14 killed the boss in 2 of 3 runs, 22 in 1, 30 in none. It
-       * doubles the towers lost against no wrecker at all (4.3 vs 2.0). */
-      wrecker: 14, wreckN: 2
+      /* 26 x 3, from a measured sweep of the FULL fight. An earlier pass tuned
+       * this against a fixed 60-second window and read it backwards: harder
+       * settings looked like they stopped the boss dying, when they were only
+       * pushing the kill past the end of the window. Measured to the end of
+       * the fight instead, 26 x 3 destroys nearly twice the towers of the 14 x 2
+       * it replaces (6.7 of 16 against 3.7) and the boss still goes down in 2
+       * runs of 3, with a couple of lives to spare. Three towers, not the
+       * whole ring: spreading it walks the entire nest to zero in lockstep and
+       * the board's output falls off a cliff mid-fight. */
+      wrecker: 26, wreckN: 3
     },
     bossBreaker: {
       name: 'Breaker', r: 48, hp: 55, mass: 8.0, bounty: 260, lifeCost: 3,
