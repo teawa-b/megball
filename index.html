@@ -216,11 +216,15 @@
   }
   #boot .disp::before { left: 5px; }
   #boot .disp::after { right: 5px; }
+  /* Dot pitch and dot size are both legibility, not decoration. A 34% dot in
+     a 4px cell paints only about a fifth of each glyph, which scattered these
+     words into unreadable speckle; a fatter dot on a finer pitch keeps the
+     matrix reading as a matrix while the letters survive it. */
   #boot .t {
     font: clamp(16px, 4.8vw, 21px)/1 var(--px); letter-spacing: .1em;
-    color: var(--cy); text-transform: uppercase; text-shadow: 0 0 12px rgba(63,224,255,.7);
-    -webkit-mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
-    mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
+    color: #8beeff; text-transform: uppercase; text-shadow: 0 0 14px rgba(63,224,255,.85);
+    -webkit-mask: radial-gradient(circle, #000 50%, transparent 60%) 0 0 / 3px 3px;
+    mask: radial-gradient(circle, #000 50%, transparent 60%) 0 0 / 3px 3px;
     opacity: 0; transition: opacity .25s;
   }
   #boot.font .t { opacity: 1; }
