@@ -9,6 +9,15 @@
       ],
       "port": 5173,
       "autoPort": true
+    },
+    {
+      "name": "megaball-submission",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "tools/serve-submission.js"
+      ],
+      "port": 5174,
+      "autoPort": true
     }
   ]
 }
