@@ -500,6 +500,24 @@
     '  box-shadow:inset 0 0 0 1px rgba(255,210,74,.55),0 0 18px rgba(255,210,74,.2);font:11px/1.3 ' + PX + ';letter-spacing:.06em;color:#ffd24a;text-align:left;text-transform:uppercase;flex:0 0 auto;}',
     '#ui .unlock::before{content:"";position:static;inset:auto;z-index:auto;clip-path:none;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#ffd24a;box-shadow:0 0 8px #ffd24a;}',
     '#ui .unlock.good{box-shadow:inset 0 0 0 1px rgba(125,240,166,.55),0 0 18px rgba(125,240,166,.2);color:#7df0a6;}#ui .unlock.good::before{background:#7df0a6;box-shadow:0 0 8px #7df0a6;}',
+    /* Unlock plate over the title (Endless). Dark glass, then a gold-edged
+     * pixel-cut card carrying the same lamps, display and cabinet button the
+     * rest of the backglass uses. */
+    '#ui .pop{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:20px 16px;',
+    '  background:rgba(4,7,18,.78);animation:dmdOn .25s ease-out both;}',
+    '#ui .pop-card{width:min(100%,360px);padding:12px 14px 14px;position:relative;isolation:isolate;box-sizing:border-box;display:flex;flex-direction:column;',
+    '  clip-path:' + pxc(6) + ';background:linear-gradient(180deg,#ffe38a,#ffb020 50%,#ffd24a);animation:popIn .5s cubic-bezier(.2,1.4,.4,1) .05s both;}',
+    '#ui .pop-card::before{content:"";position:absolute;inset:3px;z-index:-1;clip-path:' + pxc(5) + ';',
+    '  background:linear-gradient(180deg,rgba(14,22,48,.98),rgba(5,9,22,.99));box-shadow:inset 0 0 28px rgba(255,210,74,.16),inset 0 1px 0 rgba(255,255,255,.1);}',
+    '#ui .pop .starlamps{margin:2px 0 8px;}',
+    '#ui .pop .kick{text-align:center;margin-bottom:6px;}',
+    '#ui .pop .dmd{margin:0 0 10px;}',
+    '#ui .pop-h{display:block;text-align:center;font:24px/1.05 ' + PX + ';color:#fff;text-transform:uppercase;letter-spacing:.02em;' + GLOW + '}',
+    '#ui .pop-h small{display:block;margin-top:7px;font:14px/1 ' + PX + ';color:#ffd24a;letter-spacing:.16em;text-shadow:0 0 10px rgba(255,210,74,.6);}',
+    '#ui .pop-sub{margin:10px 0 0;text-align:center;font:700 12.5px/1.45 ' + F + ';color:#a9dcef;}',
+    '#ui .pop .cab{margin-top:12px;}',
+    '#ui .pop .pxbk{margin-top:8px;min-height:40px;font-size:13px;}',
+    '@keyframes popIn{from{transform:scale(.86)}to{transform:none}}',
     /* Results: three star lamps. */
     '#ui .starlamps{display:flex;justify-content:center;gap:16px;margin:12px 0 4px;flex:0 0 auto;}',
     '#ui .starlamps i{width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 2px rgba(255,255,255,.14);opacity:0;transform:scale(.4);animation:pop .45s cubic-bezier(.2,1.6,.4,1) forwards;}',
@@ -1049,6 +1067,49 @@
       ['PRESS PLAY']
     ];
     dmdRun(sheet, 'dmd', msgs, !first);
+
+    /* The first time home is reached after the opening stage is cleared, the
+     * cabinet button stops pointing at the lesson and points at ENDLESS. The
+     * player is told so once, on a plate in the same backglass language, and
+     * never again: the flag is written the moment it shows. */
+    if (GAME && (GAME.progress.stars[1] || 0) > 0 && !GAME.progress.endlessPopShown) {
+      GAME.progress.endlessPopShown = true;
+      GAME.saveProgress();
+      showEndlessUnlocked(sheet);
+    }
+  }
+
+  /* A backglass plate over the title: three lamps, the display, the name,
+   * and a cabinet button that goes straight into the mode. */
+  function showEndlessUnlocked(sheet) {
+    var lamps = '';
+    for (var i = 0; i < 3; i++) lamps += '<i class="on" style="animation-delay:' + (0.35 + i * 0.16) + 's"></i>';
+    var pop = document.createElement('div');
+    pop.className = 'pop';
+    pop.id = 'pop';
+    pop.setAttribute('role', 'dialog');
+    pop.setAttribute('aria-label', 'Endless mode unlocked');
+    pop.innerHTML = '<div class="pop-card">' +
+      '<div class="starlamps">' + lamps + '</div>' +
+      '<span class="kick">New mode</span>' +
+      dmdBox('dmdu') +
+      '<b class="pop-h">Endless mode<small>Unlocked</small></b>' +
+      '<p class="pop-sub">The waves never stop and every one grows. Every fifth wave is a boss. How far can you get?</p>' +
+      cab('popgo', 'Play endless', 'Set a record', 'bounce') +
+      '<button class="pxbk" id="popok" aria-label="Close">' + ICON.pxback + '<span>Later</span></button>' +
+      '</div>';
+    sheet.appendChild(pop);
+    sfx('star');
+    var run = dmdRun(pop, 'dmdu', [['ENDLESS MODE'], ['UNLOCKED'], ['SURVIVE', 'THE SWARM']], true);
+
+    function close() {
+      if (run) run.stop();
+      if (pop.parentNode) pop.parentNode.removeChild(pop);
+    }
+    on('#popok', function () { sfx('ui_back'); close(); }, pop);
+    on('#popgo', function () { sfx('ui_tap'); close(); UI.showScreen('endless'); }, pop);
+    /* A tap on the dark glass outside the plate also closes it. */
+    pop.addEventListener('click', function (e) { if (e.target === pop) { sfx('ui_back'); close(); } });
   }
 
   function GAMEsave(k, v) {
@@ -1235,13 +1296,16 @@
     /* Trim any cards that are no longer slottable. */
     while (loadout.length > owned.slots) loadout.pop();
 
-    var slots = '';
-    for (var s = 0; s < 3; s++) {
-      var lockd = s >= owned.slots;
-      var cid = loadout[s];
-      var cd = cid ? CARDS.PLAYER[cid] : null;
-      slots += '<div class="slot ' + (cd ? 'full' : '') + (lockd ? ' lockd' : '') + '">' +
-        (lockd ? 'Locked ★' + slotStarReq(s) : (cd ? cd.name : 'Empty')) + '</div>';
+    function slotsHtml() {
+      var h = '';
+      for (var s = 0; s < 3; s++) {
+        var lockd = s >= owned.slots;
+        var cid = loadout[s];
+        var cd = cid ? CARDS.PLAYER[cid] : null;
+        h += '<div class="slot ' + (cd ? 'full' : '') + (lockd ? ' lockd' : '') + '">' +
+          (lockd ? 'Locked ★' + slotStarReq(s) : (cd ? cd.name : 'Empty')) + '</div>';
+      }
+      return h;
     }
 
     var grid = '';
@@ -1265,13 +1329,23 @@
     /* Featured card: the one just tapped, else the last equipped, else the
      * first card everyone owns. */
     var selId = (ctx && ctx.sel) || (loadout.length ? loadout[loadout.length - 1] : 'slowtime');
-    var sel = CARDS.PLAYER[selId] || CARDS.PLAYER.slowtime;
-    var selHas = owned.cards.indexOf(selId) >= 0;
-    var selEq = loadout.indexOf(selId);
-    var selArt = global.ART && global.ART.get ? global.ART.get(sel.art) : null;
-    var chips = '<i class="amb">' + sel.cd + 's cooldown</i>' +
-      (selHas ? (selEq >= 0 ? '<i class="grn">Slot ' + (selEq + 1) + '</i>' : '<i>Not equipped</i>')
-        : '<i class="mag">' + cardStarReq(selId) + '</i>');
+    function featHtml(fid) {
+      var sel = CARDS.PLAYER[fid] || CARDS.PLAYER.slowtime;
+      var selHas = owned.cards.indexOf(fid) >= 0;
+      var selEq = loadout.indexOf(fid);
+      var selArt = global.ART && global.ART.get ? global.ART.get(sel.art) : null;
+      var chips = '<i class="amb">' + sel.cd + 's cooldown</i>' +
+        (selHas ? (selEq >= 0 ? '<i class="grn">Slot ' + (selEq + 1) + '</i>' : '<i>Not equipped</i>')
+          : '<i class="mag">' + cardStarReq(fid) + '</i>');
+      return {
+        has: selHas,
+        inner: '<div class="feat-art" style="background-image:' + (selArt ? 'url(' + selArt.src + ')' : 'none') + '"></div>' +
+          '<div class="feat-txt"><span class="kick" style="color:' + (selHas ? sel.color : '#ff7ac0') + '">' +
+          (selHas ? 'Power card' : 'Locked card') + '</span><b class="nm">' + sel.name + '</b>' +
+          '<span class="sub">' + sel.long + '</span><span class="chips">' + chips + '</span></div>'
+      };
+    }
+    var feat0 = featHtml(selId);
 
     /* Plates for anything just unlocked. */
     var unl = '';
@@ -1286,13 +1360,9 @@
     var sheet = shell([
       hline('', starsRd(total)),
       dmdBox('dmdc'),
-      '<div class="feat' + (selHas ? '' : ' lock') + '" id="feat">' +
-        '<div class="feat-art" style="background-image:' + (selArt ? 'url(' + selArt.src + ')' : 'none') + '"></div>' +
-        '<div class="feat-txt"><span class="kick" style="color:' + (selHas ? sel.color : '#ff7ac0') + '">' +
-          (selHas ? 'Power card' : 'Locked card') + '</span><b class="nm">' + sel.name + '</b>' +
-          '<span class="sub">' + sel.long + '</span><span class="chips">' + chips + '</span></div></div>',
+      '<div class="feat' + (feat0.has ? '' : ' lock') + '" id="feat">' + feat0.inner + '</div>',
       unl,
-      '<div class="slots">' + slots + '</div>',
+      '<div class="slots">' + slotsHtml() + '</div>',
       '<div class="cardgrid">' + grid + '</div>',
       '<div class="spacer"></div>',
       nextLvl ? cab('play', 'Play stage ' + nextLvl.id, nextLvl.name) : '',
@@ -1307,12 +1377,45 @@
     if (nextLvl) msgs.push(['NEXT UP', 'STAGE ' + nextLvl.id + ' ' + nextLvl.name.toUpperCase()]);
     dmdRun(sheet, 'dmdc', msgs, true);
 
+    /* A tap patches the sheet in place. Rebuilding the whole screen replayed
+     * its entry fade from black and re-decoded every card's art, which read
+     * as the display cutting out for a beat on each selection. Only the bits
+     * a tap can change are touched: the slot row, the equip badges, and the
+     * featured plate. The art tiles keep the bitmaps they already have. */
+    function refresh(fid) {
+      var sl = sheet.querySelector('.slots');
+      if (sl) sl.innerHTML = slotsHtml();
+      var pcs = sheet.querySelectorAll('.pc');
+      for (var p = 0; p < pcs.length; p++) {
+        var pc = pcs[p];
+        var eq = loadout.indexOf(pc.getAttribute('data-id'));
+        pc.classList.toggle('eq', eq >= 0);
+        var badge = pc.querySelector('.eqbadge');
+        if (eq >= 0) {
+          if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'eqbadge';
+            var shade = pc.querySelector('.shade');
+            if (shade && shade.nextSibling) pc.insertBefore(badge, shade.nextSibling); else pc.appendChild(badge);
+          }
+          badge.textContent = String(eq + 1);
+        } else if (badge) {
+          badge.parentNode.removeChild(badge);
+        }
+      }
+      var f = featHtml(fid);
+      var fe = sheet.querySelector('#feat');
+      if (fe) {
+        fe.classList.toggle('lock', !f.has);
+        fe.innerHTML = f.inner;
+      }
+    }
+
     onAll('.pc', function (n) {
       var id = n.getAttribute('data-id');
-      var again = { next: ctx && ctx.next, unlocks: ctx && ctx.unlocks, back: ctx && ctx.back, sel: id, again: true };
       if (n.classList.contains('lock')) {
         sfx('ui_error');
-        screenLoadout(again);            // feature it, so the unlock cost is readable
+        refresh(id);                     // feature it, so the unlock cost is readable
         return;
       }
       var idx = loadout.indexOf(id);
@@ -1321,7 +1424,7 @@
       else { loadout.pop(); loadout.push(id); }
       sfx('ui_tap');
       GAME.saveProgress();
-      screenLoadout(again);              // keep the "play next" context across a re-render
+      refresh(id);
     }, sheet);
 
     on('#play', function () {

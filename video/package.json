@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "remotion studio",
-    "render": "remotion render Trailer out/megaball-trailer.mp4"
+    "render": "remotion render Trailer out/megaball-trailer.mp4",
+    "render:tutorial": "remotion render Tutorial out/megaball-tutorial.mp4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.290",
