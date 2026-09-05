@@ -83,6 +83,9 @@
   function rr(ctx, x, y, w, h, r) {
     if (r > w / 2) r = w / 2;
     if (r > h / 2) r = h / 2;
+    /* A panel animating its width through zero hands us a negative w, and
+     * arcTo throws IndexSizeError on a negative radius — killing the frame. */
+    if (!(r > 0)) r = 0;
     ctx.beginPath();
     ctx.moveTo(x + r, y);
     ctx.lineTo(x + w - r, y);
@@ -2753,10 +2756,18 @@
         'rgba(255,255,255,0.8)', 'center', 2);
       ptext(ctx, 'ANY SLOT WORKS — THIS ONE IS A GOOD START', VW / 2, y + 92, 11,
         U.rgba(C.amber, 0.7), 'center', 2);
+    } else if (S.firstBuildTut) {
+      /* Post-lesson wording: the board is not empty, so "first" would be a
+       * lie, and the point is that wave 1 is about to arrive. */
+      ptext(ctx, 'WAVE 1 IS COMING', VW / 2, y + 34, 21, C.amber, 'center', 1.5);
+      ptext(ctx, 'ADD  A  PADDLE  OR  BUMPER  BELOW', VW / 2, y + 66, 13,
+        'rgba(255,255,255,0.8)', 'center', 2);
     } else {
       ptext(ctx, 'BUILD YOUR FIRST DEFENSE', VW / 2, y + 34, 21, C.amber, 'center', 1.5);
       ptext(ctx, 'TAP  PADDLE  OR  BUMPER  BELOW', VW / 2, y + 66, 13,
         'rgba(255,255,255,0.8)', 'center', 2);
+    }
+    if (!picking) {
       ptext(ctx, 'YOU HAVE ' + Math.floor(S.energy) + ' ENERGY TO SPEND', VW / 2, y + 92, 11,
         U.rgba(C.amber, 0.7), 'center', 2);
     }
@@ -2814,6 +2825,37 @@
     ctx.lineJoin = 'round';
     ctx.strokeStyle = U.rgba(C.amber, 0.7 + 0.3 * pulse);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /* The quiet reminder (see beginBuildPhase). A pill, not a plate: one line
+   * in the build field, no dim, no freeze, nothing to dismiss. It eases in
+   * over half a second and breathes, and the table stays fully playable
+   * underneath it. */
+  function drawSoftBuild(ctx, S) {
+    if (S.mode !== 'build' || !(S.softBuild > 0) || S.selectedTower || S.notice ||
+      S.buildPick || S.firstBuild) return;
+    var a = U.clamp((S.softBuild - 0.35) / 0.5, 0, 1);
+    if (a <= 0) return;
+    var pulse = 0.5 + 0.5 * Math.sin(S.time * 3.2);
+    var line = 'ENERGY BANKED  ' + Math.floor(S.energy) + '  -  MORE PADDLES AND BUMPERS BELOW';
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = '13px ' + PXF;
+    var w = Math.min(VW - 80, ctx.measureText(line).width + 64);
+    var x = VW / 2 - w / 2, y = 762, h = 44;
+    ctx.shadowColor = U.rgba(C.amber, 0.25 + 0.2 * pulse);
+    ctx.shadowBlur = 18;
+    rr(ctx, x, y, w, h, 22);
+    ctx.fillStyle = 'rgba(6,9,18,0.9)'; ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = U.rgba(C.amber, 0.45 + 0.3 * pulse);
+    ctx.stroke();
+    /* A lamp on the left, the same dot the toast carries, in amber. */
+    ctx.beginPath(); ctx.arc(x + 22, y + h / 2, 4.5, 0, TAU);
+    ctx.fillStyle = U.rgba(C.amber, 0.7 + 0.3 * pulse); ctx.fill();
+    ptext(ctx, line, VW / 2 + 10, y + h / 2 + 1, 13, U.rgba(C.amber, 0.95), 'center', 1.5);
     ctx.restore();
   }
 
@@ -3069,6 +3111,7 @@
     drawHud(ctx, S);
     drawTray(ctx, S);
     drawBuildHint(ctx, S);
+    drawSoftBuild(ctx, S);
     drawFirstBuildPrompt(ctx, S);
     drawUpgradeModal(ctx, S);
     /* Tutorial overlay sits above the HUD and tray (it points at them) but

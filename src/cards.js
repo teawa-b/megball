@@ -294,7 +294,7 @@
   };
 
   /* Everything the player can own, in unlock order. */
-  CARDS.UNLOCK_ORDER = ['slowtime', 'barrier', 'overcharge', 'megaball', 'magnet', 'shockwave'];
+  CARDS.UNLOCK_ORDER = ['megaball', 'slowtime', 'barrier', 'overcharge', 'magnet', 'shockwave'];
 
   global.CARDS = CARDS;
 })(typeof window !== 'undefined' ? window : this);

@@ -1328,9 +1328,9 @@
 
     /* Featured card: the one just tapped, else the last equipped, else the
      * first card everyone owns. */
-    var selId = (ctx && ctx.sel) || (loadout.length ? loadout[loadout.length - 1] : 'slowtime');
+    var selId = (ctx && ctx.sel) || (loadout.length ? loadout[loadout.length - 1] : 'megaball');
     function featHtml(fid) {
-      var sel = CARDS.PLAYER[fid] || CARDS.PLAYER.slowtime;
+      var sel = CARDS.PLAYER[fid] || CARDS.PLAYER.megaball;
       var selHas = owned.cards.indexOf(fid) >= 0;
       var selEq = loadout.indexOf(fid);
       var selArt = global.ART && global.ART.get ? global.ART.get(sel.art) : null;

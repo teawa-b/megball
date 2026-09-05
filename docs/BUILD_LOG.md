@@ -3,7 +3,8 @@
 The competition asks for a markdown log of how the prototype was built with AI tools. This
 is that log, in order. Everything below was done with Claude Code (Claude Fable 5.1 driving
 the session, Claude Opus subagents for parallel modules) plus the OpenAI Codex CLI for image
-generation. No hand-authored art, audio or 3D model files exist in the project.
+generation, with Meta Muse 1.2 used for minor bug fixes. No hand-authored art, audio or 3D
+model files exist in the project.
 
 ## 1. Design → contract
 
@@ -906,6 +907,16 @@ It now demonstrates instead of describing:
 Measured: balls travel 150.6 units per half-second before the tap and 82.1 after. The step
 holds, then hands on to STARS BUY CARDS, and the lesson still ends clean — no leftover demo
 balls, slow state cleared, cards back to full.
+
+## 4gg. Megaball is a starter card
+
+The game is named after the Megaball and the card that fires it sat at seven stars, which
+for most players is the fourth level. The signature play was the thing a new player saw
+last. It is now owned from the first run alongside Slow Time, equipped by default for a
+fresh save, and listed first in the deck. The unlock ladder loses its seven-star rung and
+is otherwise unchanged: Barrier at two, the second slot at three, Overcharge at five, the
+third slot at nine, Magnetise at eleven, Shockwave at twelve. Existing saves keep the deck
+they built; the card simply appears as owned.
 
 ## 5. Packaging
 

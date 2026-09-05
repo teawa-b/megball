@@ -65,6 +65,8 @@
     buildPick: null,     // tower type string being placed
     buildHint: false,    // pulse the tray build buttons (nothing built this phase)
     firstBuild: false,   // big mid-field callout: nothing built on the board yet
+    firstBuildTut: false, // the same callout, replayed once as the lesson hands over to wave 1
+    softBuild: 0,        // quiet build-field reminder (seconds shown); never stops the table
     placedThisPhase: false,
     inspect: null,       // card detail popout (freezes the sim while open)
     selectedTower: null,
@@ -97,7 +99,7 @@
   /* Persistent progress. */
   var PROG = GAME.progress = U.loadSave('megaball.save', {
     stars: {},           // { levelId: stars }
-    loadout: ['slowtime'],
+    loadout: ['megaball'],
     muted: false,
     seen: false
   });
@@ -180,6 +182,8 @@
     S.overchargeT = S.barrierT = S.magnetT = S.superheatT = 0;
     S.buildOpen = false; S.buildPick = null; S.selectedTower = null;
     S.firstBuild = false;
+    S.firstBuildTut = false;
+    S.softBuild = 0;
     S.towerHold = null;
     S.towerHintShown = false;
     S.tutorialsShown = {};
@@ -258,6 +262,13 @@
     S.mode = 'build';
     S.toastT = 0;
     beginBuildPhase(true);
+    /* The lesson ends with defenses already on the board, so the opening
+     * callout would normally stay down. It comes up anyway, once, reworded:
+     * the last thing a player did in the lesson was fire a card, and the
+     * first thing wave 1 needs from them is a tower. It reminds, it does not
+     * gate — the countdown runs, and building anything (or the wave arriving)
+     * takes it away. */
+    if (S.mode === 'build') { S.firstBuild = true; S.firstBuildTut = true; }
   };
 
   /* Drop a single ball anywhere — used by the tutorial for its demo balls. */
@@ -425,10 +436,20 @@
      * screen and a pulse on two small buttons. It clears the instant anything
      * is built. Later phases keep the quieter nudge. */
     S.firstBuild = !S.towers.length && !S.pendingTutorial && S.mode !== 'tutorial';
-    /* Never nag over the tutorial — it is already telling them what to do. */
-    if (!S.firstBuild && !S.pendingTutorial && S.mode !== 'tutorial' &&
-      S.energy >= ENT.TOWERS.bumper.cost && S.towers.length < 4) {
-      GAME.toast('Spend your Energy — tap PADDLE or BUMPER to build', 4.2);
+    S.firstBuildTut = false;
+    /* Every build phase the opening plate does not own, on every level and
+     * in Endless: the player is holding energy they may not think of as
+     * spendable, and this is never the moment for a plate that stops the
+     * table — they are in the game now and nothing is broken. A quiet amber
+     * pill sits in the build field for the whole phase instead, the tray
+     * pulses as it already does, and the first thing they build takes it
+     * away. It replaced the bottom-strip toast that used to say the same
+     * thing, so the sentence is said once, where the player is looking.
+     * Never over the tutorial — it is already telling them what to do. */
+    S.softBuild = 0;
+    var cheapest = Math.min(ENT.TOWERS.bumper.cost, ENT.TOWERS.paddle.cost);
+    if (!S.firstBuild && !S.pendingTutorial && S.mode !== 'tutorial' && S.energy >= cheapest) {
+      S.softBuild = 0.001;
     }
     S.banner = {
       title: S.level.endless ? 'WAVE ' + (S.waveIndex + 2)
@@ -515,7 +536,7 @@
    * there meets every lane. Nearest FREE slot to that point, so the marker
    * can never land on an occupied one. */
   GAME.guideSlot = function () {
-    if (!GAME.mustBuild() || !S.table) return null;
+    if (!(GAME.mustBuild() || (S.firstBuild && S.mode === 'build')) || !S.table) return null;
     var best = null, bd = 1e9;
     for (var i = 0; i < S.table.slots.length; i++) {
       var sl = S.table.slots[i];
@@ -866,6 +887,8 @@
     S.placedThisPhase = true;
     S.buildHint = false;
     S.firstBuild = false;
+    S.firstBuildTut = false;
+    S.softBuild = 0;
 
     sfx('place');
     var f = global.FX;
@@ -2121,7 +2144,8 @@
     /* --- build phase --------------------------------------------------- */
     if (S.mode === 'build') {
       S.buildHint = !S.placedThisPhase && S.energy >= ENT.TOWERS.bumper.cost;
-      if (S.towers.length) S.firstBuild = false;
+      if (S.towers.length && !S.firstBuildTut) S.firstBuild = false;
+      if (S.softBuild > 0) S.softBuild += dtReal;
       /* The countdown holds while the opening defense is still owed —
        * otherwise the guidance is decoration and wave 1 arrives anyway. */
       if (!GAME.mustBuild()) S.buildT -= dtReal;

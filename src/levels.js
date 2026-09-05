@@ -511,16 +511,17 @@
     { stars: 2, kind: 'card', id: 'barrier', label: 'BARRIER card' },
     { stars: 3, kind: 'slot', id: 2, label: '2nd card slot' },
     { stars: 5, kind: 'card', id: 'overcharge', label: 'OVERCHARGE card' },
-    { stars: 7, kind: 'card', id: 'megaball', label: 'MEGABALL card' },
     { stars: 9, kind: 'slot', id: 3, label: '3rd card slot' },
     { stars: 11, kind: 'card', id: 'magnet', label: 'MAGNETISE card' },
     { stars: 12, kind: 'card', id: 'shockwave', label: 'SHOCKWAVE card' }
   ];
 
-  /* What the player owns at a given star total. Slot 1 and Slow Time are
-   * free from the very first run so the tray is never empty. */
+  /* What the player owns at a given star total. Slot 1, Slow Time and
+   * Megaball are free from the very first run: the tray is never empty, and
+   * the game's signature play is in the deck from the first level rather
+   * than sitting behind seven stars. */
   LEVELS.ownedAt = function (totalStars) {
-    var cards = ['slowtime'], slots = 1;
+    var cards = ['slowtime', 'megaball'], slots = 1;
     for (var i = 0; i < LEVELS.UNLOCKS.length; i++) {
       var u = LEVELS.UNLOCKS[i];
       if (totalStars < u.stars) continue;
