@@ -287,9 +287,15 @@
       slow(1, 0.12);
       zoom(1);
       /* The flippers are taught here, on a live ball, rather than in a dry
-       * hold-left / hold-right drill beforehand: the cue under the ball says
-       * which side, and the hit is its own reward. */
-      say('FLIP IT', 'Let it fall. When it reaches a flipper, HOLD that side of the table to raise the flipper and knock it back up.', { tap: false });
+       * tap-left / tap-right drill beforehand: the two halves light up, the
+       * cue under the ball says which side, and the hit is its own reward.
+       *
+       * It says TAP, not HOLD, because the flip fires on the press -
+       * GAME.pointerDown calls setFlipper(role, true) immediately. Holding
+       * only keeps the arm raised afterwards, so teaching a hold taught a
+       * gesture the player does not need to make the shot. */
+      T.zones = true;
+      say('FLIP IT', 'Let it fall. When it reaches a flipper, TAP that side of the table to swing the flipper and knock it back up.', { tap: false });
       point('arrow', 0, 0, { dir: 'down', ball: T.ball, board: true });
       T.flag = false;
     },
@@ -307,7 +313,7 @@
       if (ev === 'flipHit') return 'hit';
       if (ev === 'drain') {
         T.misses++;
-        say('MISSED', 'Here comes another one. Wait until it is ON the flipper, then hold that side of the table.', { tap: false });
+        say('MISSED', 'Here comes another one. Wait until it is ON the flipper, then tap that side of the table.', { tap: false });
         point('arrow', 0, 0, { dir: 'down', ball: null, board: true });
         var nb = spawnBall(CLEAR_X[T.misses % CLEAR_X.length], S.table.spawnY, { vx: 0, vy: 70 });
         T.pointer.ball = nb;
@@ -315,7 +321,7 @@
         slow(1, 0.3);
       }
     },
-    exit: function () { T.flipCue = false; }
+    exit: function () { T.flipCue = false; T.zones = false; }
   };
 
   STEPS.hit = {
@@ -514,12 +520,12 @@
     on: function (ev, t) { if (ev === 'place') { T.paddle = t; return 'upgradeOpen'; } }
   };
 
-  /* The lesson makes the player HOLD, not tap, because that is the gesture
-   * that works when it matters. Mid-wave the whole playfield is the flipper
-   * surface, so a tap there flips and only a hold reaches a defense; teaching
-   * the tap would teach something that stops working the moment the first
-   * wave starts. The ring that fills under the finger is the game's own
-   * affordance, so the lesson is really just pointing at it. */
+  /* This one really is a HOLD, unlike the flipper. Mid-wave the whole
+   * playfield is the flipper surface, so a tap there flips and only a hold
+   * reaches a defense; teaching the tap would teach something that stops
+   * working the moment the first wave starts. The ring that fills under the
+   * finger is the game's own affordance, so the lesson is really just
+   * pointing at it. */
   STEPS.upgradeOpen = {
     enter: function () {
       say('UPGRADES',
@@ -682,13 +688,14 @@
     on: function (ev, b) {
       if (ev === 'flipHit' && T.parked && !T.flipped && b === T.ball) playerFlipped(b);
     },
-    exit: function () { T.flipCue = false; }
+    exit: function () { T.flipCue = false; T.zones = false; }
   };
 
   function playerFlipped(b) {
     T.flipped = true;
     T.demoT = 0;
     T.flipCue = false;
+    T.zones = false;
     hush();
     sfx('warn', { vol: 0.6 });
     slow(0.3, 0.6);
@@ -734,8 +741,9 @@
     slow(0.04, 0.5);
     zoom(1.35, { x: VW / 2, y: 980 });
     T.flipCue = true;
+    T.zones = true;
     var side = T.side === 'L' ? 'LEFT' : 'RIGHT';
-    say('YOUR SHOT', 'It is burning, and it is sitting on your ' + side + ' flipper. HOLD the ' + side + ' side to fire it into the crowd.', { tap: false, pos: 'top' });
+    say('YOUR SHOT', 'It is burning, and it is sitting on your ' + side + ' flipper. TAP the ' + side + ' side to fire it into the crowd.', { tap: false, pos: 'top' });
     return b;
   }
 
@@ -855,7 +863,7 @@
    * version has not seen THIS tutorial, so World 1 Level 1 teaches it again —
    * which is also what re-arms it for anyone whose flag was set by an earlier
    * build. */
-  TUT.VERSION = 5;
+  TUT.VERSION = 6;
 
   TUT.shouldRun = function (def, prog) {
     if (!def || def.id !== 1) return false;
@@ -873,7 +881,7 @@
       msg: null, pointer: null, pointer2: null, spot: null, spotTray: null,
       ball: null, tower: null, paddle: null, slot: null, misses: 0, flag: false, wait: 0,
       lit: false, parked: false, flipped: false, tries: 0, demoT: 0, clearT: 0, pressT: 0, wrongT: 0, side: 'L',
-      time: 0, flipCue: false,
+      time: 0, flipCue: false, zones: false,
       stuckT: 0, sampleT: 0, lastX: 0, lastY: 0
     };
     cam.zoom = 1; cam.fx = cam.ax = PIV_X; cam.fy = cam.ay = PIV_Y;
@@ -1203,6 +1211,71 @@
       U.rgba(C.white, 0.75), 'center', '800', 1.5);
   }
 
+  /* The two halves of the table, drawn as what they are: the left and right
+   * flipper buttons. Mid-wave GAME.pointerDown assigns a press to L or R on
+   * nothing but `p.x < VW / 2`, and that split is invisible - a first-timer
+   * told to "tap that side" has no idea the whole half is live. The panels
+   * stop above the flippers rather than spanning the full playfield because
+   * that is where a thumb actually goes; a press higher up still works, so
+   * the hint under-promises rather than over-promises.
+   *
+   * Board coordinates through toScreen, so they sit on the table under the
+   * lesson's camera zoom instead of floating over it. */
+  var ZONE_TOP = 880, ZONE_BOT = 1285;
+
+  function zoneRect(x0, x1) {
+    var a = toScreen(x0, ZONE_TOP), b = toScreen(x1, ZONE_BOT);
+    return { x: a.x, y: a.y, w: b.x - a.x, h: b.y - a.y };
+  }
+
+  function drawZone(ctx, r, label, hot) {
+    var pulse = 0.5 + 0.5 * Math.sin(T.time * 5);
+    var col = hot ? C.amber : C.cyan;
+    var a = hot ? 0.16 + 0.12 * pulse : 0.07;
+    ctx.save();
+    rr(ctx, r.x + 6, r.y, r.w - 12, r.h, 22);
+    ctx.fillStyle = U.rgba(col, a);
+    ctx.fill();
+    ctx.lineWidth = hot ? 4 : 2;
+    ctx.strokeStyle = U.rgba(col, hot ? 0.5 + 0.4 * pulse : 0.28);
+    ctx.stroke();
+    ctx.restore();
+    var cx = r.x + r.w / 2;
+    txt(ctx, label, cx, r.y + 44, 20, U.rgba(col, hot ? 1 : 0.6), 'center', '900', 3);
+    /* Exactly one TAP per half. The lit side gets the animated fingertip,
+     * which carries its own caption; the idle side gets a static word. Both
+     * at once said TAP three times in one panel. Kept clear of the drain: the
+     * fingertip caption sits 50px under it, so anchoring the dot lower put
+     * the word on the drain line. */
+    if (hot) drawTap(ctx, cx, r.y + r.h - 120);
+    else txt(ctx, 'TAP', cx, r.y + 78, 13, U.rgba(col, 0.45), 'center', '800', 4);
+  }
+
+  /* Which half the lesson wants right now: the parked shot names a side, and
+   * during the fall it is whichever half the ball is heading into. */
+  function hotSide() {
+    if (T.parked) return T.side;
+    var b = T.ball;
+    if (!b || b.dead || b.y < 700) return null;
+    return b.x < VW / 2 ? 'L' : 'R';
+  }
+
+  function drawFlipZones(ctx) {
+    var hot = hotSide();
+    /* Not named rr: that is the rounded-rect helper this file draws with. */
+    var leftR = zoneRect(U.WALL_L, VW / 2), rightR = zoneRect(VW / 2, U.WALL_R);
+    drawZone(ctx, leftR, 'LEFT', hot === 'L');
+    drawZone(ctx, rightR, 'RIGHT', hot === 'R');
+    /* The split itself, so the two panels read as one control divided. */
+    var t = toScreen(VW / 2, ZONE_TOP), b2 = toScreen(VW / 2, ZONE_BOT);
+    ctx.save();
+    ctx.setLineDash([10, 12]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = U.rgba(C.white, 0.22);
+    ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(b2.x, b2.y); ctx.stroke();
+    ctx.restore();
+  }
+
   function drawFlipCue(ctx) {
     var b = T.ball;
     if (!b || b.dead) return;
@@ -1211,7 +1284,7 @@
     var pulse = 0.6 + 0.4 * Math.sin(T.time * 14);
     ctx.save();
     ctx.globalAlpha = pulse;
-    txt(ctx, left ? 'HOLD LEFT!' : 'HOLD RIGHT!', s.x + (left ? 60 : -60), s.y - 10, 26,
+    txt(ctx, left ? 'TAP LEFT!' : 'TAP RIGHT!', s.x + (left ? 60 : -60), s.y - 10, 26,
       C.amber, left ? 'left' : 'right', '900', 2);
     ctx.restore();
   }
@@ -1229,6 +1302,7 @@
     }
     if (holes) drawMask(ctx, holes);
 
+    if (T.zones) drawFlipZones(ctx);
     if (T.flipCue) drawFlipCue(ctx);
     if (T.pointer) drawPointer(ctx, T.pointer);
     if (T.pointer2) drawPointer(ctx, T.pointer2);
