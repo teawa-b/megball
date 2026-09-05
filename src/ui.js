@@ -304,9 +304,15 @@
     '#ui .dmd .screw.l{left:2px;}#ui .dmd .screw.r{right:2px;}',
     /* Controls: the cabinet START button beside a scorecard of modes. */
     '#ui .ctl{display:flex;align-items:center;gap:16px;flex:0 0 auto;margin-top:10px;}',
-    '#ui .start{flex:0 0 116px;width:116px;height:116px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
-    '  background:radial-gradient(circle at 50% 36%,#fff1bf 0%,#ffcf4a 30%,#f39316 60%,#8f4306 100%);',
-    '  box-shadow:0 0 0 5px #0a0d18,0 0 0 7px rgba(255,176,32,.5),0 14px 30px rgba(0,0,0,.6),0 0 30px rgba(255,176,32,.3);',
+    /* The cabinet START button. A deep bezel, a lit amber cap in the same
+     * glossy toy finish as the logo's "Defense" lettering, and a thin
+     * magenta/amber arc orbiting the rim (the same dial as the boot splash,
+     * so the machine reads as one object from power-up to play). */
+    '#ui .start{flex:0 0 128px;width:128px;height:128px;border-radius:50%;border:0;padding:0;position:relative;cursor:pointer;font-family:inherit;',
+    '  background:radial-gradient(circle at 50% 34%,#fff4c8 0%,#ffd75a 22%,#ffab1e 50%,#e2680c 78%,#7a3204 100%);',
+    '  box-shadow:0 0 0 4px #05060d,0 0 0 6px rgba(255,176,32,.35),0 0 0 11px #0a0d18,0 0 0 12px rgba(63,224,255,.28),',
+    '    inset 0 3px 0 rgba(255,255,255,.55),inset 0 -10px 18px rgba(120,40,0,.55),inset 0 0 22px rgba(255,140,0,.35),',
+    '    0 16px 34px rgba(0,0,0,.65),0 0 34px rgba(255,176,32,.35);',
     '  transition:transform .08s,filter .12s;}',
     '#ui .sheet.home.boot .start{animation:startOn .5s cubic-bezier(.2,1.4,.4,1) .55s both;}',
     '@keyframes startOn{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}',
@@ -314,15 +320,33 @@
      * repaints a large area every frame for as long as the menu is open. The
      * same glow now lives on its own halo element and animates only opacity
      * and transform, so the compositor carries it and the paint cost is nil. */
-    '#ui .start .halo{position:absolute;inset:-16px;border-radius:50%;pointer-events:none;z-index:0;',
-    '  background:radial-gradient(circle,rgba(255,196,60,.5) 38%,rgba(255,176,32,.16) 62%,rgba(255,176,32,0) 76%);',
+    '#ui .start .halo{position:absolute;inset:-22px;border-radius:50%;pointer-events:none;z-index:0;',
+    '  background:radial-gradient(circle,rgba(255,196,60,.45) 38%,rgba(255,176,32,.14) 62%,rgba(255,176,32,0) 76%);',
     '  animation:haloPulse 1.9s ease-in-out infinite;will-change:opacity,transform;}',
     '@keyframes haloPulse{0%,100%{opacity:.3;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}',
-    '#ui .start::before{content:"";position:absolute;inset:7px;border-radius:50%;border:2px solid rgba(255,255,255,.28);border-bottom-color:rgba(110,45,0,.45);}',
-    '#ui .start::after{content:"";position:absolute;left:24%;top:9%;width:52%;height:26%;border-radius:50%;background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(255,255,255,0));}',
-    '#ui .start b{position:relative;z-index:1;display:block;font:30px/1 ' + PX + ';color:#3a1600;text-shadow:0 1px 0 rgba(255,255,255,.4);}',
-    '#ui .start small{position:relative;z-index:1;display:block;margin-top:5px;font:10px/1 ' + PX + ';color:#5a2600;letter-spacing:.06em;text-transform:uppercase;}',
+    /* Orbiting arcs in the bezel groove: magenta clockwise, amber counter. */
+    '#ui .start .ring{position:absolute;inset:-11px;border-radius:50%;pointer-events:none;z-index:0;will-change:transform;',
+    '  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));',
+    '  mask:radial-gradient(farthest-side,transparent calc(100% - 4px),#000 calc(100% - 3px));',
+    '  background:conic-gradient(from 0deg,rgba(255,46,136,0) 0deg,rgba(255,46,136,.4) 50deg,#ff2e88 90deg,#ffb0d8 96deg,transparent 98deg 180deg,',
+    '    rgba(255,210,74,0) 180deg,rgba(255,210,74,.4) 230deg,#ffd24a 270deg,#fff1bf 276deg,transparent 278deg 360deg);',
+    '  filter:drop-shadow(0 0 5px rgba(255,46,136,.7)) drop-shadow(0 0 5px rgba(255,210,74,.6));animation:ringSpin 3.2s linear infinite;}',
+    '@keyframes ringSpin{to{transform:rotate(360deg)}}',
+    /* Inner rim and the cap's gloss. */
+    '#ui .start::before{content:"";position:absolute;inset:8px;border-radius:50%;pointer-events:none;',
+    '  border:2px solid rgba(255,255,255,.35);border-bottom-color:rgba(110,45,0,.5);box-shadow:inset 0 0 0 1px rgba(120,45,0,.25);}',
+    '#ui .start::after{content:"";position:absolute;left:20%;top:7%;width:60%;height:30%;border-radius:50%;pointer-events:none;',
+    '  background:linear-gradient(180deg,rgba(255,255,255,.75),rgba(255,255,255,0));}',
+    /* Lettering: heavy italic in the logo's face, white lit from below into
+     * gold, with a hard dark rim so it pops off the amber cap. */
+    '#ui .start b{position:relative;z-index:1;display:block;margin-top:2px;font:italic 900 34px/1 ' + F + ';letter-spacing:.04em;text-transform:uppercase;',
+    '  color:#fff;background:linear-gradient(180deg,#fff 30%,#fff2b8 60%,#ffcf4a 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;',
+    '  filter:drop-shadow(0 2px 0 #6a2a00) drop-shadow(0 0 1px #5a2000) drop-shadow(0 0 8px rgba(255,120,0,.55));}',
+    '#ui .start small{position:relative;z-index:1;display:inline-block;margin-top:8px;padding:5px 9px 4px;border-radius:999px;',
+    '  background:rgba(60,20,0,.62);box-shadow:inset 0 1px 0 rgba(0,0,0,.45),0 1px 0 rgba(255,255,255,.35);',
+    '  font:800 9px/1 ' + F + ';color:#ffe9a8;letter-spacing:.24em;text-transform:uppercase;text-shadow:0 1px 0 rgba(0,0,0,.6);}',
     '#ui .start:hover{filter:brightness(1.08);}#ui .start:active{transform:scale(.94);filter:brightness(1.18);}',
+    '#ui .start:active .ring{animation-duration:.8s;}',
     '#ui .scard{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;}',
     /* A scorecard directly above the back button must not stretch, or the
      * button drifts away from the option it belongs under. */
@@ -1008,12 +1032,12 @@
        * the scorecard, which is the reverse of how this started.
        *
        * The button keeps the word PLAY rather than the word ENDLESS: it is a
-       * 116px circle set in a 30px pixel face, where "PLAY" fits and
+       * 128px circle set in a 34px face, where "PLAY" fits and
        * "ENDLESS" does not. The action stays on the cap and the destination
        * rides underneath it, which is also how a real cabinet is labelled. */
       '<div class="ctl">',
       '<button class="start" id="endless" aria-label="' + (firstRun ? 'Play: start the first stage' : 'Play Endless mode' +
-        (best ? ', best wave ' + best : '')) + '"><span class="halo" aria-hidden="true"></span>' +
+        (best ? ', best wave ' + best : '')) + '"><span class="halo" aria-hidden="true"></span><span class="ring" aria-hidden="true"></span>' +
         '<b>Play</b><small>' + (firstRun ? 'Start here' : 'Endless') + '</small></button>',
       '<div class="scard">',
       '<button class="sc amb" id="play"><i></i><span class="lb">Campaign</span><span class="ld"></span><span class="ct">' + cleared + '/' + stages + '</span></button>',
