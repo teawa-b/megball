@@ -23,112 +23,249 @@
   #gl, #game { position: absolute; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
   #gl { z-index: 0; } #game { z-index: 1; }
 
-  /* Boot splash: also the gesture that unlocks Web Audio on mobile. It is
-     the machine powering up: the logo's round core emblem as a loading dial
-     and the name on a dot-matrix display. Only transform and opacity animate,
-     so the compositor keeps them moving while the main thread compiles
-     shaders behind it. */
+  /* Boot splash: also the gesture that unlocks Web Audio on mobile. It is the
+     machine powering up — the logo, a reactor dial reporting the real warm-up
+     progress, and the readouts around it.
+
+     The density on this screen is deliberate, and it is nearly free, because
+     almost all of it is STATIC. The splash is on screen precisely while the
+     main thread compiles every shader and builds every level's table
+     (SCENE3D.warm), so anything needing the main thread per frame would both
+     stutter and lengthen the load it is covering. Chrome, rules, tick rings
+     and brackets paint once and then cost nothing; only the comet and the
+     core animate, and both move on transform and opacity alone, so the
+     compositor carries them straight through the blocking work. Keep that
+     split when adding to this screen: detail is cheap, motion is not. */
   #boot {
     position: fixed; inset: 0; z-index: 40; display: flex;
     flex-direction: column; align-items: center; justify-content: center;
     background: #05060d; color: #fff; transition: opacity .45s; text-align: center;
-    overflow: hidden;
+    overflow: hidden; padding: 18px 14px; box-sizing: border-box;
+    --cy: #3fe0ff; --cd: rgba(143,232,255,.5); --mg: #ff2e88; --am: #ffd24a;
+    --px: "Ken Pixel", 'Segoe UI', system-ui, sans-serif;
+    --dial: 172px;
   }
+  /* The cabinet behind the glass: a pool of light under the dial, cool at the
+     top and a trace of the magenta rail lighting at the bottom. */
   #boot::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
-    background: radial-gradient(62% 42% at 50% 43%, rgba(63,224,255,.14), transparent 72%);
+    background:
+      radial-gradient(56% 30% at 50% 47%, rgba(63,224,255,.16), transparent 72%),
+      radial-gradient(120% 70% at 50% 0%, rgba(22,64,124,.3), transparent 62%),
+      radial-gradient(120% 55% at 50% 100%, rgba(120,20,70,.16), transparent 60%);
   }
   #boot::after {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background:
       repeating-linear-gradient(180deg, rgba(255,255,255,.035) 0 1px, transparent 1px 3px),
-      radial-gradient(80% 70% at 50% 50%, transparent 55%, rgba(0,0,0,.8) 100%);
+      radial-gradient(86% 66% at 50% 50%, transparent 52%, rgba(0,0,0,.85) 100%);
   }
   #boot.gone { opacity: 0; pointer-events: none; }
-  /* The emblem: the round core badge from the MegaBall logo, blown up to a
-     loading dial. One idea, one motion — a lit core breathing inside a dark
-     bezel while a single magenta lamp sweeps the track around it. An earlier
-     pass stacked tick marks, a dashed ring and two counter-rotating arcs in
-     the same 150px, which at this size reads as clutter rather than detail.
-     Only transform and opacity animate. */
-  #boot .emblem { position: relative; width: 150px; height: 150px; z-index: 1; }
-  /* The bezel: a dark well, lit at the rim and black at the centre, so the
-     core burns out of a pit instead of sitting on a lit surface. */
-  #boot .emblem::before {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
+  /* Corner brackets, drawn as eight background slices on one element rather
+     than as eight elements. */
+  #boot .frame {
+    position: absolute; inset: 9px; pointer-events: none; opacity: .4;
+    background:
+      linear-gradient(var(--cy), var(--cy)) 0 0 / 1px 24px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 0 0 / 24px 1px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 100% 0 / 1px 24px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 100% 0 / 24px 1px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 0 100% / 1px 24px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 0 100% / 24px 1px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 100% 100% / 1px 24px no-repeat,
+      linear-gradient(var(--cy), var(--cy)) 100% 100% / 24px 1px no-repeat;
+  }
+  /* Cabinet side-art copy, the way a real machine carries it on the rails. */
+  #boot .side {
+    position: absolute; top: 19%; z-index: 1; pointer-events: none;
+    font: 8px/1.9 var(--px); letter-spacing: .1em; text-transform: uppercase;
+    color: rgba(143,232,255,.42); text-align: left;
+  }
+  #boot .side.l { left: 15px; }
+  #boot .side.r { right: 15px; text-align: right; }
+  #boot .side b { display: block; color: rgba(255,210,74,.45); font-weight: normal; }
+
+  #boot .logo {
+    position: relative; z-index: 1; width: min(74vw, 286px); aspect-ratio: 3 / 1;
+    background: 50% 50% / contain no-repeat;
+    opacity: 0; transition: opacity .45s;
+  }
+  #boot.art .logo { opacity: 1; }
+  /* The strapline rule: a label between two hairlines. */
+  #boot .rule {
+    position: relative; z-index: 1; display: flex; align-items: center; gap: 10px;
+    margin-top: 2px; width: min(80vw, 300px);
+  }
+  #boot .rule i { flex: 1 1 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(63,224,255,.45)); }
+  #boot .rule i:last-child { background: linear-gradient(90deg, rgba(63,224,255,.45), transparent); }
+  #boot .rule span {
+    flex: 0 0 auto; font: 9px/1 var(--px); letter-spacing: .22em; text-transform: uppercase;
+    color: rgba(143,232,255,.75);
+  }
+
+  /* ---- the dial ------------------------------------------------------- */
+  /* The comet track sits at inset -16px, so it overflows this box. The margins
+     reserve that overflow; without it the track cuts through the strapline
+     above and the percentage below on a short screen. */
+  #boot .dial { position: relative; z-index: 1; width: var(--dial); height: var(--dial); margin: 30px 0 16px; }
+  /* The well: lit at the rim, black at the centre, so the core burns out of a
+     pit instead of sitting on a lit surface. */
+  #boot .dial::before {
+    content: ""; position: absolute; inset: 24px; border-radius: 50%;
     background: radial-gradient(circle at 50% 50%, #01030a 0%, #04091a 46%, #0a1734 78%, #14274f 100%);
-    box-shadow: 0 0 0 1px rgba(143,232,255,.28), inset 0 0 26px rgba(0,0,0,.9),
-      inset 0 2px 0 rgba(143,232,255,.16), 0 0 46px rgba(63,224,255,.16), 0 20px 44px rgba(0,0,0,.7);
+    box-shadow: 0 0 0 1px rgba(143,232,255,.26), inset 0 0 26px rgba(0,0,0,.9),
+      inset 0 2px 0 rgba(143,232,255,.14), 0 0 44px rgba(63,224,255,.15), 0 18px 40px rgba(0,0,0,.7);
   }
-  /* The unlit track the lamp runs in, clear of the bezel so nothing clips. */
-  #boot .track {
-    position: absolute; inset: -13px; border-radius: 50%;
-    border: 2px solid rgba(63,224,255,.13);
+  /* The determinate arc. --p is a real percentage off the warm-up, so this
+     repaints about eight times across a whole boot, not sixty times a second. */
+  #boot .prog {
+    position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 8px), #000 calc(100% - 7px));
+    background: conic-gradient(from 0deg, #7cecff 0deg, var(--cy) calc(var(--p, 0) * 3.6deg), rgba(63,224,255,.07) 0);
+    filter: drop-shadow(0 0 6px rgba(63,224,255,.5));
   }
-  /* The lamp: a bulb at 0deg with a tail ramping up behind it, so head and
-     tail travel as one comet. The tail is masked to the track's width and the
-     bulb is not — masking the whole element would clip the bulb into a flat
-     chip — so the ring carries them on one rotation. */
+  /* Fine engraving inside the arc. */
+  #boot .ticks {
+    position: absolute; inset: 14px; border-radius: 50%; pointer-events: none; opacity: .38;
+    background: repeating-conic-gradient(from -.4deg, rgba(143,232,255,.7) 0 .8deg, transparent .8deg 7.2deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 5px));
+  }
+  /* Index marks at the quarters, pointing in. */
+  #boot .mk { position: absolute; width: 0; height: 0; border: 5px solid transparent; }
+  #boot .mk.n { top: -6px; left: 50%; margin-left: -5px; border-top-color: var(--cd); }
+  #boot .mk.s { bottom: -6px; left: 50%; margin-left: -5px; border-bottom-color: var(--cd); }
+  #boot .mk.w { left: -6px; top: 50%; margin-top: -5px; border-left-color: var(--cd); }
+  #boot .mk.e { right: -6px; top: 50%; margin-top: -5px; border-right-color: var(--cd); }
+  /* The outer track and the lamp that sweeps it — the one thing on this
+     screen that runs continuously. */
+  #boot .track { position: absolute; inset: -16px; border-radius: 50%; border: 1px solid rgba(63,224,255,.13); }
   #boot .orbit {
-    position: absolute; inset: -13px; border-radius: 50%; pointer-events: none;
-    will-change: transform; animation: spin 2.1s linear infinite;
+    position: absolute; inset: -16px; border-radius: 50%; pointer-events: none;
+    will-change: transform; animation: spin 2.4s linear infinite;
   }
+  /* The tail is masked to the track's width and the bulb is not: masking the
+     whole element clips the bulb into a flat chip. */
   #boot .orbit::before {
     content: ""; position: absolute; inset: 0; border-radius: 50%;
     -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
     mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px));
-    background: conic-gradient(from 0deg, transparent 0deg 248deg, rgba(255,46,136,0) 248deg, #ff2e88 356deg, #ffd9ec 360deg);
+    background: conic-gradient(from 0deg, transparent 0deg 252deg, rgba(255,46,136,0) 252deg, var(--mg) 356deg, #ffd9ec 360deg);
     filter: drop-shadow(0 0 7px rgba(255,46,136,.75));
   }
   #boot .orbit::after {
     content: ""; position: absolute; left: 50%; top: 0; width: 7px; height: 7px; margin: -1.5px 0 0 -3.5px;
-    border-radius: 50%; background: #fff; box-shadow: 0 0 11px #ff2e88, 0 0 4px #fff;
+    border-radius: 50%; background: #fff; box-shadow: 0 0 11px var(--mg), 0 0 4px #fff;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
+  /* Gunsight hairlines across the well, broken at the centre so they frame the
+     core instead of crossing it. */
+  #boot .reticle {
+    position: absolute; inset: 28px; border-radius: 50%; pointer-events: none; opacity: .5;
+    background:
+      linear-gradient(90deg, var(--cd) 0 13%, transparent 13% 87%, var(--cd) 87% 100%) 50% 50% / 100% 1px no-repeat,
+      linear-gradient(180deg, var(--cd) 0 13%, transparent 13% 87%, var(--cd) 87% 100%) 50% 50% / 1px 100% no-repeat;
+  }
   /* The core: a light source, not an object. Lit from its own centre with no
      specular highlight and no rim, falling off to nothing so it bleeds into
-     the well — a highlight and a dark edge are what made the earlier version
-     read as a glossy plastic marble. */
+     the well — a highlight and a dark edge are what made an earlier pass read
+     as a glossy plastic marble. */
   #boot .core {
-    position: absolute; left: 50%; top: 50%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%;
+    position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%;
     background: radial-gradient(circle at 50% 50%,
-      #fff 0%, #eafdff 9%, #8feaff 19%, #3fe0ff 31%, rgba(41,167,235,.55) 48%,
+      #fff 0%, #eafdff 9%, #8feaff 19%, var(--cy) 31%, rgba(41,167,235,.55) 48%,
       rgba(20,90,180,.22) 66%, rgba(10,40,100,0) 80%);
     animation: corePulse 2.4s ease-in-out infinite;
   }
-  /* The containment field: the core's one hard edge, brightest where the
-     field is struck from above. */
+  /* The containment field: the core's one hard edge, out where the light has
+     already fallen off — inside the hot centre the glow just swallows it. */
   #boot .core::before {
-    content: ""; position: absolute; inset: 4px; border-radius: 50%;
-    border: 1px solid rgba(180,242,255,.75);
-    box-shadow: 0 0 10px rgba(63,224,255,.6);
+    content: ""; position: absolute; inset: 6px; border-radius: 50%;
+    border: 1px solid rgba(180,242,255,.7); box-shadow: 0 0 10px rgba(63,224,255,.6);
+  }
+  /* Iris blades, kept to a band at the rim. Run across the whole core they
+     read as a wagon wheel; confined to the edge they read as an aperture and
+     the hot centre stays clean light. */
+  #boot .core::after {
+    content: ""; position: absolute; inset: 8px; border-radius: 50%;
+    background: repeating-conic-gradient(from 15deg, rgba(2,10,26,.34) 0 1.2deg, transparent 1.2deg 30deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent 70%, #000 88%, transparent 100%);
+    mask: radial-gradient(farthest-side, transparent 70%, #000 88%, transparent 100%);
   }
   @keyframes corePulse {
     0%, 100% { transform: scale(1); opacity: .95; }
     50%      { transform: scale(1.06); opacity: 1; }
   }
+
+  #boot .pct {
+    position: relative; z-index: 1; margin-top: 8px;
+    font: clamp(19px, 5.6vw, 24px)/1 var(--px); letter-spacing: .08em;
+    color: #cdf3ff; text-shadow: 0 0 14px rgba(63,224,255,.6);
+  }
+
+  /* ---- readouts ------------------------------------------------------- */
   #boot .disp {
-    position: relative; z-index: 1; margin-top: 26px; padding: 15px 30px 14px;
-    background: #03050a; border: 1px solid rgba(63,224,255,.3);
+    position: relative; z-index: 1; margin-top: 14px; padding: 12px 24px 11px; min-width: min(74vw, 268px);
+    box-sizing: border-box; background: #03050a; border: 1px solid rgba(63,224,255,.3);
     box-shadow: inset 0 0 0 2px #000, inset 0 6px 22px rgba(0,0,0,.9), 0 0 26px rgba(63,224,255,.12);
   }
   #boot .disp::before, #boot .disp::after {
     content: ""; position: absolute; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
     background: #1c2740; box-shadow: inset 0 0 0 1px rgba(143,232,255,.35);
   }
-  #boot .disp::before { left: 5px; } #boot .disp::after { right: 5px; }
+  #boot .disp::before { left: 5px; }
+  #boot .disp::after { right: 5px; }
   #boot .t {
-    font: clamp(21px, 6.9vw, 30px)/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif; letter-spacing: .12em;
-    color: #3fe0ff; text-transform: uppercase; text-shadow: 0 0 12px rgba(63,224,255,.7);
+    font: clamp(16px, 4.8vw, 21px)/1 var(--px); letter-spacing: .1em;
+    color: var(--cy); text-transform: uppercase; text-shadow: 0 0 12px rgba(63,224,255,.7);
     -webkit-mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
     mask: radial-gradient(circle, #000 34%, transparent 42%) 0 0 / 4px 4px;
     opacity: 0; transition: opacity .25s;
   }
   #boot.font .t { opacity: 1; }
   #boot .s {
-    position: relative; z-index: 1; margin-top: 22px; font: 10px/1 "Ken Pixel", 'Segoe UI', system-ui, sans-serif;
+    position: relative; z-index: 1; margin-top: 14px; font: 10px/1 var(--px);
     letter-spacing: .16em; color: rgba(143,232,255,.6); text-transform: uppercase;
   }
+  /* One pip per boot phase, lit as each is reached. */
+  #boot .dots { position: relative; z-index: 1; display: flex; gap: 9px; margin-top: 13px; }
+  #boot .dots i {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(143,232,255,.16); box-shadow: inset 0 0 0 1px rgba(143,232,255,.2);
+    transition: background .25s, box-shadow .25s;
+  }
+  #boot .dots i.on { background: var(--cy); box-shadow: 0 0 8px var(--cy); }
+  /* A loading screen is the one place a player will actually read a sentence,
+     so it carries the rules the tutorial teaches rather than filler. */
+  #boot .tip {
+    position: relative; z-index: 1; margin-top: 22px; max-width: min(84vw, 304px);
+    display: flex; gap: 10px; align-items: flex-start; text-align: left;
+    padding: 10px 12px; box-sizing: border-box;
+    border: 1px solid rgba(63,224,255,.16); background: rgba(4,10,24,.55);
+  }
+  #boot .tip .ic {
+    flex: 0 0 auto; padding-top: 1px; font: 9px/1.6 var(--px);
+    letter-spacing: .16em; color: var(--am);
+  }
+  #boot .tip p {
+    margin: 0; font: 10px/1.7 var(--px); letter-spacing: .03em;
+    color: rgba(190,225,255,.7); transition: opacity .3s;
+  }
+  #boot .tip p.out { opacity: 0; }
+  #boot .foot {
+    position: absolute; left: 0; right: 0; bottom: 20px; z-index: 1;
+    font: 8px/1 var(--px); letter-spacing: .3em; text-transform: uppercase;
+    color: rgba(143,232,255,.22);
+  }
+  /* Short screens: the dial and the flavour copy give way before the readouts
+     do, because the readouts are the part that is actually load-bearing. */
+  @media (max-height: 700px) {
+    #boot { --dial: 138px; }
+    #boot .side, #boot .tip, #boot .foot { display: none; }
+    #boot .logo { width: min(62vw, 232px); }
+  }
+  @media (max-width: 359px) { #boot .side { display: none; } }
   @media (prefers-reduced-motion: reduce) { #boot * { animation: none !important; } }
 
   /* Landscape nudge: the game is designed for portrait only. */
@@ -156,9 +293,29 @@
 <div id="stage"><canvas id="gl"></canvas><canvas id="game"></canvas></div>
 
 <div id="boot">
-  <div class="emblem" aria-hidden="true"><i class="track"></i><i class="orbit"></i><div class="core"></div></div>
-  <div class="disp"><div class="t">Megaball</div></div>
+  <div class="frame" aria-hidden="true"></div>
+  <div class="side l" aria-hidden="true">Protect<b>Defend</b>Bounce<b>Survive</b></div>
+  <div class="side r" aria-hidden="true">Small<b>Balls</b>Big<b>Defense</b></div>
+
+  <div class="logo" id="bootlogo" aria-hidden="true"></div>
+  <div class="rule" aria-hidden="true"><i></i><span>Defense System Boot</span><i></i></div>
+
+  <div class="dial" id="bootdial" aria-hidden="true">
+    <div class="prog"></div>
+    <div class="ticks"></div>
+    <b class="mk n"></b><b class="mk e"></b><b class="mk s"></b><b class="mk w"></b>
+    <i class="track"></i><i class="orbit"></i>
+    <div class="reticle"></div>
+    <div class="core"></div>
+  </div>
+  <div class="pct" id="bootpct" aria-hidden="true">0%</div>
+
+  <div class="disp" role="status" aria-live="polite"><div class="t" id="bootstate">Initializing</div></div>
   <div class="s" id="bootmsg">Loading</div>
+  <div class="dots" id="bootdots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="tip" aria-hidden="true"><span class="ic">Tip</span><p id="boottip"></p></div>
+
+  <div class="foot" aria-hidden="true">Megaball Defense</div>
 </div>
 
 <div id="rotate">
@@ -204,6 +361,74 @@
   if (window.DRAW) DRAW.use3D = use3D;
   var boot = document.getElementById('boot');
   var bootmsg = document.getElementById('bootmsg');
+  var bootstate = document.getElementById('bootstate');
+  var bootpct = document.getElementById('bootpct');
+  var bootdots = document.getElementById('bootdots');
+  var bootdial = document.getElementById('bootdial');
+  var boottip = document.getElementById('boottip');
+
+  /* ---- boot readouts --------------------------------------------------
+   *
+   * The dial reports real progress, never a timer. The two load milestones
+   * own the first fifth and SCENE3D.warm's step counter owns the rest, so
+   * the arc only ever moves when work has actually finished. That also
+   * keeps it cheap: --p changes about eight times across a whole boot, and
+   * the arc is the only thing on the splash that repaints at all. */
+  var pct = 0;
+  function report(v, state, detail, dot) {
+    /* Monotonic on purpose. A bar that slips backwards reads as a fault,
+     * and the phases here can overlap slightly. */
+    v = Math.max(pct, Math.min(100, Math.round(v)));
+    pct = v;
+    if (bootdial) bootdial.style.setProperty('--p', v);
+    if (bootpct) bootpct.textContent = v + '%';
+    if (state && bootstate) bootstate.textContent = state;
+    if (detail && bootmsg) bootmsg.textContent = detail;
+    if (dot != null && bootdots) {
+      var d = bootdots.children;
+      for (var i = 0; i < d.length; i++) d[i].className = i <= dot ? 'on' : '';
+    }
+  }
+
+  /* The one screen a player will read a sentence on, so it teaches the rules
+   * the tutorial teaches rather than showing filler. */
+  var TIPS = [
+    'Flippers knock enemy balls back up the table, but a flipper can never destroy one.',
+    'Bumpers need no input at all. Put them where balls fall, not where you wish they would.',
+    'Paddles swing up and in, toward the middle of the table. Slot them where the lane narrows.',
+    'Every enemy ball wants one thing: the drain. Anything that costs it time is a defense.',
+    'Chain bouncers to redirect MegaBalls into stronger paths.',
+    'A burning ball keeps its heat. Light one early and let the table finish it.'
+  ];
+  if (boottip) {
+    var ti = Math.floor(Math.random() * TIPS.length);
+    boottip.textContent = TIPS[ti];
+    /* Opacity only, and it fires perhaps twice per boot, so the swap costs
+     * the compositor a fade and the main thread nothing worth measuring. */
+    setInterval(function () {
+      if (boot.classList.contains('gone')) return;
+      boottip.classList.add('out');
+      setTimeout(function () {
+        ti = (ti + 1) % TIPS.length;
+        boottip.textContent = TIPS[ti];
+        boottip.classList.remove('out');
+      }, 320);
+    }, 4200);
+  }
+
+  /* The logo is already in the shipped manifest, so the splash costs no new
+   * bytes to show it. Decoding it on its own rather than waiting for
+   * ART.load means it appears in the first moment instead of after all
+   * fourteen images, the largest of which are the table backdrops. */
+  var bootlogo = document.getElementById('bootlogo');
+  if (bootlogo && window.ART && ART.manifest && ART.manifest.logo_megaball) {
+    var li = new Image();
+    li.onload = function () {
+      bootlogo.style.backgroundImage = 'url("' + ART.manifest.logo_megaball + '")';
+      boot.classList.add('art');
+    };
+    li.src = ART.manifest.logo_megaball;
+  }
 
   /* ---- input ---------------------------------------------------------- */
 
@@ -324,7 +549,7 @@
      * build and upload each level's table, and paint one 2D frame, so the
      * first real frame and every level start are plain draws. The work is
      * spread over animation frames so the splash keeps moving. */
-    bootmsg.textContent = 'Powering up';
+    report(20, 'Calibrating', 'Compiling shaders', 1);
     var defs = [];
     if (window.LEVELS) {
       if (LEVELS.list) defs = defs.concat(LEVELS.list);
@@ -335,13 +560,21 @@
       DRAW.frame(ctx, GAME.state);
       if (SFX && SFX.music) SFX.music('menu');
       UI.showScreen('title');
-      bootmsg.textContent = 'Ready';
+      report(100, 'Ready', 'Systems online', 4);
       boot.classList.add('gone');
       setTimeout(function () { boot.style.display = 'none'; }, 500);
       requestAnimationFrame(frame);
     }
-    if (use3D && SCENE3D.warm) SCENE3D.warm(defs, open);
-    else open();
+    /* Step 0 of the warm-up is the shader compile; the rest are one table
+     * each, so the detail line can name what is actually happening. */
+    if (use3D && SCENE3D.warm) {
+      SCENE3D.warm(defs, open, function (k, total) {
+        report(20 + 78 * (k / total),
+          'Calibrating',
+          k >= total ? 'Uploading tables' : 'Building table ' + k + '/' + (total - 1),
+          Math.min(3, 1 + Math.floor(2 * k / total)));
+      });
+    } else open();
   }
 
   /* Assets are decoration layered over procedural drawing, so a failure here
@@ -352,20 +585,23 @@
   var pending = 2, started = false;
   function ready() {
     if (started) return;
-    if (--pending > 0) return;
+    if (--pending > 0) { report(12, null, 'Decoding art', 0); return; }
     started = true;
-    bootmsg.textContent = 'Ready';
+    report(18, 'Initializing', 'Art loaded', 0);
     start();
   }
-  bootmsg.textContent = 'Loading art';
+  report(4, 'Initializing', 'Loading art', 0);
   if (window.ART && ART.load) ART.load(ready); else ready();
   var fontDone = false;
-  function fontReady() { if (!fontDone) { fontDone = true; ready(); } }
+  /* The display carries the boot state now, not just the game name, so it has
+   * to light on every path. A face that failed to load is a worse readout in
+   * the fallback than no readout at all is. */
+  function fontReady() {
+    boot.classList.add('font');
+    if (!fontDone) { fontDone = true; ready(); }
+  }
   if (document.fonts && document.fonts.load) {
-    document.fonts.load('16px "Ken Pixel"').then(function () {
-      boot.classList.add('font');            // the display lights once the face is in
-      fontReady();
-    }, fontReady);
+    document.fonts.load('16px "Ken Pixel"').then(fontReady, fontReady);
     setTimeout(fontReady, 1500);
   } else {
     fontReady();

@@ -1252,7 +1252,7 @@
    * then each level's table built, cached, uploaded and drawn once. One
    * step per animation frame, so the splash keeps moving in between. Any
    * failure is swallowed: a warm-up must never keep the game from opening. */
-  SCENE3D.warm = function (defs, done) {
+  SCENE3D.warm = function (defs, done, onstep) {
     if (!renderer || !global.BOARD) { if (done) done(); return; }
     var steps = [function () { applyFieldArt(); paint(); }];
     for (var i = 0; i < (defs ? defs.length : 0); i++) {
@@ -1279,6 +1279,10 @@
     function tick() {
       try { steps[k](); } catch (e) { /* see above */ }
       k++;
+      /* The boot splash reports real progress rather than running a timer, so
+       * it needs the step counter. Optional, and never allowed to break the
+       * warm-up: a throwing reporter must not strand the boot. */
+      if (onstep) { try { onstep(k, steps.length); } catch (e2) { /* see above */ } }
       if (k < steps.length) schedule();
       else if (done) done();
     }
