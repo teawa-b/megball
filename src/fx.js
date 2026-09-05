@@ -338,6 +338,54 @@
   var HITSTOP_MAX = 0.14;       // anything longer reads as a hitch, not a hit
   var SLOWMO_MAX  = 0.60;
 
+  /* Freezes are metered by DUTY CYCLE rather than by a gap. However many
+   * blast bumpers are going off at once, no more than FREEZE_DUTY of any
+   * second is allowed to be frozen: `freezeLoad` is a leaky bucket of the
+   * freeze seconds recently spent, draining with FREEZE_TAU. A freeze is
+   * the only effect in this file that costs the player their input, and a
+   * crowded wave used to spend most of a second on them — which is what
+   * makes a busy table impossible to keep up with, because the input the
+   * player needs is exactly what the freeze is taking away. */
+  var freezeLoad = 0;
+  var FREEZE_TAU = 1.0;
+  var FREEZE_DUTY = 0.12;
+
+  var slowGap = 0;              // refractory before another slowmo may land
+  var slowLast = 1;             // depth of the beat that claimed it
+
+  /* ======================================================================= *
+   * THE LOAD GOVERNOR
+   *
+   * Every effect below asks for its own punch without knowing what else is
+   * happening, which is right: a bumper cannot know how many balls are in
+   * play. This is where that gets reconciled.
+   *
+   * `load` is a leaky bucket of recently spent juice. Each request fills it
+   * and it drains with LOAD_TAU, so the FIRST hit in a quiet moment lands at
+   * full strength and the fortieth inside two seconds is nearly free. The
+   * failure mode it exists to stop, found in playtesting: with a dozen balls
+   * loose on a board full of bumpers, purely additive shake pins at its
+   * ceiling and simply stays there — at which point the cabinet has stopped
+   * punctuating anything and is just vibrating, and the player cannot read
+   * the table. A wave should get louder as it gets busier, but on a curve
+   * that flattens, not a straight line into the rails.
+   *
+   * The gain is deliberately a knee rather than a slope. Squaring the ratio
+   * keeps an ordinary wave almost untouched — a handful of balls off a
+   * handful of bumpers barely registers — and then bites hard once the
+   * table is genuinely crowded, which is the only place the problem was.
+   * LOAD_KNEE is in shake units: about that many requested inside one
+   * LOAD_TAU is where a request starts earning half of what it asked for.
+   * ======================================================================= */
+  var load = 0;
+  var LOAD_TAU = 0.85;
+  var LOAD_KNEE = 100;
+
+  function loadGain() {
+    var x = load / LOAD_KNEE;
+    return 1 / (1 + x * x);
+  }
+
   function computeScale() {
     if (hitT > 0) return 0;
     if (slowT > 0) {
@@ -379,6 +427,7 @@
   var shakeMag = 0;
   var shakeTau = 0.12;
   var shakeClock = 0;
+  var SHAKE_CEIL = 26;   // the table never tears itself off the screen
   var _cam = { x: 0, y: 0, rot: 0 }; // reused every frame — never retain it
 
   function noiseAt(offset, t) {
@@ -575,6 +624,17 @@
     if (slowT > 0) slowT -= dtReal;
     if (hitT < 0) hitT = 0;
     if (slowT < 0) { slowT = 0; slowScale = 1; }
+    if (slowGap > 0) { slowGap -= dtReal; if (slowGap <= 0) { slowGap = 0; slowLast = 1; } }
+    // Both buckets drain on real time as well, so a long freeze cannot be
+    // used to hold the table's violence budget open through it.
+    if (freezeLoad > 0) {
+      freezeLoad *= Math.exp(-dtReal / FREEZE_TAU);
+      if (freezeLoad < 0.0005) freezeLoad = 0;
+    }
+    if (load > 0) {
+      load *= Math.exp(-dtReal / LOAD_TAU);
+      if (load < 0.02) load = 0;
+    }
     scaleNow = computeScale();
 
     // Particles live in GAME time: they freeze during hitstop (which is what
@@ -1204,6 +1264,14 @@
 
   function hitstop(seconds) {
     var s = clamp(fin(seconds, 0), 0, HITSTOP_MAX);
+    if (s <= 0) return;
+    // Spend from the freeze budget, and simply decline when it is empty. A
+    // duty cycle rather than a gap, so the rule holds whatever the event
+    // rate is: at ordinary rates nothing is ever declined and the feel is
+    // untouched, and a superheated board full of blast bumpers can no
+    // longer stutter the game to a standstill.
+    if (freezeLoad > FREEZE_DUTY * FREEZE_TAU) return;
+    freezeLoad += s;
     if (s > hitT) hitT = s;   // additive in the "take the max" sense (§5.1)
     scaleNow = computeScale();
   }
@@ -1212,6 +1280,14 @@
     var sc = clamp(fin(scale, 0.3), 0.05, 1);
     var t = clamp(fin(seconds, 0.3), 0, SLOWMO_MAX);
     if (t <= 0) return;
+    // Chains past x4 each buy a slowmo, and on a crowded table they arrive
+    // close enough together to run into one another — each extending the
+    // last, until slow motion has stopped being punctuation and become the
+    // game's speed. While one is running, and for a beat after it, only a
+    // DEEPER moment gets through; an equal one waits its turn.
+    if ((slowT > 0 || slowGap > 0) && sc >= slowLast) return;
+    slowLast = sc;
+    slowGap = t + 1.2;
     // Deepest scale and longest remaining time win, so a second call during a
     // slowmo extends the moment rather than cutting it short.
     if (sc < slowScale || slowT <= 0) slowScale = sc;
@@ -1226,17 +1302,35 @@
     var t = clamp(fin(seconds, 0.2), 0.02, 1.5);
     // Decay constant: e^-3 ≈ 5%, so the shake is visually done after `seconds`.
     var tau = t / 3;
-    // A fresh shake owns the decay curve; an overlapping one can only make it
-    // longer, never shorter — cutting a big shake short with a small late one
-    // is the thing that feels like the camera is fighting the player.
-    if (shakeMag <= 0) shakeTau = tau;
-    else if (tau > shakeTau) shakeTau = tau;
+
+    var g = loadGain();
+    load += m;
+
+    // AMPLITUDE. On a quiet table g is 1 and this is exactly the old rule,
+    // shakeMag + m, so a single hit — and the feel of ordinary play — is
+    // untouched. As the table fills it fades toward "just this hit", so a
+    // storm tracks the biggest thing that has just happened instead of
+    // summing every small one into a permanent maximum. It can never LOWER
+    // the shake: a late tap must not cut a big ring-down short.
+    var next = m + shakeMag * g;
+    if (next < shakeMag) next = shakeMag;
+    if (next > SHAKE_CEIL) next = SHAKE_CEIL;
+
+    // RING-DOWN, the same story. Quiet: the old rule, where a fresh shake
+    // can only lengthen the decay, never shorten it. Busy: an amplitude
+    // weighted blend of the two, because under the old rule alone a single
+    // boss death set a half-second decay that every bumper tap for the rest
+    // of the wave then inherited — most of why a crowded table never
+    // settled between hits, and why the shake stopped meaning anything.
+    var ratchet = (shakeMag <= 0 || tau > shakeTau) ? tau : shakeTau;
+    var blend = (shakeMag * shakeTau + m * tau) / (shakeMag + m);
+    shakeTau = ratchet * g + blend * (1 - g);
     if (shakeTau > 0.5) shakeTau = 0.5;
+
     // Re-phase onto a noise peak so the impact is felt on the very next frame.
     if (PEAK_N > 0) shakeClock = PEAKS[(_pk = (_pk + 1) % PEAK_N)] / SHAKE_HZ;
-    // Additive amplitude with a ceiling: stacked hits build, but the table
-    // never tears itself off the screen.
-    shakeMag = Math.min(shakeMag + m, 26);
+
+    shakeMag = next;
   }
 
   function timeScale() { return scaleNow; }
@@ -1247,12 +1341,24 @@
     dots.clear(); shards.clear(); rings.clear(); texts.clear(); flashes.clear();
     for (var i = 0; i < CAP_TRAIL; i++) killTrail(trails[i]);
     hitT = 0; slowT = 0; slowScale = 1; scaleNow = 1;
+    slowGap = 0; slowLast = 1; load = 0; freezeLoad = 0;
     shakeMag = 0; shakeTau = 0.12;
     _cam.x = 0; _cam.y = 0; _cam.rot = 0;
   }
 
   function count() {
     return dots.live + shards.live + rings.live + texts.live;
+  }
+
+  /* What the governor is currently doing. Read-only, for tuning: `load` is
+     the leaky bucket, `gain` the fraction of the next request that will
+     reach the camera. A healthy busy wave sits around gain 0.2-0.4; a
+     quiet build phase sits at 1. */
+  function juice() {
+    return {
+      shake: shakeMag, tau: shakeTau, load: load, gain: loadGain(),
+      hitstop: hitT, slowmo: slowT, scale: scaleNow
+    };
   }
 
   /* ======================================================================= */
@@ -1286,6 +1392,7 @@
 
     // introspection / shared palette
     count: count,
+    juice: juice,
     COL: COL,
     CAP: CAP_DOT + CAP_SHARD + CAP_RING + CAP_TEXT
   };

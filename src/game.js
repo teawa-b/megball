@@ -92,7 +92,6 @@
     towerHintShown: false,
     comboT: 0,
     time: 0,
-    shakeBudget: 0,
     tutorialsShown: {}
   };
 
