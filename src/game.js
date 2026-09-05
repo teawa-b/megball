@@ -375,11 +375,13 @@
       stars: PROG.stars[S.level.id] || 0,
       color: C.amber,
       glyph: 'brief',
-      w: 520, h: 560,
-      sub: 'THREE OBJECTIVES  -  ONE STAR EACH',
+      w: 500, h: 490,
       lines: [],
       objs: LEVELS.objectives(S.level, null),
-      buttons: [{ id: 'ok', label: 'BUILD', tone: 'go' }]
+      /* The purse, on the button, the way START carries its countdown:
+       * the next thing this player does is spend it. */
+      buttons: [{ id: 'ok', label: 'BUILD', tone: 'go',
+        sub: S.level.startEnergy + ' ENERGY' }]
     });
   }
 

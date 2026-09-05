@@ -2608,7 +2608,8 @@
     for (var i = 0; i < k; i++) {
       btns.push({
         x: bx + i * (bw + 14), y: y + H - 92, w: bw, h: 70,
-        id: n.buttons[i].id, label: n.buttons[i].label, tone: n.buttons[i].tone
+        id: n.buttons[i].id, label: n.buttons[i].label,
+        sub: n.buttons[i].sub, tone: n.buttons[i].tone
       });
     }
     return { x: x, y: y, w: W, h: H, btns: btns };
@@ -2708,12 +2709,33 @@
     ctx.globalAlpha = Math.min(1, e * 1.6);
     ctx.translate(0, lift);
 
-    ctx.shadowColor = U.rgba(col, 0.5); ctx.shadowBlur = 40;
-    rr(ctx, L.x, L.y, L.w, L.h, 24);
-    ctx.fillStyle = 'rgba(7,10,20,0.98)'; ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = U.rgba(col, 0.09); ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(col, 0.9); ctx.stroke();
+    if (n.art) {
+      /* The mission card is a backglass insert, not an alert. The rest of
+       * the game builds its panels out of near-black glass with a thin cyan
+       * rim and keeps amber for the one thing you press — a card that is
+       * amber frame, amber rows AND an amber button has no hierarchy left
+       * to spend, which is exactly how the first version read. */
+      ctx.shadowColor = 'rgba(0,0,0,0.8)';
+      ctx.shadowBlur = 38; ctx.shadowOffsetY = 12;
+      rr(ctx, L.x, L.y, L.w, L.h, 22);
+      ctx.fillStyle = '#060a14'; ctx.fill();
+      ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+      var glass = ctx.createLinearGradient(0, L.y, 0, L.y + L.h);
+      glass.addColorStop(0, 'rgba(24,38,68,0.55)');
+      glass.addColorStop(0.55, 'rgba(9,14,28,0.35)');
+      glass.addColorStop(1, 'rgba(5,8,16,0.15)');
+      ctx.fillStyle = glass; ctx.fill();
+      ctx.lineWidth = 1.5; ctx.strokeStyle = U.rgba(C.cyan, 0.5); ctx.stroke();
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      rr(ctx, L.x + 3.5, L.y + 3.5, L.w - 7, L.h - 7, 19); ctx.stroke();
+    } else {
+      ctx.shadowColor = U.rgba(col, 0.5); ctx.shadowBlur = 40;
+      rr(ctx, L.x, L.y, L.w, L.h, 24);
+      ctx.fillStyle = 'rgba(7,10,20,0.98)'; ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = U.rgba(col, 0.09); ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = U.rgba(col, 0.9); ctx.stroke();
+    }
 
     var ty;
     if (n.art) {
@@ -2747,38 +2769,27 @@
     for (var i = 0; i < n.lines.length; i++) {
       ty += noticeParagraph(ctx, n.lines[i], L.x + 30, ty, L.w - 60, col);
     }
-    /* Objective rows, when the card is a briefing. Each is its own star, so
-     * each gets its own lit row rather than a bullet in a paragraph — this
-     * is the one screen that has to make "there are three of these and they
-     * are the point" impossible to miss. */
-    if (n.objs) {
-      ty += 4;
-      /* One size for all three, chosen by the longest: three rows set at
-       * three different sizes read as three unrelated notes rather than as
-       * one list of what the stage is asking for. */
-      var ofs = 15;
-      for (var m = 0; m < n.objs.length; m++) {
-        ofs = Math.min(ofs, fitPx(ctx, String(n.objs[m].text).toUpperCase(),
-          L.w - 128, 15, 1.2));
-      }
-      for (var o = 0; o < n.objs.length; o++) {
-        /* Rows deal in one at a time, a beat apart, so the eye is walked
-         * down them instead of handed a block. */
-        var ra = U.clamp((n.t - 0.18 - o * 0.13) / 0.26, 0, 1);
-        ty += noticeObjective(ctx, n.objs[o], L.x + 28, ty, L.w - 56, col, ra, ofs);
-      }
-    }
+    if (n.objs) noticeObjectivePlate(ctx, n, L, col, ty);
 
     for (var k = 0; k < L.btns.length; k++) {
       var b = L.btns[k];
       var go = b.tone === 'go';
-      rr(ctx, b.x, b.y, b.w, b.h, 16);
-      ctx.fillStyle = go ? U.rgba(col, 0.2) : 'rgba(255,255,255,0.07)'; ctx.fill();
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = go ? U.rgba(col, 0.95) : 'rgba(255,255,255,0.3)';
-      ctx.stroke();
-      ptext(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, 19,
-        go ? col : U.rgba(C.white, 0.88), 'center', 2);
+      if (n.art && go) {
+        /* The real moulded cabinet button, the same one START and PLAY
+         * use. On a card where nothing else is amber it is unmistakably
+         * the thing you press, which is the whole job of this screen once
+         * the objectives have been read. */
+        cabinetButton(ctx, b, b.label, b.sub || '',
+          0.5 + 0.5 * Math.sin(S.time * 3.4));
+      } else {
+        rr(ctx, b.x, b.y, b.w, b.h, 16);
+        ctx.fillStyle = go ? U.rgba(col, 0.2) : 'rgba(255,255,255,0.07)'; ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = go ? U.rgba(col, 0.95) : 'rgba(255,255,255,0.3)';
+        ctx.stroke();
+        ptext(ctx, b.label, b.x + b.w / 2, b.y + b.h / 2 + 1, 19,
+          go ? col : U.rgba(C.white, 0.88), 'center', 2);
+      }
       noticeHits.push(b);
     }
     ctx.restore();
@@ -2850,8 +2861,10 @@
     for (var sy = L.y; sy < L.y + H; sy += 3) ctx.fillRect(L.x, sy, L.w, 1);
     ctx.restore();
 
-    ctx.fillStyle = U.rgba(col, 0.6);
-    ctx.fillRect(L.x, L.y + H, L.w, 2);
+    /* Cyan, like the card's own rim: an amber rule here fought the stars
+       and the button for the one warm accent the card is allowed. */
+    ctx.fillStyle = U.rgba(C.cyan, 0.45);
+    ctx.fillRect(L.x, L.y + H, L.w, 1.5);
 
     /* What is already banked on this stage, as three lamps. Somebody
      * replaying for the last star should see which one is missing before
@@ -2879,7 +2892,7 @@
         'rgba(255,255,255,0.62)', 'left', 1.6);
     }
 
-    var ty = L.y + H + 34;
+    var ty = L.y + H + 30;
     if (n.sub) {
       ptext(ctx, n.sub, L.x + L.w / 2, ty, 12, U.rgba(col, 0.85), 'center', 2.4);
       ty += 26;
@@ -2887,45 +2900,62 @@
     return ty;
   }
 
-  /* One objective on the briefing card: a star in a dark socket, then the
-   * ask in pixel caps. Returns the height used, so the caller can stack
-   * them. `a` runs 0..1 for the row's own deal-in. */
-  function noticeObjective(ctx, o, x, y, w, col, a, fs) {
-    var H = 56, GAP = 9;
-    if (a <= 0) return H + GAP;
-    var text = String(o.text).toUpperCase();
+  /* The objectives, as ONE dark readout plate rather than three outlined
+   * pills. The pills were the mistake: rounded, amber-bordered and stacked
+   * directly above an amber-bordered button, they read as three more things
+   * to press. This is the same furniture the level-select and results
+   * plates use — a marquee, a hairline, and rows that are clearly a list
+   * of facts. `top` is where the plate starts. */
+  var OBJ_HEAD_H = 30, OBJ_ROW_H = 46;
+  function noticeObjectivePlate(ctx, n, L, col, top) {
+    var objs = n.objs;
+    var x = L.x + 24, w = L.w - 48;
+    var H = OBJ_HEAD_H + OBJ_ROW_H * objs.length;
 
-    ctx.save();
-    ctx.globalAlpha *= a;
-    ctx.translate((1 - U.ease.outCubic(a)) * 26, 0);
-
-    /* A dark socket on the lit card, so the rows read as three separate
-     * readouts rather than one amber block. Lit from the left, where the
-     * star is, so the row has somewhere to look. */
-    rr(ctx, x, y, w, H, 12);
-    var gr = ctx.createLinearGradient(x, 0, x + w, 0);
-    gr.addColorStop(0, U.rgba(col, 0.17));
-    gr.addColorStop(0.34, 'rgba(4,7,15,0.78)');
-    gr.addColorStop(1, 'rgba(4,7,15,0.66)');
-    ctx.fillStyle = gr; ctx.fill();
-    ctx.lineWidth = 1.5;
-    ctx.strokeStyle = U.rgba(col, 0.45);
-    ctx.stroke();
-    /* A lit spine on the left edge — the same tell the results rows use. */
-    ctx.fillStyle = U.rgba(col, 0.9);
-    rr(ctx, x + 1, y + 11, 3.5, H - 22, 2); ctx.fill();
-
-    /* The star sits in its own socket, the way the tray sits its cards. */
-    ctx.beginPath();
-    ctx.arc(x + 34, y + H / 2 - 1, 16, 0, TAU);
-    ctx.fillStyle = U.rgba(col, 0.13); ctx.fill();
+    /* The plate: a dark readout panel sunk into the card. */
+    rr(ctx, x, top, w, H, 12);
+    ctx.fillStyle = 'rgba(2,4,9,0.78)'; ctx.fill();
     ctx.lineWidth = 1;
-    ctx.strokeStyle = U.rgba(col, 0.3); ctx.stroke();
-    starMark(ctx, x + 34, y + H / 2 - 1, 12, col, true, 14);
+    ctx.strokeStyle = U.rgba(C.cyan, 0.24); ctx.stroke();
 
-    ptext(ctx, text, x + 58, y + H / 2, fs, 'rgba(255,255,255,0.95)', 'left', 1.2);
-    ctx.restore();
-    return H + GAP;
+    /* Marquee: what these are, and how many are already banked. The same
+     * row the results sheet and the level-select plate carry, so all three
+     * screens are visibly talking about the same three things. */
+    ptext(ctx, 'OBJECTIVES', x + 14, top + OBJ_HEAD_H / 2 + 1, 11,
+      U.rgba(C.cyan, 0.9), 'left', 2.4);
+    if (n.stars !== undefined) {
+      ptext(ctx, n.stars + ' / ' + objs.length, x + w - 14, top + OBJ_HEAD_H / 2 + 1,
+        12, U.rgba(C.amber, 0.95), 'right', 1.4);
+    }
+    ctx.fillStyle = U.rgba(C.cyan, 0.2);
+    ctx.fillRect(x + 1, top + OBJ_HEAD_H, w - 2, 1);
+
+    /* One size for all three, chosen by the longest: three rows set at
+     * three different sizes read as three unrelated notes rather than as
+     * one list of what the stage is asking for. */
+    var fs = 15, i;
+    for (i = 0; i < objs.length; i++) {
+      fs = Math.min(fs, fitPx(ctx, String(objs[i].text).toUpperCase(), w - 76, 15, 1.2));
+    }
+
+    for (i = 0; i < objs.length; i++) {
+      /* Rows deal in one at a time, a beat apart, so the eye is walked down
+       * them instead of handed a block. */
+      var a = U.clamp((n.t - 0.16 - i * 0.12) / 0.24, 0, 1);
+      if (a <= 0) continue;
+      var ry = top + OBJ_HEAD_H + i * OBJ_ROW_H;
+      ctx.save();
+      ctx.globalAlpha *= a;
+      ctx.translate((1 - U.ease.outCubic(a)) * 18, 0);
+      if (i) {
+        ctx.fillStyle = 'rgba(255,255,255,0.06)';
+        ctx.fillRect(x + 14, ry, w - 28, 1);
+      }
+      starMark(ctx, x + 32, ry + OBJ_ROW_H / 2, 11, col, true, 12);
+      ptext(ctx, String(objs[i].text).toUpperCase(), x + 54, ry + OBJ_ROW_H / 2 + 1,
+        fs, 'rgba(255,255,255,0.94)', 'left', 1.2);
+      ctx.restore();
+    }
   }
 
   /* ---------------------------------------------------------------------- */
