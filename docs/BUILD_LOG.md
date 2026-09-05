@@ -918,6 +918,108 @@ is otherwise unchanged: Barrier at two, the second slot at three, Overcharge at 
 third slot at nine, Magnetise at eleven, Shockwave at twelve. Existing saves keep the deck
 they built; the card simply appears as owned.
 
+## 4hh. The loading screen: one dial, then a whole HUD
+
+The ball-and-flippers splash from 4t was replaced by a dial derived from the logo's round
+core badge, and then that dial accumulated: tick marks, a dashed ring, and magenta and amber
+arcs counter-rotating at different insets, all inside one 150px circle, over a dot-grid
+background, under a seven-lamp chase that was a second loading indicator competing with the
+first. The inner amber arc clipped against the bezel. It read as clutter rather than detail.
+
+**First pass, subtract.** Cut to one idea: a core burning in a dark well with a single magenta
+lamp sweeping the track around it. The tick marks, the dashed ring, the second arc, the lamp
+chase and the background dot grid all went.
+
+**The core was a marble.** It had a specular highlight top-left and a hard dark rim — the two
+things that make a sphere read as glossy plastic rather than as a light. Both removed. It is
+lit from its own centre now and falls off to nothing so it bleeds into the well, and the well
+behind it inverts to black in the middle so the light has somewhere to burn out of. Its one
+hard edge is a containment hairline placed out where the glow has already fallen off; at
+inset 26px, inside the hot centre, the glow simply swallowed it.
+
+**Second pass, add — deliberately.** The brief came back as "busy, but that may be what I
+want", with a reference mockup. Rebuilt at that density: the logo, a strapline rule, the dial
+(determinate arc, tick engraving, gunsight reticle, quarter markers), a percentage, the
+display carrying the boot state, a sub-status naming the current step, phase pips, a tip box,
+corner brackets and cabinet side copy.
+
+The logo costs no new bytes: `logo_megaball` is already in the shipped manifest, so the splash
+just decodes it. On its own, rather than waiting for `ART.load`, which fires only once all
+fourteen manifest images have decoded — so it lands 326ms into a 1.7s boot rather than at
+the end of the art phase.
+
+**The percentage is real, not a timer.** `SCENE3D.warm` now takes an optional step reporter.
+Its step count is known up front — one shader compile plus one table per level def, seven
+steps — so a true fraction is available. The two load milestones own 0-18% and the warm-up
+owns the rest. The reading is monotonic on purpose: the phases can overlap slightly, and a bar
+that slips backwards reads as a fault. Measured on one cold boot:
+
+    326ms   12%  Initializing  Decoding art
+   1248ms   31%  Calibrating   Building table 1/6
+   1620ms   87%  Calibrating   Building table 6/6
+   1740ms  100%  Ready         Systems online -> mode=menu
+
+**Why the density is affordable.** This screen is up precisely while the main thread compiles
+every shader and builds every table, so anything needing the main thread per frame would both
+stutter and lengthen the load it is covering. Almost all of the detail is static: chrome, tick
+rings, brackets and the reticle paint once and then cost nothing. Only two elements animate
+continuously — the comet and the core — and both move on transform and opacity alone, so the
+compositor carries them through the blocking work. The progress arc repaints about eight times
+across a whole boot. Three `animation:` rules exist in the file, one of which is the
+reduced-motion killswitch. Cost of the whole rebuild: `index.html` 18.0 KB to 29.0 KB.
+
+Two bugs fell out of the display becoming load-bearing:
+
+- It carries the boot state now, not just the game name, so it has to light on every font
+  path. `.font` was previously added only on the `document.fonts.load` success branch, so a
+  font failure or the 1.5s timeout left the state readout invisible for the whole splash. A
+  fallback face is a better readout than none.
+- The comet track sits at inset -16px and so overflows the dial's box. Its margins now reserve
+  that overflow; without it the track cut through the strapline above and the percentage below
+  at 375x667.
+
+Verified at 375x812 and 375x667. On screens 700px and shorter the side copy, tip and footer
+drop and the dial goes 172px to 138px, because the readouts are the load-bearing part.
+
+## 4ii. The START button was moulded, not lit
+
+The button's own comment admitted it: "a lit amber cap in the same glossy toy finish". It had
+a hard specular ellipse on top and a dark rim underneath, which is the same mistake the splash
+core had, at 128px on the home screen. The light now comes from under the cap, the sheen is
+broad and edgeless, and a rim light gives it its one hard edge. It stays the only warm thing
+on a cyan screen, which is what makes it read as the way in without needing to be the largest
+element.
+
+The rim runs the splash's single magenta comet instead of a magenta and an amber arc going
+opposite ways; at this size two arcs in two colours turned the groove into a barber pole.
+
+One thing tried and pulled: the iris blades from the splash core, applied to the cap. Over a
+bright glow they read as an aperture; over a mid-amber field they read as wood grain.
+
+Two clipping bugs in the same row, both visible in the shipped build:
+
+- The halo reached 22px out from a button sitting inside 16px of sheet padding, so its falloff
+  was cut flat against the viewport edge. Now -14px.
+- `.sc .lb` was `flex:0 0 auto`, so POWER CARDS plus its count could not shrink into the
+  ~200px the scorecard gets beside a 128px button, and spilled off the right edge. The home
+  rows run a step smaller now and the label ellipsizes as a backstop, so a long label fails
+  visibly instead of silently. All four rows fit at 375x812 and 375x667.
+
+## 4jj. A dot matrix you could not read
+
+The display's dot-matrix mask cut a 34% dot out of a 4px cell. In a 4px tile the gradient's
+farthest-corner radius is 2.83px, so that dot is 0.96px across the radius: about 18% of each
+glyph actually gets painted. The words scattered into speckle — readable as a texture, not as
+text. Dot pitch and dot size are legibility, not decoration.
+
+Six variants were rendered side by side at both 1x and 2x rather than picked by eye. A 50% dot
+on a 3px pitch paints about 39% of the glyph and keeps the matrix reading as a matrix while
+the letters survive it. Rejected: painting the grille over unmasked text instead leaves a
+dirty dotted field around the words, and dropping the grille loses the display entirely.
+
+This is the one string on the splash that has to be readable, because the panel carries the
+boot state. The in-game DMD does not use this mask, so nothing else was affected.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
