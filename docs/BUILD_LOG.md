@@ -1158,12 +1158,100 @@ itself; without the second one a tall cover-fit image runs on down the card and 
 the objectives, which is what the first attempt did. Checked at 375x812 and 375x667. The wear
 and tutorial cards take the old plain header and are untouched.
 
+## 4pp. The mission card, rebuilt as an insert rather than an alert
+
+The first pass at 4mm's card was called ugly, and it was. An amber frame
+carrying an amber outer halo, three amber-outlined pills, and an amber-outlined
+button under them: nothing had any hierarchy left to spend, and the three
+objectives were shaped exactly like the one thing on the card you are supposed
+to press.
+
+It is built out of the game's own furniture now. The card is near-black glass
+with a thin cyan rim and a real drop shadow rather than a warm halo. The
+objectives are ONE dark readout plate — the same panel the level select and
+results sheets use — with an OBJECTIVES marquee, the running tally on the right,
+a hairline, then rows separated by hairlines, so they read as a list of facts.
+BUILD is the real moulded cabinet button, the one START and PLAY use, and it
+carries the stage's purse the way START carries its countdown; on a card where
+nothing else is amber it is unmistakably the control. The rule under the art
+went cyan for the same reason, since an amber one was competing with the stars
+and the button.
+
+One implementation note worth keeping: the art panel needs TWO clips
+intersected, the card's rounded corners and the band itself. With only the
+first, a tall cover-fit image runs on down the card and paints over the
+objectives, which is exactly what the first attempt did.
+
+## 4qq. Four things device testing found
+
+**Empty tray space did nothing.** The tray band owned every tap below the drain,
+hit or miss, and returned. With a two-card loadout the hand well leaves wide
+empty gaps on both sides — and that is exactly where a thumb rests holding a
+phone — so a press there was swallowed and the flipper the player was reaching
+for never fired. On a real cabinet the whole lower side of the machine IS the
+flipper button, and an empty patch of tray behaves that way now. It cannot steal
+anything, because it only fires where no control was hit.
+
+That made `DRAW.pickTray` load-bearing in a way it had not been. Its hit rects
+are whatever the last DRAWN frame laid out, and an empty list used to mean
+"nothing here", which was harmless when a miss did nothing and wrong once a miss
+flips a flipper. It falls back to computing the cells fresh, so a tap in the
+first frames of a phase can never turn a card into a flip. Verified by tapping
+each cell type: left gap flips left, right gap flips right, both build piles
+still pick their tower, and a card is still a card.
+
+**NEXT WAVE ended the level.** On the final wave of a campaign level, calling
+the next wave in did not start anything: `endWave` treats the last wave
+finishing as the LEVEL finishing, so it handed out the clear with stragglers
+still on the table. Both a cheat and not what the button says. There is no next
+wave to bring forward, so the offer is simply withheld there. Full playthroughs
+of stages 2 and 5 confirm every earlier wave still offers it and the last offers
+it for 0.0 seconds. Endless is untouched, having no last wave.
+
+**The MEGABALL DISPLAY caption was covering text.** It reused the `.plate`
+class, which is the class for a readout PANEL — so a silkscreened bezel label
+quietly inherited that panel's 10px radius, its cyan inset ring and its 18px
+drop shadow. It became a little floating box that punched a notch out of the
+display's top edge and smeared over whatever sat above it, which is what showed
+up on the results sheet and in the deck. Its own class now, carrying only the
+properties a printed caption needs. The same mistake was in the home screen's
+hand-rolled display markup, so both were fixed.
+
+## 4rr. Proving the package actually plays
+
+`tools/verify.js` proves the built document is offline-clean, but it is a static
+check: it cannot tell whether the game a judge double-clicks still runs.
+`tools/check-submission.js` loads the built page from `file://` in headless
+Chrome over the DevTools protocol and drives it — boot, a campaign level from the mission card through eight
+towers to a cleared wave, an Endless run to a boss wave, and the results sheet —
+collecting `Runtime.exceptionThrown` and console errors throughout.
+
+It checks the things a screenshot cannot. Computed opacity on the results rows
+and star lamps, for instance, because that is where the `prefers-reduced-motion`
+bug in 4mm hid: an element parked at `opacity:0` and relying on its animation
+looks fine in a screenshot taken at the right moment and is invisible forever to
+a real user with motion reduced.
+
+It is dependency-free like the rest of `tools/` — Node 22+ has a global
+WebSocket, so there is nothing to install — and it exits non-zero when the page
+throws, so it can gate a release rather than merely inform one.
+
+Last run of the shipped package, 13/13 clean: boots with WebGL2 up, mission card
+with its art and three objectives, 8 towers and 33 kills to a cleared stage 3,
+NEXT WAVE withheld on the last wave for every frame of it, empty tray flipping
+left and right while the piles and the cards still do their own jobs, Endless to
+wave 9 with 12 balls and its boss wave escapable 78% of the time, peak shake 26
+with 2% of frames rotating, three verdict rows with nothing invisible, and zero
+page or console errors.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
 library to `dist/vendor/`, and writes `dist/megaball.zip` (index.html at the root plus
 `vendor/three.min.js`). `node tools/verify.js` proves no remote URLs, no network APIs, no
-modules, no remote fonts, only `vendor/` subresources, under 35 MB.
+modules, no remote fonts, only `vendor/` subresources, under 35 MB. `node
+tools/check-submission.js` then PLAYS the built file from `file://` and exits non-zero if it
+throws, so a release cannot ship on a static check alone — see 4rr.
 
 ## 6. Gallery screenshots
 
@@ -1193,31 +1281,6 @@ game's own Kenney Pixel face on a black DMD slab, and at most one ring with a la
 positioned from *source-shot* pixels through the crop mapping, not by eye. Speed lines
 and Ben-Day dots live only in the outer band so they never sit on the action.
 
-## 7. Trailer
-
-`video/` is a Remotion project (`npm install && npm run render`) that produces
-`docs/megaball-trailer.mp4`: 34 seconds, 1920x1080, 30 fps.
-
-**Footage is the real game, frame-accurate.** The trailer's six gameplay sections are JPEG
-frame sequences captured off the game's canvases at exactly 30 fps, the same way the
-gallery stills were taken but in a loop: `GAME.update(1/30)`, `DRAW.frame`, composite
-`#gl` over `#game`, POST the JPEG to a local frame server as `clips/<name>/0000.jpg`. A
-hook per clip drives the scene — towers dropping in every eleven frames then START, the
-Megaball card fired on frame 30, Flash Freeze on 35, Colossus ignited on 60. Frame N of a
-section shows frame N of its clip, so every burst and flash in the edit lands on the exact
-frame the game's own effect fires. 840 frames, 289 MB, gitignored.
-
-**Animation.** One `Section` component: the clip stands upright at 1000 px on a blurred,
-zoomed copy of itself; the headline slams in from the left on springs; a punch-in zoom
-targets the moment (the START button, the ignited ball, the boss); on the SFX frame there
-is a white flash, a screen shake that decays over ~7 frames, a Codex-drawn comic starburst
-(black background keyed to alpha) popping under Impact lettering, and Codex-drawn radial
-speed lines multiplied over the frame for a beat. Intro: the logo slams from 3.6x with a
-shake on the Codex title plate; outro: logo + "PLAY FREE IN YOUR BROWSER".
-
-**Music** is a 46-second ElevenLabs `music_v2` cue prompted as driving synthwave with a
-rise, a drop at eight seconds and a hard final stab, faded over the last 1.5 s.
-
-Fonts: Impact for the block lettering, the game's Kenney Pixel for sublines. The raw TTF
+Fonts: Impact for the block lettering, the game's Kenney Pixel for sublines (This is Opensource CC0). The raw TTF
 fails Chrome's OTS check, so the WOFF the game itself ships is loaded through `FontFace`
 behind `delayRender`.
