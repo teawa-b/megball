@@ -1,12 +1,16 @@
 /* Tiny zero-dependency static server for local playtesting only.
-   The shipped game does not need it — index.html runs straight from file://. */
+   Serves the repo root, so index.html here loads src/*.js and assets/* as
+   they sit in the tree, before tools/build.js folds them into dist/. */
 const http = require('http'), fs = require('fs'), path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 /* Port comes from the environment so several playtest sessions can run side
    by side; 5173 is only the fallback when nothing assigns one. */
 const PORT = Number(process.env.PORT) || 5173;
 const TYPES = { '.html':'text/html', '.js':'text/javascript', '.css':'text/css',
-  '.png':'image/png', '.webp':'image/webp', '.json':'application/json', '.md':'text/markdown' };
+  '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp', '.gif':'image/gif',
+  '.svg':'image/svg+xml', '.woff':'font/woff', '.woff2':'font/woff2', '.ttf':'font/ttf',
+  '.mp3':'audio/mpeg', '.ogg':'audio/ogg', '.wav':'audio/wav',
+  '.json':'application/json', '.md':'text/markdown' };
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]);
   if (p === '/') p = '/index.html';

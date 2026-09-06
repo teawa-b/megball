@@ -2,8 +2,8 @@
 /* MEGABALL — tools/check-submission.js
  *
  * tools/verify.js proves the built document is offline-clean, but it reads
- * the file: it cannot tell you whether the game a judge double-clicks still
- * runs. This does. It loads the built page from file:// in headless Chrome
+ * the file: it cannot tell you whether the game still runs when opened.
+ * This does. It loads the built page from file:// in headless Chrome
  * over the DevTools protocol and PLAYS it — boot, a campaign level from the
  * mission card through to a cleared wave, an Endless run out to a boss wave,
  * and the results sheet — while collecting every uncaught exception and
@@ -71,7 +71,6 @@ function getJSON(url) {
     '--disable-gpu',
     '--use-gl=swiftshader',
     '--enable-unsafe-swiftshader',
-    '--allow-file-access-from-files',
     '--mute-audio',
     '--window-size=420,900',
     '--remote-debugging-port=' + PORT,
@@ -136,11 +135,21 @@ function getJSON(url) {
     missing: ['GAME','DRAW','LEVELS','FX','UI','SFX','ART','SCENE3D','TUT','BOARD','ENT','CARDS']
       .filter(function(k){ return !window[k]; }),
     canvases: document.querySelectorAll('canvas').length,
-    webgl: !!(document.getElementById('gl') && document.getElementById('gl').getContext('webgl2'))
+    webgl: !!(document.getElementById('gl') && document.getElementById('gl').getContext('webgl2')),
+    artTotal: Object.keys(ART.manifest).length,
+    artBroken: Object.keys(ART.manifest).filter(function(k){ return !ART.get(k); }),
+    fonts: Array.from(document.fonts).map(function(f){ return f.family; })
   })`));
   expect('boots', !boot.missing.length && boot.canvases >= 2 && boot.webgl,
     boot.missing.length ? 'missing globals: ' + boot.missing.join(', ')
       : boot.canvases + ' canvases, WebGL2 ' + (boot.webgl ? 'up' : 'DOWN'));
+
+  /* Images and the font are separate files beside the document now, so their
+   * relative paths have to resolve from wherever the page was opened. */
+  expect('art loads from assets/', boot.artBroken.length === 0,
+    (boot.artTotal - boot.artBroken.length) + '/' + boot.artTotal + ' images decoded' +
+    (boot.artBroken.length ? ', broken: ' + boot.artBroken.join(', ') : '') +
+    '; faces: ' + (boot.fonts.join(', ') || 'none declared'));
 
   /* ---- a campaign level, played ------------------------------------- */
   const lvl = JSON.parse(await run(`(function(){

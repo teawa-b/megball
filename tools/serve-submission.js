@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /* MEGABALL — tools/serve-submission.js
  *
- * Serves ONLY the unzipped submission (dist/submission-test/), which is the
- * one thing a judge actually runs. tools/serve.js serves the repo root, so it
- * would hand out the source index.html and src/*.js instead of the built,
- * inlined document — a stale or broken build would still look fine there.
+ * Serves ONLY the unzipped package (dist/submission-test/), which is what a
+ * player actually runs. tools/serve.js serves the repo root, so it would hand
+ * out the source index.html and src/*.js instead of the built, inlined
+ * document — a stale or broken build would still look fine there.
  *
- * The competition's own instructions say not to test by opening index.html
- * from the filesystem: file:// can pass on a build that is still pulling from
- * the network, and can fail on a build that is perfectly fine. This exists so
- * the offline check runs over HTTP the way judging will.
+ * Opening index.html straight from the filesystem is a poor test: file:// can
+ * pass on a build that is still pulling from the network, and can fail on a
+ * build that is perfectly fine. This exists so the offline check runs over
+ * HTTP, the way the page is normally loaded.
  *
  * Usage:
  *   node tools/build.js

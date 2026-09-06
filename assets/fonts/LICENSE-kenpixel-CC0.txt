@@ -1,0 +1,9 @@
+Kenney Pixel ("kenpixel") — CC0 1.0 Universal (public domain)
+
+Author : Kenney (https://kenney.nl)
+License: CC0 1.0 — no rights reserved. Free to use, modify and redistribute
+         for any purpose, including commercially, with no attribution required.
+File   : kenpixel-CC0.woff
+Note   : Re-saved from Kenney's original TTF as WOFF with one out-of-range
+         cmap entry removed so browser OpenType sanitizers accept it. Glyphs
+         are unchanged.

@@ -1064,12 +1064,28 @@
   /* Swap the procedural print for the painted one the first time ART has it
    * decoded. ART loads after SCENE3D.init (index.html boots the renderer
    * first), so this is polled from render() until it succeeds. */
+  /* Can this image go into a texture? An image loaded from a file:// page
+   * taints any canvas it is drawn on, and WebGL refuses a tainted canvas.
+   * Draw one pixel and read it back: if that throws, the print stays
+   * procedural and nothing is logged. */
+  function textureSafe(img) {
+    try {
+      var c = document.createElement('canvas');
+      c.width = 1; c.height = 1;
+      var x = c.getContext('2d');
+      x.drawImage(img, 0, 0, 1, 1);
+      x.getImageData(0, 0, 1, 1);
+      return true;
+    } catch (e) { return false; }
+  }
+
   function applyFieldArt() {
     if (fieldArtApplied) return;
     var art = global.ART && global.ART.get ? global.ART.get('bg_table') : null;
     if (!art || !(art.complete || art.naturalWidth)) { if (!art) fieldArtApplied = true; return; }
     if (!art.naturalWidth && !art.width) return;
     fieldArtApplied = true;
+    if (!textureSafe(art)) return;
     var old = M.field.map;
     M.field.map = playfieldTexture(art);
     M.field.needsUpdate = true;

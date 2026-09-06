@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /* MEGABALL — tools/build.js
  *
- * Produces the competition submission package:
+ * Produces the distributable package:
  *
- *   dist/index.html    one self-contained, readable, dependency-free document
- *   dist/megaball.zip  that file, at the ROOT of the zip, nothing else
+ *   dist/index.html    the game document, with src/*.js spliced in
+ *   dist/vendor/*      third-party libraries, referenced by relative path
+ *   dist/assets/*      favicon, font and images, referenced by relative path
+ *   dist/megaball.zip  all of the above, index.html at the archive ROOT
  *
  * Zero dependencies (Node stdlib only) and deliberately NOT a minifier: the
- * competition asks for readable game code inside a root-level index.html, and
- * judges read it. All we do is splice each <script src="src/*.js"> into the
- * page verbatim, keeping load order and the original comment banners.
+ * output is meant to stay readable. All we do is splice each
+ * <script src="src/*.js"> into the page verbatim, keeping load order and the
+ * original comment banners.
  *
  * Usage:  node tools/build.js
  */
@@ -26,6 +28,11 @@ const OUT_HTML = path.join(DIST, 'index.html');
 const OUT_ZIP = path.join(DIST, 'megaball.zip');
 const ZIP_ENTRY_NAME = 'index.html';
 const SIZE_CAP = 35 * 1024 * 1024;
+
+/* Only these paths under assets/ are shipped. The folder also holds working
+ * material (assets/raw, assets/probe, ...) that must never reach the zip, so
+ * the list is explicit rather than a blanket recursive copy. */
+const ASSET_INCLUDE = ['favicon.svg', 'fonts', 'images'];
 
 /* ------------------------------------------------------------------ utils */
 
@@ -47,10 +54,10 @@ function escapeClosingTag(js) {
   return js.replace(/<\/(script)/gi, '<\\/$1');
 }
 
-/* Third-party libraries are NOT inlined. The competition rules ask for them
- * in a folder named `vendor` next to index.html, referenced by relative path,
- * and explicitly not embedded in the page. So src/vendor/x.js is copied to
- * dist/vendor/x.js and the tag is rewritten to point there. */
+/* Third-party libraries are NOT inlined. They ship in a folder named `vendor`
+ * next to index.html, referenced by relative path rather than embedded in the
+ * page. So src/vendor/x.js is copied to dist/vendor/x.js and the tag is
+ * rewritten to point there. */
 function inlineScripts(html) {
   const inlined = [];
   const vendored = [];
@@ -74,7 +81,7 @@ function inlineScripts(html) {
     const code = escapeClosingTag(fs.readFileSync(abs, 'utf8')).replace(/\s*$/, '');
     inlined.push({ src, bytes: Buffer.byteLength(code, 'utf8') });
 
-    /* Keep a marker so a judge reading dist/index.html can still tell where
+    /* Keep a marker so anyone reading dist/index.html can still tell where
      * each module came from in the source tree. */
     return '<!-- ' + src + ' -->\n<script>\n' + code + '\n</script>\n';
   });
@@ -82,7 +89,53 @@ function inlineScripts(html) {
   return { html: out, inlined, vendored };
 }
 
-/* ---------------------------------------------------------- 2. ZIP writer */
+/* ------------------------------------------------------- 2. static assets */
+
+/* Assets are referenced by relative path (assets/images/x.webp and friends),
+ * not embedded as data: URIs, so they have to travel next to index.html and
+ * inside the zip under the same relative names. */
+function walk(absDir, relDir, out) {
+  for (const name of fs.readdirSync(absDir).sort()) {
+    const abs = path.join(absDir, name);
+    const rel = relDir + '/' + name;
+    const st = fs.statSync(abs);
+    if (st.isDirectory()) walk(abs, rel, out);
+    else if (st.isFile()) out.push({ rel, abs, bytes: st.size });
+  }
+}
+
+function collectAssets() {
+  const base = path.join(ROOT, 'assets');
+  const out = [];
+  if (!fs.existsSync(base)) return out;
+  for (const entry of ASSET_INCLUDE) {
+    const abs = path.join(base, entry.split('/').join(path.sep));
+    if (!fs.existsSync(abs)) continue;
+    const st = fs.statSync(abs);
+    if (st.isDirectory()) walk(abs, 'assets/' + entry, out);
+    else out.push({ rel: 'assets/' + entry, abs, bytes: st.size });
+  }
+  return out;
+}
+
+/* Every assets/... path the built document actually asks for must be there.
+ * Only delimited paths count — quoted, or inside url() — so that prose in a
+ * comment (which mentions assets/raw/, working material that never ships)
+ * is not mistaken for a reference. A path with no file extension names a
+ * directory prefix built up in code and cannot be resolved here. */
+function referencedAssets(html) {
+  const seen = new Set();
+  const rx = /["'(](assets\/[A-Za-z0-9_.\/-]+)["')]/g;
+  let m;
+  while ((m = rx.exec(html)) !== null) {
+    const p = m[1];
+    const last = p.slice(p.lastIndexOf('/') + 1);
+    if (last.includes('.')) seen.add(p);
+  }
+  return Array.from(seen).sort();
+}
+
+/* ---------------------------------------------------------- 3. ZIP writer */
 
 const CRC_TABLE = (() => {
   const t = new Int32Array(256);
@@ -179,10 +232,11 @@ function makeZip(entries, when) {
   return Buffer.concat([Buffer.concat(chunks), cdBuf, eocd]);
 }
 
-/* ------------------------------------------- 3. ZIP reader (self-checking) */
+/* ------------------------------------------- 4. ZIP reader (self-checking) */
 
 /* Reads the archive back through the central directory — the same path a real
- * unzip tool takes — so a malformed header is caught here and not by a judge. */
+ * unzip tool takes — so a malformed header is caught here rather than by
+ * whoever opens the archive later. */
 function readZip(buf) {
   let eocd = -1;
   for (let i = buf.length - 22; i >= 0; i--) {
@@ -225,7 +279,7 @@ function readZip(buf) {
   return out;
 }
 
-/* ---------------------------------------------------------------- 4. main */
+/* ---------------------------------------------------------------- 5. main */
 
 function main() {
   if (!fs.existsSync(SRC_HTML)) fail('index.html not found at ' + SRC_HTML);
@@ -248,14 +302,32 @@ function main() {
     fs.writeFileSync(dest, v.data);
   }
 
+  const assets = collectAssets();
+  for (const a of assets) {
+    const dest = path.join(DIST, a.rel.split('/').join(path.sep));
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(a.abs, dest);
+    a.data = fs.readFileSync(dest);
+  }
+
+  /* A path in the page that has no file behind it is a broken build, and it
+   * fails silently at runtime as a missing image or an unstyled font. */
+  const refs = referencedAssets(html);
+  const missing = refs.filter(rel =>
+    !fs.existsSync(path.join(DIST, rel.split('/').join(path.sep))));
+  if (missing.length) {
+    fail('referenced but not present in dist/: ' + missing.join(', '));
+  }
+
   const htmlBuf = fs.readFileSync(OUT_HTML);
   const entries = [{ name: ZIP_ENTRY_NAME, data: htmlBuf }]
-    .concat(vendored.map(v => ({ name: v.rel, data: v.data })));
+    .concat(vendored.map(v => ({ name: v.rel, data: v.data })))
+    .concat(assets.map(a => ({ name: a.rel, data: a.data })));
   const zipBuf = makeZip(entries);
   fs.writeFileSync(OUT_ZIP, zipBuf);
 
-  /* Read the archive we just wrote back and byte-compare. A zip that does not
-   * round-trip is worse than no zip at all. */
+  /* Read the archive we just wrote back and check EVERY entry, by CRC and by
+   * byte compare. A zip that does not round-trip is worse than no zip at all. */
   let roundTrip = 'FAIL';
   try {
     const back = readZip(fs.readFileSync(OUT_ZIP));
@@ -263,6 +335,7 @@ function main() {
     if (back[0].name !== ZIP_ENTRY_NAME) throw new Error('entry is "' + back[0].name + '", not at zip root');
     for (let i = 0; i < entries.length; i++) {
       if (back[i].name !== entries[i].name) throw new Error('entry ' + i + ' is "' + back[i].name + '"');
+      if (crc32(back[i].data) !== crc32(entries[i].data)) throw new Error('CRC differs for ' + back[i].name);
       if (!back[i].data.equals(entries[i].data)) throw new Error('extracted bytes differ for ' + back[i].name);
     }
     roundTrip = 'OK';
@@ -284,12 +357,19 @@ function main() {
   for (const v of vendored) {
     console.log('  ' + v.rel.padEnd(20) + kb(v.bytes).padStart(12));
   }
+  const assetBytes = assets.reduce((n, a) => n + a.data.length, 0);
+  console.log('assets (copied)      : ' + assets.length + '  (' + kb(assetBytes) + ' total)');
+  for (const a of assets) {
+    console.log('  ' + a.rel.padEnd(28) + kb(a.data.length).padStart(12));
+  }
+  console.log('asset paths in page  : ' + refs.length + ' referenced, all present');
   console.log('--------------------------------------------------');
   console.log('dist/index.html      : ' + htmlBuf.length + ' bytes  (' + mb(htmlBuf.length) + ')');
   console.log('dist/megaball.zip    : ' + zipBuf.length + ' bytes  (' + mb(zipBuf.length) + ')');
   console.log('compression          : ' + (100 - (zipBuf.length / totalBytes) * 100).toFixed(1) + '%');
-  console.log('zip round-trip       : ' + roundTrip + ' (' + entries.length + ' entries, "' +
-              ZIP_ENTRY_NAME + '" at archive root' + (vendored.length ? ', libraries under vendor/' : '') + ')');
+  console.log('zip round-trip       : ' + roundTrip + ' (' + entries.length + ' entries verified, "' +
+              ZIP_ENTRY_NAME + '" at archive root' + (vendored.length ? ', libraries under vendor/' : '') +
+              (assets.length ? ', assets under assets/' : '') + ')');
   console.log('35 MB cap            : ' + (under ? 'PASS' : 'FAIL') +
               '  — ' + mb(SIZE_CAP - zipBuf.length) + ' headroom');
   console.log('--------------------------------------------------');

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /* MEGABALL — tools/verify.js
  *
- * Static compliance checker for the competition submission. Run it on the
- * built single-file document:
+ * Static compliance checker for the built package. Run it on the built
+ * document:
  *
  *   node tools/verify.js                 # checks dist/index.html
  *   node tools/verify.js path/to.html    # checks something else
@@ -10,8 +10,10 @@
  * Exits non-zero if any check fails, so it can gate a release.
  *
  * What this does and does NOT prove: it proves the shipped bytes contain no
- * remote references and no networking API calls. It cannot prove the game
- * boots — that is a manual file:// run (see docs/SUBMISSION.md).
+ * remote references and no networking API calls, and that every relative
+ * subresource the page names (vendor/... and assets/...) is present beside
+ * it. It cannot prove the game boots — that is a manual run over HTTP
+ * (see docs/SUBMISSION.md).
  */
 'use strict';
 
@@ -84,31 +86,54 @@ const moduleSyntax = scan(
 check('No import/export syntax, no type="module"', moduleSyntax,
       'The game must run from file://, where module loading is blocked.');
 
-/* --- 4. no remote fonts -------------------------------------------------- */
-const remoteFonts = scan(/@font-face[\s\S]{0,400}?url\s*\(\s*["']?(?!data:)[^)]*\)|fonts\.googleapis\.com|fonts\.gstatic\.com/g);
-check('No @font-face with a URL, no Google Fonts', remoteFonts,
-      'Typography is the system font stack only.');
+/* --- 4. fonts are local -------------------------------------------------
+ * The bundled face is loaded from assets/ by relative path. A url() with a
+ * scheme (http:, https:, //) or an absolute path would be fetched from
+ * somewhere other than the package, and is a failure. data: is still fine. */
+function offPackageUrl(u) {
+  const s = String(u).trim();
+  if (!s) return false;
+  if (/^data:/i.test(s)) return false;
+  if (s.startsWith('//') || s.startsWith('/')) return true;
+  return /^[a-z][a-z0-9+.-]*:/i.test(s);          // any scheme at all
+}
+const remoteFonts = scan(
+  /@font-face[\s\S]{0,400}?url\s*\(\s*["']?([^)"']*)["']?\s*\)|fonts\.googleapis\.com|fonts\.gstatic\.com/g,
+  (m) => (m[1] === undefined ? true : offPackageUrl(m[1])));
+check('No remote @font-face, no Google Fonts', remoteFonts,
+      'The face ships in assets/fonts/ and is loaded by relative path.');
 
 /* --- 5. self-contained document ------------------------------------------
- * Third-party libraries are the one allowed subresource: the competition asks
- * for them in a `vendor/` folder next to index.html, referenced by relative
- * path and NOT embedded. Any other <script src=> is a failure. */
+ * Two kinds of subresource are allowed, both relative and both travelling in
+ * the package: third-party libraries under vendor/, and the favicon, font and
+ * images under assets/. Anything with a scheme (http:, https:, //) or an
+ * absolute path is a failure, as is any other relative reference. */
 const external = scan(
-  /<script[^>]*\bsrc\s*=\s*["'](?!vendor\/)|<link[^>]*\brel\s*=\s*["']?stylesheet|<link[^>]*\bhref\s*=\s*["'](?!data:)|<img[^>]*\bsrc\s*=\s*["'](?!data:)|<(?:audio|video|source|iframe|embed|object)[^>]*\b(?:src|data)\s*=\s*["'](?!data:)|@import\s/gi);
-check('Self-contained document (only vendor/ scripts as subresources)', external);
+  /<script[^>]*\bsrc\s*=\s*["'](?!vendor\/|assets\/)|<link[^>]*\bhref\s*=\s*["'](?!data:|assets\/|vendor\/)|<img[^>]*\bsrc\s*=\s*["'](?!data:|assets\/)|<(?:audio|video|source|iframe|embed|object)[^>]*\b(?:src|data)\s*=\s*["'](?!data:|assets\/)|@import\s/gi);
+check('Self-contained document (only vendor/ and assets/ subresources)', external);
 
-/* --- 5b. every vendor script exists next to the document ----------------- */
-const vendorRefs = [];
+/* --- 5b. every vendor/ and assets/ path exists next to the document ------
+ * Attributes and CSS url() alike, plus the manifest strings in the inlined
+ * JS. Only delimited paths count — quoted, or inside url() — so prose in a
+ * comment is not read as a reference, and only paths that name a file are
+ * resolvable, so a directory prefix built up in code is skipped. */
+const localRefs = [];
 {
-  const rx = /<script[^>]*\bsrc\s*=\s*["'](vendor\/[^"']+)["']/gi;
+  const rx = /["'(]((?:vendor|assets)\/[A-Za-z0-9_.\/-]+)["')]/g;
   let m;
-  while ((m = rx.exec(text)) !== null) vendorRefs.push(m[1]);
+  while ((m = rx.exec(text)) !== null) {
+    const p = m[1];
+    const last = p.slice(p.lastIndexOf('/') + 1);
+    if (last.includes('.') && localRefs.indexOf(p) < 0) localRefs.push(p);
+  }
 }
-const missingVendor = vendorRefs
+const missingLocal = localRefs
   .filter((rel) => !fs.existsSync(path.join(path.dirname(target), rel.split('/').join(path.sep))))
   .map((rel) => ({ line: 0, text: 'missing file: ' + rel }));
-check('Vendor libraries present beside index.html (' + vendorRefs.length + ' referenced)', missingVendor,
-      vendorRefs.length ? vendorRefs.join(', ') : 'none referenced');
+check('Referenced files present beside index.html (' + localRefs.length + ' referenced)', missingLocal,
+      localRefs.length ? localRefs.slice(0, 8).join(', ') +
+        (localRefs.length > 8 ? ' … +' + (localRefs.length - 8) + ' more' : '')
+      : 'none referenced');
 
 /* --- 6. size cap --------------------------------------------------------- */
 const overCap = buf.length > SIZE_CAP
@@ -117,9 +142,10 @@ check('Under the 35 MB submission cap', overCap,
       (buf.length / 1048576).toFixed(2) + ' MB of 35.00 MB (' +
       ((buf.length / SIZE_CAP) * 100).toFixed(1) + '% used)');
 
-/* --- 7. asset budget (informational) -------------------------------------
- * assets.js builds its data URIs as PREFIX + '<base64>', so counting literal
- * "data:" strings undercounts the payload. Measure both. */
+/* --- 7. embedded payload (informational) ---------------------------------
+ * Assets now travel as separate files, so both of these counters should read
+ * at or near zero. They are kept because a data: URI or a large base64 blob
+ * creeping back into the document is worth seeing. */
 let dataUriCount = 0, dataUriBytes = 0;
 {
   const rx = /data:[a-z0-9.+-]+\/[a-z0-9.+-]+(?:;[a-z0-9-]+=[^;,]*)*(?:;base64)?,[A-Za-z0-9+/=%._~:-]*/gi;

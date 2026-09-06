@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 /* MEGABALL — tools/check-offline.js
  *
- * Tests the submission the way it will actually be judged, not by
- * double-clicking index.html. Double-clicking can pass a build that is still
- * pulling files off the internet (the machine running it has a connection)
- * and can fail a build that is perfectly fine (file:// blocks things a
- * server would allow). So:
+ * Tests the built package over HTTP, not by double-clicking index.html.
+ * Double-clicking can pass a build that is still pulling files off the
+ * internet (the machine running it has a connection) and can fail a build
+ * that is perfectly fine (file:// blocks things a server would allow). So:
  *
  *   1. unzip dist/megaball.zip into a clean empty folder
  *   2. serve that folder over a local HTTP server
@@ -57,7 +56,10 @@ const CANDIDATES = [
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp',
-  '.woff': 'font/woff', '.woff2': 'font/woff2', '.json': 'application/json'
+  '.gif': 'image/gif', '.svg': 'image/svg+xml',
+  '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav',
+  '.json': 'application/json'
 };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -244,7 +246,20 @@ function unzipTo(zipPath, dest) {
   expect('no missing art', boot.artBroken.length === 0,
     (boot.artTotal - boot.artBroken.length) + '/' + boot.artTotal + ' images decoded' +
     (boot.artBroken.length ? ', broken: ' + boot.artBroken.join(', ') : ''));
-  expect('font bundled', boot.fonts.length > 0, 'loaded faces: ' + (boot.fonts.join(', ') || 'NONE'));
+  /* The face is a real file in the archive now, so "a face is loaded" is not
+   * enough: the served log has to show the browser fetching it, and getting
+   * it, from the unzipped package. */
+  const fontHits = served.filter(s => /\/assets\/fonts\/kenpixel-CC0\.woff(\?|$)/i.test(s.url));
+  const fontOK = fontHits.length > 0 && fontHits.every(s => s.status === 200);
+  expect('font bundled', boot.fonts.length > 0 && fontOK,
+    'loaded faces: ' + (boot.fonts.join(', ') || 'NONE') + '; assets/fonts/kenpixel-CC0.woff ' +
+    (fontHits.length ? fontHits.map(s => s.status).join('/') : 'NEVER REQUESTED'));
+
+  const assetHits = served.filter(s => /^\/assets\//i.test(s.url));
+  expect('assets served from the package',
+    assetHits.length > 0 && assetHits.every(s => s.status === 200),
+    assetHits.length + ' requests under assets/, ' +
+    assetHits.filter(s => s.status !== 200).length + ' not found');
 
   const play = JSON.parse(await run(`(function(){
     document.getElementById('ui').style.display = 'none';
@@ -311,9 +326,12 @@ function unzipTo(zipPath, dest) {
   console.log('zip   : ' + ZIP);
   console.log('unzip : ' + serveDir);
   console.log('served: ' + origin + '  (DNS dead for every other host)');
-  console.log('files : ' + entries.map(e => e.name + ' (' + (e.bytes / 1024).toFixed(0) + ' KB)').join(', '));
+  console.log('files : ' + entries.length + ' entries, ' +
+    (entries.reduce((n, e) => n + e.bytes, 0) / 1024).toFixed(0) + ' KB unpacked');
+  console.log('        ' + entries.slice(0, 8).map(e => e.name + ' (' + (e.bytes / 1024).toFixed(0) + ' KB)').join(', ') +
+    (entries.length > 8 ? ', … +' + (entries.length - 8) + ' more' : ''));
   console.log('='.repeat(72));
-  Object.keys(report).forEach(k => console.log(report[k].slice(0, 6) + k.padEnd(24) + report[k].slice(6)));
+  Object.keys(report).forEach(k => console.log(report[k].slice(0, 6) + k.padEnd(30) + report[k].slice(6)));
   console.log('='.repeat(72));
   console.log(fail.length ? 'RESULT: FAIL — ' + fail.join(', ')
     : 'RESULT: PASS — ' + Object.keys(report).length + '/' + Object.keys(report).length + ' checks clean.');
