@@ -1266,6 +1266,58 @@ It fires once, ever: the flag is `prevStars === 0`, the star count from BEFORE
 this win, so replaying Stage 1 never repeats it. `tools/check-submission.js`
 plays Stage 1 twice from a blank save and asserts exactly that.
 
+## 4tt. Unminifying the library, and testing the way it will be judged
+
+The submission rules say "do not minify it @ part of the evaluation reads your
+code, so it has to be readable", and separately that libraries live in `vendor/`.
+Read strictly, the no-minify rule is scoped to the game code in index.html and a
+vendored library is exempt. But the wording is not airtight, the cost of settling
+it was 1.4 MB out of 33 MB of headroom, and an argument you have to make is worse
+than an argument you do not need.
+
+So three.js is now shipped unminified. r185 publishes no plain-script global
+build at all @ only ESM and CJS, neither of which loads from a `<script>` tag on
+file:// @ so `vendor/three.js` is an IIFE built from `three.module.js` with
+esbuild and minification OFF: 43,524 lines at 41 characters average, against the
+game's own 42. Verified before it was trusted: 441 exports, REVISION 185, and
+every one of the 40 THREE symbols the game actually references present.
+
+The bigger change is how the package is tested. `tools/check-submission.js`
+drives the built file over file://, which is useful but not how a judge runs it @
+and double-clicking index.html can pass a build that is still pulling files off
+the internet, because the machine running it has a connection.
+`tools/check-offline.js` does the real thing:
+
+  1. unzips `dist/megaball.zip` into a clean empty folder (with its own zip
+     reader, so the check proves the archive is readable while it is at it)
+  2. serves that folder over a local HTTP server that refuses to serve anything
+     outside it @ if the game reaches for a file that is not in the archive it
+     must 404, not quietly find it on the developer's disk
+  3. opens it in a fresh incognito profile with the cache disabled and cleared
+  4. kills the internet with `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE
+     127.0.0.1`, so every hostname except loopback fails to resolve. Stricter
+     than switching off wi-fi, and repeatable.
+  5. plays a full level in a portrait window
+  6. records every request and asserts all of them were local
+
+It reports not just "it survived offline" but "it never even asked". Three things
+failed the first run. Two were the harness's own fault: `document.fonts` is
+iterable but not array-like, so `Array.prototype.map.call` on it silently
+returned nothing and the font looked unbundled; and a failed load was reported as
+`net::ERR_ABORTED` with no URL, which says nothing about whether the game reached
+for something it should not have.
+
+The third was real, if small: the browser probes `/favicon.ico` on any served
+page, and the submission did not contain one, so a self-contained build served a
+404. An inline SVG data URI in the head now answers it in 596 bytes, so nothing
+is ever requested and the tab gets the megaball.
+
+Final run of the shipped zip, 12/12: boots served and offline with three.js r185
+and WebGL2 live, portrait, 14/14 images decoded, Ken Pixel loaded from the
+bundle, a full level cleared, a 285 KB frame (a black one is ~2 KB), 18 requests
+and every single one to localhost, nothing 404ing, nothing failing, no page or
+console errors.
+
 ## 5. Packaging
 
 `node tools/build.js` inlines the readable game modules into `dist/index.html`, copies the
@@ -1273,7 +1325,9 @@ library to `dist/vendor/`, and writes `dist/megaball.zip` (index.html at the roo
 `vendor/three.min.js`). `node tools/verify.js` proves no remote URLs, no network APIs, no
 modules, no remote fonts, only `vendor/` subresources, under 35 MB. `node
 tools/check-submission.js` then PLAYS the built file from `file://` and exits non-zero if it
-throws, so a release cannot ship on a static check alone — see 4rr.
+throws, and `node tools/check-offline.js` unzips the archive, serves it, cuts the
+browser off the internet and plays it in portrait — see 4rr and 4tt. A release
+does not ship on a static check alone.
 
 ## 6. Gallery screenshots
 
