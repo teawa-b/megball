@@ -591,6 +591,13 @@
     '  box-shadow:inset 0 0 0 1px rgba(255,210,74,.55),0 0 18px rgba(255,210,74,.2);font:11px/1.3 ' + PX + ';letter-spacing:.06em;color:#ffd24a;text-align:left;text-transform:uppercase;flex:0 0 auto;}',
     '#ui .unlock::before{content:"";position:static;inset:auto;z-index:auto;clip-path:none;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#ffd24a;box-shadow:0 0 8px #ffd24a;}',
     '#ui .unlock.good{box-shadow:inset 0 0 0 1px rgba(125,240,166,.55),0 0 18px rgba(125,240,166,.2);color:#7df0a6;}#ui .unlock.good::before{background:#7df0a6;box-shadow:0 0 8px #7df0a6;}',
+    /* A whole MODE opening is not the same event as a card unlocking, so it
+       takes Endless's own magenta and carries a second line saying where to
+       go and play it — a notice the player cannot act on is a dead end. */
+    '#ui .unlock.mode{box-shadow:inset 0 0 0 1px rgba(255,46,136,.55),0 0 18px rgba(255,46,136,.22);color:#ff9ed0;}',
+    '#ui .unlock.mode::before{background:#ff2e88;box-shadow:0 0 8px #ff2e88;}',
+    '#ui .unlock .u2{display:block;margin-top:4px;font-size:9px;letter-spacing:.09em;color:rgba(255,255,255,.5);}',
+    '#ui .unlock.deal{animation:rowIn .45s cubic-bezier(.2,.8,.2,1) both;}',
     /* Unlock plate over the title (Endless). Dark glass, then a gold-edged
      * pixel-cut card carrying the same lamps, display and cabinet button the
      * rest of the backglass uses. */
@@ -1683,8 +1690,18 @@
       lamps += '<i class="' + (i < d.stars ? 'on' : '') + '" style="animation-delay:' + (0.25 + i * 0.24) + 's"></i>';
     }
     var unl = '';
+    /* The mode leads: it is the bigger thing that just happened, and the
+       card unlocks under it read as the rest of the haul. */
+    if (d.endlessNew) {
+      unl += '<div class="unlock mode deal" style="animation-delay:1.05s">' +
+        '<span>Endless mode unlocked' +
+        '<span class="u2">Survive endless waves · play it from the home screen</span>' +
+        '</span></div>';
+    }
     for (var u = 0; u < d.unlocks.length; u++) {
-      unl += '<div class="unlock">Unlocked · ' + d.unlocks[u].label + '</div>';
+      unl += '<div class="unlock deal" style="animation-delay:' +
+        (1.05 + (d.endlessNew ? 0.14 : 0) + u * 0.14) + 's">Unlocked · ' +
+        d.unlocks[u].label + '</div>';
     }
 
     /* Go on through the Deck rather than straight into the next level when

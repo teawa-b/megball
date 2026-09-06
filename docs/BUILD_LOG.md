@@ -1236,13 +1236,35 @@ It is dependency-free like the rest of `tools/` — Node 22+ has a global
 WebSocket, so there is nothing to install — and it exits non-zero when the page
 throws, so it can gate a release rather than merely inform one.
 
-Last run of the shipped package, 13/13 clean: boots with WebGL2 up, mission card
+Last run of the shipped package, 14/14 clean: boots with WebGL2 up, mission card
 with its art and three objectives, 8 towers and 33 kills to a cleared stage 3,
 NEXT WAVE withheld on the last wave for every frame of it, empty tray flipping
 left and right while the piles and the cards still do their own jobs, Endless to
 wave 9 with 12 balls and its boss wave escapable 78% of the time, peak shake 26
 with 2% of frames rotating, three verdict rows with nothing invisible, and zero
 page or console errors.
+
+## 4ss. Telling the player Endless exists at the moment they earn it
+
+Endless opens the moment Stage 1 is cleared, and the only place that ever said
+so was the home screen. But clearing Stage 1 routes the player results -> deck
+-> Stage 2, so they can go a long way through the campaign without ever passing
+the one screen that mentions the mode they already own.
+
+The reward is now announced where it is earned: a plate on the Stage 1 results
+sheet, in the same unlock language a card unlock uses, but in Endless's own
+magenta rather than the card amber — a whole mode opening is not the same event
+as a card arriving. It carries a second line saying where to go and play it,
+because a notice the player cannot act on is a dead end.
+
+Deliberately not a modal. The results sheet is a reward screen the player is
+already reading, and the fuller invitation — the plate over the title with the
+display, the lamps and a button straight into the mode — still waits for them at
+the home screen. Announce at the earn, invite at the machine.
+
+It fires once, ever: the flag is `prevStars === 0`, the star count from BEFORE
+this win, so replaying Stage 1 never repeats it. `tools/check-submission.js`
+plays Stage 1 twice from a blank save and asserts exactly that.
 
 ## 5. Packaging
 

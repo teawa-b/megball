@@ -825,10 +825,17 @@
 
     sfx('win');
     var s = global.SFX; if (s) { s.music('menu'); s.lowpass(0); }
+    /* Endless opens the moment Stage 1 is cleared, but the only place that
+     * ever said so was the home screen — and after Stage 1 the player is
+     * routed results -> deck -> Stage 2, so they can go a long way without
+     * passing it. The reward is announced where it is earned. `prev` is the
+     * star count BEFORE this win, so a replay never says it twice. */
+    var endlessNew = S.level.id === 1 && prev === 0 && stars > 0;
+
     if (global.UI) {
       global.UI.showScreen('results', {
         win: true, level: S.level, stars: stars, prevStars: prev,
-        objectives: objectives,
+        objectives: objectives, endlessNew: endlessNew,
         lives: S.lives, livesMax: S.livesMax, kills: S.totalKills,
         earned: S.earned, leaks: S.leaks, unlocks: newUnlocks, bestChain: S.bestChain,
         totalStars: after, hasNext: !!LEVELS.byId(S.level.id + 1)

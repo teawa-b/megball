@@ -226,6 +226,50 @@ function getJSON(url) {
     tray.bumper.pick === 'bumper' && tray.card && !tray.card.L && !tray.card.R,
     'piles pick their tower, a card is still a card');
 
+  /* ---- clearing stage 1 announces Endless, once ----------------------- */
+  const unlock = JSON.parse(await run(`(function(){
+    var seen = [], realShow = UI.showScreen;
+    UI.showScreen = function(name, d){
+      if (name === 'results') seen.push({ prev: d.prevStars, isNew: !!d.endlessNew });
+      return realShow.apply(UI, arguments);
+    };
+    function play(){
+      document.getElementById('ui').style.display = 'none';
+      GAME.startLevel(1, ['megaball']);
+      var S = GAME.state, DT = 1/60;
+      if (S.pendingTutorial) GAME.endTutorial(true);
+      if (S.notice) GAME.noticeAction('ok');
+      S.energy = 9999;
+      var want = ['bumper','paddle','bumper','paddle','bumper','paddle'], p = 0;
+      for (var k = 0; k < S.table.slots.length && p < 6; k++) { var sl = S.table.slots[k];
+        if (sl.occupant) continue; S.buildPick = want[p]; if (GAME.placeAt(sl)) p++; }
+      function flip(){ var L = false, R = false;
+        for (var b = 0; b < S.balls.length; b++) { var q = S.balls[b];
+          if (q.dead) continue;
+          if (q.y > 1060 && q.vy > 0) { if (q.x < 360) L = true; else R = true; } }
+        GAME.setFlipper('L', L); GAME.setFlipper('R', R); }
+      for (var i = 0; i < 60 * 400; i++) {
+        if (S.lives < 3) S.lives = 3;
+        S.energy = 9999;
+        if (S.mode === 'build' && S.buildT > 0.3) S.buildT = 0.2;
+        if (S.notice) GAME.noticeAction(S.notice.buttons[0].id);
+        flip(); GAME.update(DT);
+        if (S.mode === 'won' || S.mode === 'lost') break;
+      }
+      return S.mode;
+    }
+    GAME.progress.stars = {};
+    GAME.progress.tutorialDone = true;
+    GAME.progress.tutorialV = (window.TUT && TUT.VERSION) || 6;
+    GAME.saveProgress();
+    var a = play(), b = play();
+    UI.showScreen = realShow;
+    return JSON.stringify({ first: a, second: b, seen: seen });
+  })()`));
+  expect('endless announced once',
+    unlock.seen.length === 2 && unlock.seen[0].isNew === true && unlock.seen[1].isNew === false,
+    unlock.seen.map(function (r) { return 'prev ' + r.prev + ' -> ' + r.isNew; }).join(', '));
+
   /* ---- Endless, out to a boss wave ----------------------------------- */
   const end = JSON.parse(await run(`(function(){
     GAME.progress.endlessTutAsked = true;
