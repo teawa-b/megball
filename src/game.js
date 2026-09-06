@@ -645,6 +645,12 @@
   GAME.canEndWaveEarly = function () {
     if (!S.level || S.mode !== 'wave') return false;
     if (S.inspect || S.notice || S.selectedTower || S.buildPick) return false;
+    /* Never on the final wave. endWave() treats the last wave finishing as
+     * the LEVEL finishing, so calling it in there did not start anything —
+     * it handed out the clear, stragglers and all, which is both a cheat
+     * and not what the button says. There is no next wave to bring
+     * forward, so there is nothing to offer. */
+    if (!S.level.endless && S.waveIndex + 1 >= S.level.waves.length) return false;
     var t = GAME.waveTail();
     if (!t || t.unspawned > 0) return false;
     if (t.alive <= 0) return false;
@@ -2408,17 +2414,30 @@
       }
     }
 
-    /* 1. Tray (cards + build bar) owns everything below the drain. */
+    /* 1. Tray (cards + build bar) owns everything below the drain — but
+     * only where there is actually a control. A hand holding a phone rests
+     * exactly here, and a loadout of two cards leaves wide empty gaps on
+     * both sides of the hand well; a thumb landing in one of those did
+     * nothing at all, so the flipper the player was reaching for never
+     * fired. On a real cabinet the whole lower side of the machine IS the
+     * flipper button. An empty patch of tray now behaves that way: it can
+     * never steal a tap, because it only fires where nothing was hit. */
     if (p.y >= U.BAND.trayTop) {
-      pointers[id].role = 'ui';
       var h = global.DRAW && global.DRAW.pickTray ? global.DRAW.pickTray(p.x, p.y) : null;
       if (h && h.kind === 'card') {
         /* Deferred until release: a tap fires the card, a hold opens it. */
+        pointers[id].role = 'ui';
         pointers[id].hold = h;
         pointers[id].holdT = 0;
-      } else if (h) {
-        global.DRAW.applyTray(h);
+        return;
       }
+      if (h) {
+        pointers[id].role = 'ui';
+        global.DRAW.applyTray(h);
+        return;
+      }
+      pointers[id].role = p.x < U.VW / 2 ? 'L' : 'R';
+      setFlipper(pointers[id].role, true);
       return;
     }
 

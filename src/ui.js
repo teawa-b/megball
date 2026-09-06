@@ -302,7 +302,15 @@
     '#ui .sheet.home.boot .dmd{animation:dmdOn .5s ease-out .35s both;}',
     '@keyframes dmdOn{from{opacity:0}to{opacity:1}}',
     '#ui .dmd canvas{display:block;width:100%;height:auto;aspect-ratio:4/1;}',
-    '#ui .dmd .plate{position:absolute;right:10px;top:-6px;padding:0 5px;background:#05060d;font:8px/10px ' + PX + ';color:rgba(143,232,255,.55);letter-spacing:.14em;text-transform:uppercase;}',
+    /* The bezel caption. It used to reuse .plate, which is the class for a
+       READOUT PANEL - so it quietly inherited that panel's 10px radius,
+       cyan inset ring and 18px drop shadow, and a silkscreened label
+       became a little floating box that smeared over whatever sat above
+       the display. Its own class now, with only the properties a printed
+       caption needs. */
+    '#ui .dmd .silk{position:absolute;right:10px;top:-6px;padding:0 5px;background:#05060d;',
+    '  border-radius:0;box-shadow:none;font:8px/10px ' + PX + ';color:rgba(143,232,255,.55);',
+    '  letter-spacing:.14em;text-transform:uppercase;pointer-events:none;}',
     '#ui .dmd .screw{position:absolute;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:#1c2740;box-shadow:inset 0 0 0 1px rgba(143,232,255,.35);}',
     '#ui .dmd .screw.l{left:2px;}#ui .dmd .screw.r{right:2px;}',
     /* Controls: the cabinet START button beside a scorecard of modes. */
@@ -1008,7 +1016,7 @@
   /* Markup for a display, and the call that lights it. */
   function dmdBox(id) {
     return '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span>' +
-      '<canvas id="' + id + '"></canvas><span class="plate">Megaball display</span></div>';
+      '<canvas id="' + id + '"></canvas><span class="silk">Megaball display</span></div>';
   }
   function dmdRun(sheet, id, msgs, quick) {
     var cv = sheet.querySelector('#' + id);
@@ -1084,7 +1092,7 @@
         : '<h1>MEGA<br>BALL</h1>',
       '<div class="spacer mid"></div>',
       '<div class="lamprail" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>',
-      '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="plate">Megaball display</span></div>',
+      '<div class="dmd" aria-hidden="true"><span class="screw l"></span><span class="screw r"></span><canvas id="dmd"></canvas><span class="silk">Megaball display</span></div>',
       /* ENDLESS is the headline. It is the mode with no ceiling, the one the
        * record chases, and the one a returning player comes back for — the
        * campaign is five stages long and is finished once. The round cabinet

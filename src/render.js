@@ -3517,9 +3517,19 @@
   DRAW.pickTray = function (x, y) {
     /* Taps arrive in board space; the hit rects live in tray space. */
     var lx = x / TX.s, ly = TRAY_TOP + (y - TX.top) / TX.s;
+    /* Normally these are whatever the last drawn frame laid out, so the
+     * hand's overlap order is respected. If nothing has been drawn yet — a
+     * tap in the first frames of a phase — compute the cells fresh rather
+     * than reporting an empty tray: a miss now means "flip the flipper",
+     * so an empty list would turn a tap on a card into a flip. */
+    var hits = trayHits;
+    if (!hits.length) {
+      var S = global.GAME && global.GAME.state;
+      hits = S && S.cards ? trayCells(S) : [];
+    }
     /* Cards overlap in the fan; the later one is drawn on top, so it wins. */
-    for (var i = trayHits.length - 1; i >= 0; i--) {
-      if (inRect(lx, ly, trayHits[i])) return trayHits[i];
+    for (var i = hits.length - 1; i >= 0; i--) {
+      if (inRect(lx, ly, hits[i])) return hits[i];
     }
     return null;
   };
