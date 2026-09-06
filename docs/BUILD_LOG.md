@@ -1360,3 +1360,55 @@ and Ben-Day dots live only in the outer band so they never sit on the action.
 Fonts: Impact for the block lettering, the game's Kenney Pixel for sublines (This is Opensource CC0). The raw TTF
 fails Chrome's OTS check, so the WOFF the game itself ships is loaded through `FontFace`
 behind `delayRender`.
+
+## 7. Assets as files, and the tainted-canvas bug that hid behind a flag
+
+Everything the game drew was still living inside `index.html`: fourteen WebP
+images, the Kenney Pixel WOFF and the favicon SVG, all base64 data URIs. That
+satisfied "everything is in the zip", but the packaging line is "included in
+the .zip **and referenced with relative paths**", and a data URI is not a
+relative path. It also made the document 1.4 MB, half of it encoded bytes,
+which is the opposite of the readable source the packaging is supposed to
+hand over. So the assets came out into real files.
+
+- `assets/images/*.webp` (14), `assets/fonts/kenpixel-CC0.woff` and
+  `assets/favicon.svg`. `src/assets.js` went from 713 KB of base64 to a 2.5 KB
+  manifest of paths; `ART.load` / `ART.get` / `ART.ready` did not change, so
+  nothing that consumes art knows the difference. `src/fonts.js` swapped its
+  embedded face for a plain `@font-face` url. The built document dropped to
+  0.69 MB and now contains zero `data:` URIs.
+- The font file is named for its licence — `kenpixel-CC0.woff` — with the CC0
+  text in `assets/fonts/LICENSE-kenpixel-CC0.txt` beside it, so the provenance
+  of the one third-party asset is legible from the file listing alone. The
+  hyphen is deliberate: spaces and parentheses in a URL need escaping in CSS
+  and some zip tools mangle them.
+- `tools/build.js` copies the three asset folders into `dist/` and the archive
+  (explicitly, not a blanket copy of `assets/`, which would have shipped the
+  16 MB of working PNGs in `assets/raw/`), and now FAILS the build if a path
+  referenced in the built page is missing from `dist/`. `tools/verify.js`
+  accepts `assets/` and `vendor/` subresources, still rejects anything
+  carrying a scheme or an absolute path, and checks every referenced file
+  exists on disk. Both browser harnesses assert the font and all fourteen
+  images were actually requested and answered, rather than merely declared.
+
+**The bug this uncovered.** `tools/check-submission.js` had always launched
+Chrome with `--allow-file-access-from-files`. With data URIs that flag changed
+nothing, so it was harmless. With real files it was hiding a genuine failure:
+an image loaded from disk taints any canvas it is drawn on, and WebGL refuses
+to upload a tainted canvas. Opened by double-clicking `index.html`, the
+painted playfield print threw `SecurityError: Tainted canvases may not be
+loaded` on every attempt. The game still played — fourteen of fifteen checks
+passed, a full level and an Endless run included — but it screamed into the
+console the whole time, and only because the harness was lying did it look
+clean. `SCENE3D` now probes once, by drawing one pixel and reading it back,
+and keeps the procedural print if the read throws. No error, no retry, no
+difference to anything but the table's surface texture. The flag is gone from
+the harness, so what it tests is what someone double-clicking the file gets.
+
+Final archive: `index.html` at the root, `vendor/three.js` unminified beside
+it, and `assets/` holding the images, the font with its licence, and the
+favicon. Re-ran everything after the change — `verify.js` 7/7,
+`check-submission.js` 15/15 from `file://` with no console errors, and
+`check-offline.js` 13/13 against the unzipped archive served with the
+browser's DNS pointed at nothing: 17 assets answered 200, nothing 404'd,
+every request to localhost.
