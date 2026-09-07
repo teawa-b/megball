@@ -1412,3 +1412,30 @@ favicon. Re-ran everything after the change — `verify.js` 7/7,
 `check-offline.js` 13/13 against the unzipped archive served with the
 browser's DNS pointed at nothing: 17 assets answered 200, nothing 404'd,
 every request to localhost.
+
+## Repack — opening guide marker moved (2026-09-07)
+
+A first-time player reaching Stage 1 with an empty board is shown one marked
+slot to place their first defense in. `GAME.guideSlot()` picks the free slot
+nearest a fixed point, and that point was the middle of the build field
+(`360, 630`) on the reasoning that mid-field meets every lane. Watching it in
+play, the marker lands beside the demo ball where a new player has no way to
+see the defense do anything — it fires at whatever the rows above already
+handled. The point is now `(616, 870)`: the rightmost slot on the bottom
+lattice row, the last row before the flippers, where a first defense visibly
+catches what everything above it let through. Still nearest-FREE, so on a
+table that blocks that slot the marker falls back to the closest neighbour
+rather than disappearing.
+
+**The trap this session fell into.** The change was verified on
+`tools/serve.js` (port 5173, which serves `src/` live) while the game being
+looked at was `tools/serve-submission.js` (port 5174, which serves ONLY
+`dist/submission-test/`, the unzipped archive). The source was correct and the
+screen was unchanged, twice over: `dist/index.html` was stale until
+`build.js` ran, and `dist/submission-test/` stayed stale after that, because
+nothing re-extracts the zip. A `src/` edit is not visible on 5174 until the
+build runs AND the archive is unpacked over that folder again.
+
+Repacked and re-ran the three harnesses against the new archive: `verify.js`
+7/7, `check-submission.js` 15/15, `check-offline.js` 13/13. Archive unchanged
+in shape — 19 entries, 1.01 MB, `index.html` at the root.

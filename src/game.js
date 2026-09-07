@@ -568,17 +568,19 @@
       !S.pendingTutorial;
   };
 
-  /* Where to point a first-time player. The middle of the build field is the
-   * honest answer: it is where the scatter posts funnel traffic, so a defense
-   * there meets every lane. Nearest FREE slot to that point, so the marker
-   * can never land on an occupied one. */
+  /* Where to point a first-time player. The bottom of the build field, out on
+   * the right: it is the last lattice row before the flippers, so a defense
+   * there catches what everything above it let through, and a first-timer
+   * sees it work immediately instead of watching a mid-field bumper miss.
+   * Nearest FREE slot to that point, so the marker can never land on an
+   * occupied one. */
   GAME.guideSlot = function () {
     if (!(GAME.mustBuild() || (S.firstBuild && S.mode === 'build')) || !S.table) return null;
     var best = null, bd = 1e9;
     for (var i = 0; i < S.table.slots.length; i++) {
       var sl = S.table.slots[i];
       if (sl.occupant) continue;
-      var d = U.dist2(sl.x, sl.y, 360, 630);
+      var d = U.dist2(sl.x, sl.y, 616, 870);
       if (d < bd) { bd = d; best = sl; }
     }
     return best;
