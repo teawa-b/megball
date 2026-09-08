@@ -603,6 +603,7 @@
       T.demoT = 0;
       T.clearT = 0;
       T.pressT = 0;
+      T.padHold = false;
       T.side = T.paddle.dir > 0 ? 'L' : 'R';
     },
     update: function () {
@@ -618,6 +619,7 @@
         return;
       }
       if (!T.lit) {
+        holdPaddleSwing();
         if (b && !b.dead && b.empowerT > 0) { T.lit = true; T.demoT = 0; spawnCrowd(b); return; }
         /* Missed, drained or wedged: try again rather than strand the player. */
         if (!b || b.dead || T.demoT > 5) {
@@ -701,6 +703,39 @@
     slow(0.3, 0.6);
     zoom(1.5, null, b);
     floatText(b.x, b.y - 70, 'INTO THE CROWD', C.power, 30);
+  }
+
+  /* Hold the paddle's swing until the ball is nearly on it.
+   *
+   * An auto paddle triggers the moment a ball crosses its range — 102 units
+   * for the Power Paddle — and leads it by 0.07s so it meets a fast ball
+   * square. Mid-wave that is right. Here it is wrong: the lesson drops this
+   * ball slowly from 150 above, so it crossed the range boundary while still
+   * 113 units up the table. The arm snapped out, peaked, and was already
+   * halfway through its slow reset by the time the ball arrived — so the
+   * ball lit on the RESET stroke, at 55% force with none of the arm's
+   * velocity behind it. What the player watched was a paddle swinging at
+   * nothing and then nudging the ball on the way back down.
+   *
+   * So the arm is pinned on cooldown until the ball's position at full
+   * extension (0.095s away, the snap-out part of the cycle) is inside
+   * striking distance, then released. Swing and arrival become one beat.
+   * The paddle's own trigger still does the work — this only decides when
+   * it is allowed to look, and only for this one demonstration. */
+  var STRIKE = 62;
+
+  function holdPaddleSwing() {
+    var t = T.paddle, b = T.ball;
+    if (!t || !b || b.dead) return;
+    if (t.swingT > 0) { T.padHold = false; return; }
+    var px = b.x + b.vx * 0.095, py = b.y + b.vy * 0.095;
+    if (U.dist2(px, py, t.x, t.y) > STRIKE * STRIKE) {
+      t.cd = Math.max(t.cd, 0.2);
+      T.padHold = true;
+    } else if (T.padHold) {
+      t.cd = 0;
+      T.padHold = false;
+    }
   }
 
   function dropPaddleBall() {
@@ -881,7 +916,7 @@
       msg: null, pointer: null, pointer2: null, spot: null, spotTray: null,
       ball: null, tower: null, paddle: null, slot: null, misses: 0, flag: false, wait: 0,
       lit: false, parked: false, flipped: false, tries: 0, demoT: 0, clearT: 0, pressT: 0, wrongT: 0, side: 'L',
-      time: 0, flipCue: false, zones: false,
+      time: 0, flipCue: false, zones: false, padHold: false,
       stuckT: 0, sampleT: 0, lastX: 0, lastY: 0
     };
     cam.zoom = 1; cam.fx = cam.ax = PIV_X; cam.fy = cam.ay = PIV_Y;
